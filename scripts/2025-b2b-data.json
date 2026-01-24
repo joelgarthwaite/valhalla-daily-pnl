@@ -1,0 +1,15 @@
+{
+  "brand_code": "DC",
+  "customer_name": "Weekly B2B Sales",
+  "entries": [
+    { "year": 2025, "week": 15, "subtotal": 630, "notes": "Week 15 (Apr 7-13) B2B sales" },
+    { "year": 2025, "week": 16, "subtotal": 1614, "notes": "Week 16 (Apr 14-20) B2B sales" },
+    { "year": 2025, "week": 32, "subtotal": 1694, "notes": "Week 32 (Aug 4-10) B2B sales" },
+    { "year": 2025, "week": 35, "subtotal": 1664, "notes": "Week 35 (Aug 25-31) B2B sales" },
+    { "year": 2025, "week": 41, "subtotal": 1497, "notes": "Week 41 (Oct 6-12) B2B sales" },
+    { "year": 2025, "week": 42, "subtotal": 377, "notes": "Week 42 (Oct 13-19) B2B sales" },
+    { "year": 2025, "week": 46, "subtotal": 194, "notes": "Week 46 (Nov 10-16) B2B sales" },
+    { "year": 2025, "week": 50, "subtotal": 2275, "notes": "Week 50 (Dec 8-14) B2B sales" },
+    { "year": 2025, "week": 51, "subtotal": 956, "notes": "Week 51 (Dec 15-21) B2B sales" }
+  ]
+}

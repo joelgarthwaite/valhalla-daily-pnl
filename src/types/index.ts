@@ -307,6 +307,13 @@ export type BrandFilter = 'all' | 'DC' | 'BI';
 
 export type PeriodType = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
+export type DateSelectionMode = 'single' | 'range' | 'week';
+
+export interface WeekSelection {
+  year: number;
+  week: number; // 1-52 (ISO week number)
+}
+
 export interface PnLFilters {
   brandFilter: BrandFilter;
   dateRange: DateRange;
@@ -585,4 +592,35 @@ export interface PaginatedResponse<T> {
   page: number;
   pageSize: number;
   hasMore: boolean;
+}
+
+// ============================================
+// Reconciliation Types
+// ============================================
+
+export interface ReconciliationRevenueBreakdown {
+  shopify: number;
+  etsy: number;
+  b2b: number;
+  total: number;
+}
+
+export interface ReconciliationRow {
+  week: string; // "Week 1 (2025)"
+  weekNumber: number;
+  year: number;
+  startDate: string;
+  endDate: string;
+  expected: ReconciliationRevenueBreakdown;
+  actual: ReconciliationRevenueBreakdown;
+  variance: ReconciliationRevenueBreakdown;
+  variancePct: ReconciliationRevenueBreakdown;
+  hasDiscrepancy: boolean;
+}
+
+export interface B2BImportEntry {
+  year: number;
+  week: number;
+  subtotal: number;
+  notes?: string;
 }

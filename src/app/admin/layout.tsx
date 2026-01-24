@@ -10,6 +10,7 @@ import {
   Tag,
   Calendar,
   ChevronLeft,
+  Scale,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,12 @@ const adminNavItems = [
     href: '/admin/events',
     icon: Calendar,
     description: 'Track important dates and events',
+  },
+  {
+    label: 'Reconciliation',
+    href: '/admin/reconciliation',
+    icon: Scale,
+    description: 'Compare revenue vs spreadsheet',
   },
 ];
 
