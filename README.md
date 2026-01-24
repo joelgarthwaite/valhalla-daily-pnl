@@ -1,36 +1,159 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Valhalla Daily P&L Dashboard
+
+A Lifetimely-style Daily P&L Dashboard for Display Champ and Bright Ivy, built on the existing Valhalla Dashboard infrastructure.
+
+## Tech Stack
+
+- **Frontend:** Next.js 16 + React 19
+- **Styling:** Tailwind CSS + shadcn/ui
+- **Charts:** Recharts
+- **Database:** Supabase (shared with Valhalla Dashboard)
+- **Auth:** Supabase Auth
+- **Deployment:** Vercel (separate project from Valhalla)
+
+## Features
+
+### Dashboard
+- KPI cards with change tracking (Revenue, Orders, Margins, Profit)
+- Revenue trend chart with optional YoY comparison
+- P&L waterfall chart
+- ROAS by channel chart
+- Quarterly target gauge with progress tracking
+- Detailed P&L table with expandable rows
+- Filter by brand, date range, and period type (daily/weekly/monthly/quarterly/yearly)
+
+### Admin Pages
+- **Ad Spend:** Manual entry for Meta, Google, Microsoft, and Etsy Ads
+- **B2B Revenue:** Track direct sales and bank transfers
+- **Quarterly Goals:** Set revenue and margin targets
+- **Promotions:** Manage discounts and promotional campaigns
+- **Calendar Events:** Track holidays, golf tournaments, and key dates
+
+### Export
+- Excel export with summary and detailed P&L data
+- PDF export with formatted report
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Supabase project (uses existing Valhalla database)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Configure environment variables:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+   Update `.env.local` with your Supabase credentials:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://pbfaoshmaogrsgatfojs.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+   ```
+
+4. Run the database migration:
+   ```bash
+   # Apply the migration to your Supabase database
+   # See supabase/migrations/002_pnl_schema.sql
+   ```
+
+5. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+6. Open [http://localhost:3000](http://localhost:3000)
+
+## Database Schema
+
+The P&L dashboard adds these tables to the existing Valhalla database:
+
+- `ad_spend` - Manual ad spend tracking
+- `b2b_revenue` - B2B sales records
+- `quarterly_goals` - Revenue and margin targets
+- `promotions` - Discount and promotion tracking
+- `calendar_events` - Important dates calendar
+- `pnl_notes` - Daily notes and annotations
+- `user_roles` - Role-based access control
+- `daily_pnl` - Pre-aggregated P&L data for performance
+
+## P&L Calculations
+
+### Revenue
+```
+Gross Revenue = Shopify + Etsy + B2B
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### COGS (Blended)
+```
+COGS = Gross Revenue × 0.30 (for 70% gross margin target)
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Margins
+```
+Gross Profit = Gross Revenue - COGS
+Gross Margin = Gross Profit / Gross Revenue × 100
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Net Profit = Gross Profit - (Shipping Cost + Ad Spend + Platform Fees)
+Net Margin = Net Profit / Gross Revenue × 100
+```
 
-## Learn More
+### ROAS
+```
+Channel ROAS = Revenue Attributed / Ad Spend
+Blended ROAS = Total Revenue / Total Ad Spend
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Deployment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Deploy to Vercel:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run build
+vercel deploy
+```
 
-## Deploy on Vercel
+Set environment variables in Vercel dashboard:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+valhalla-daily-pnl/
+├── src/
+│   ├── app/
+│   │   ├── page.tsx                  # Main dashboard
+│   │   ├── login/page.tsx            # Login page
+│   │   └── admin/                    # Admin pages
+│   ├── components/
+│   │   ├── ui/                       # shadcn/ui
+│   │   ├── dashboard/                # Dashboard components
+│   │   ├── charts/                   # Recharts components
+│   │   └── forms/                    # Form components
+│   ├── hooks/
+│   │   └── usePnLData.ts             # P&L data hook
+│   ├── lib/
+│   │   ├── supabase/                 # Supabase clients
+│   │   ├── pnl/                      # P&L calculation engine
+│   │   └── utils/                    # Utilities
+│   └── types/
+│       └── index.ts                  # TypeScript types
+└── supabase/
+    └── migrations/
+        └── 002_pnl_schema.sql        # Database schema
+```
+
+## License
+
+Proprietary - Display Champ / Bright Ivy
