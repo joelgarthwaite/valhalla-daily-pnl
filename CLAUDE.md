@@ -245,16 +245,19 @@ valhalla-daily-pnl/
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx                    # Main dashboard
+│   │   ├── detailed/page.tsx           # Detailed P&L view
 │   │   ├── login/page.tsx              # Login page
 │   │   ├── admin/                      # Admin pages
 │   │   │   ├── ad-spend/page.tsx       # Ad spend with Meta/Google sync
 │   │   │   ├── b2b-revenue/page.tsx    # B2B revenue entry
 │   │   │   ├── events/page.tsx         # Calendar events
 │   │   │   ├── goals/page.tsx          # Quarterly goals
-│   │   │   └── promotions/page.tsx     # Promotions
+│   │   │   ├── promotions/page.tsx     # Promotions
+│   │   │   └── reconciliation/page.tsx # Revenue reconciliation vs spreadsheet
 │   │   ├── api/
 │   │   │   ├── pnl/refresh/route.ts    # Refresh P&L calculations
 │   │   │   ├── calendar/seed/route.ts  # Import standard events
+│   │   │   ├── b2b/import/route.ts     # Bulk import B2B revenue
 │   │   │   ├── meta/                   # Meta API integration
 │   │   │   │   ├── sync/route.ts       # Sync ad spend from Meta
 │   │   │   │   └── token/route.ts      # Token status & exchange
@@ -266,7 +269,12 @@ valhalla-daily-pnl/
 │   ├── components/
 │   │   ├── ui/                         # shadcn/ui components
 │   │   ├── dashboard/                  # Dashboard components
-│   │   │   └── KPIGrid.tsx             # KPI cards with tooltips
+│   │   │   ├── DashboardFilters.tsx    # Date/brand filters with mode toggle
+│   │   │   ├── WeekPicker.tsx          # ISO week selection component
+│   │   │   ├── KPIGrid.tsx             # KPI cards with tooltips
+│   │   │   ├── HeroKPIGrid.tsx         # Hero metrics display
+│   │   │   ├── PnLTable.tsx            # P&L data table
+│   │   │   └── AlertBanner.tsx         # Status alerts
 │   │   ├── charts/                     # Recharts components
 │   │   └── forms/                      # Form components
 │   ├── hooks/
@@ -276,7 +284,8 @@ valhalla-daily-pnl/
 │   │   ├── pnl/                        # P&L calculation engine
 │   │   │   ├── calculations.ts         # GP1/GP2/GP3, POAS, MER, AOV
 │   │   │   ├── aggregations.ts         # Time period rollups
-│   │   │   └── targets.ts              # Target calculations
+│   │   │   ├── targets.ts              # Target calculations
+│   │   │   └── reconciliation.ts       # Expected vs actual comparison
 │   │   ├── meta/                       # Meta Marketing API
 │   │   │   └── client.ts               # Fetch ad spend, token management
 │   │   ├── google/                     # Google Ads API
@@ -287,6 +296,9 @@ valhalla-daily-pnl/
 │   │       └── export.ts               # Excel/PDF export
 │   └── types/
 │       └── index.ts                    # TypeScript types
+├── scripts/
+│   ├── import-2025-b2b.ts              # Import 2025 historic B2B data
+│   └── 2025-b2b-data.json              # 2025 B2B data (£10,901 total)
 ├── supabase/
 │   └── migrations/
 │       ├── 002_pnl_schema.sql          # Core P&L tables
@@ -350,6 +362,21 @@ Open [http://localhost:3000](http://localhost:3000)
 ### P&L
 - `POST /api/pnl/refresh` - Recalculate all daily P&L records
 
+### B2B Revenue
+- `GET /api/b2b/import` - Get import format documentation
+- `POST /api/b2b/import` - Bulk import B2B revenue by week
+
+```json
+// POST /api/b2b/import
+{
+  "brand_code": "DC",
+  "customer_name": "Weekly B2B Sales",
+  "entries": [
+    { "year": 2025, "week": 15, "subtotal": 630, "notes": "Week 15 B2B" }
+  ]
+}
+```
+
 ### Meta Ads
 - `GET /api/meta/token` - Check token status and expiration
 - `POST /api/meta/sync` - Sync ad spend from Meta
@@ -379,6 +406,50 @@ Deploy to Vercel as a separate project from Valhalla Dashboard. Set all environm
 **Important:** Meta and Google tokens need periodic refresh:
 - Meta: ~60 days (exchange via `/api/meta/token`)
 - Google: Refresh token is long-lived, but monitor for revocation
+
+---
+
+## Date Selection Features
+
+### Selection Modes
+The dashboard supports three date selection modes:
+- **Date** - Single date selection
+- **Range** - Custom date range with calendar
+- **Week** - ISO week picker (Week 1-52)
+
+### Week Numbering
+Uses ISO week numbering for consistency with spreadsheets:
+- Week starts on Monday
+- Week 1 = First week with Thursday in the new year
+- Year boundaries handled correctly
+
+### Quick Presets
+- Today, Yesterday
+- This Week, Last Week
+- This Month, Last Month
+- Last 30 Days, Last 90 Days
+
+---
+
+## Revenue Reconciliation
+
+### Purpose
+Compare P&L system data against external spreadsheet to identify discrepancies.
+
+### Location
+Admin > Reconciliation (`/admin/reconciliation`)
+
+### Features
+- Year selector (2024-2026)
+- Discrepancy threshold filter (1%, 5%, 10%, 15%)
+- Toggle to show discrepancies only
+- Summary cards (Expected, Actual, Variance)
+- Channel breakdowns (Shopify, Etsy, B2B)
+- Week-by-week comparison table
+- CSV export
+
+### Expected Data
+Update `EXPECTED_2025_DATA` in `src/lib/pnl/reconciliation.ts` with actual CSV values.
 
 ---
 
