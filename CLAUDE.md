@@ -82,8 +82,8 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 ### Revenue
 | Source | Method |
 |--------|--------|
-| Shopify | Automated (from `orders` table) |
-| Etsy | Automated (from `orders` table) |
+| Shopify | Automated sync via `/api/shopify/sync` or from `orders` table |
+| Etsy | Automated sync via `/api/etsy/sync` or from `orders` table |
 | B2B | Manual entry (via admin page) |
 
 ### Costs
@@ -248,6 +248,7 @@ valhalla-daily-pnl/
 │   │   ├── detailed/page.tsx           # Detailed P&L view
 │   │   ├── login/page.tsx              # Login page
 │   │   ├── admin/                      # Admin pages
+│   │   │   ├── sync/page.tsx           # Order sync from Shopify/Etsy
 │   │   │   ├── ad-spend/page.tsx       # Ad spend with Meta/Google sync
 │   │   │   ├── b2b-revenue/page.tsx    # B2B revenue entry
 │   │   │   ├── events/page.tsx         # Calendar events
@@ -261,10 +262,16 @@ valhalla-daily-pnl/
 │   │   │   ├── meta/                   # Meta API integration
 │   │   │   │   ├── sync/route.ts       # Sync ad spend from Meta
 │   │   │   │   └── token/route.ts      # Token status & exchange
-│   │   │   └── google/                 # Google Ads integration
-│   │   │       ├── auth/route.ts       # OAuth initiation
-│   │   │       ├── callback/route.ts   # OAuth callback
-│   │   │       └── sync/route.ts       # Sync ad spend from Google
+│   │   │   ├── google/                 # Google Ads integration
+│   │   │   │   ├── auth/route.ts       # OAuth initiation
+│   │   │   │   ├── callback/route.ts   # OAuth callback
+│   │   │   │   └── sync/route.ts       # Sync ad spend from Google
+│   │   │   ├── shopify/                # Shopify order sync
+│   │   │   │   └── sync/route.ts       # Sync orders from Shopify
+│   │   │   ├── etsy/                   # Etsy order sync
+│   │   │   │   └── sync/route.ts       # Sync orders from Etsy
+│   │   │   └── orders/                 # Combined order sync
+│   │   │       └── sync/route.ts       # Sync from all platforms
 │   │   └── layout.tsx                  # Root layout
 │   ├── components/
 │   │   ├── ui/                         # shadcn/ui components
@@ -290,6 +297,10 @@ valhalla-daily-pnl/
 │   │   │   └── client.ts               # Fetch ad spend, token management
 │   │   ├── google/                     # Google Ads API
 │   │   │   └── client.ts               # OAuth, fetch ad spend
+│   │   ├── shopify/                    # Shopify Order API
+│   │   │   └── client.ts               # GraphQL API, order fetch/transform
+│   │   ├── etsy/                       # Etsy Order API
+│   │   │   └── client.ts               # REST API, receipt fetch/transform
 │   │   ├── calendar/                   # Calendar utilities
 │   │   │   └── standard-events.ts      # UK/US holidays, eCommerce dates
 │   │   └── utils/
@@ -333,6 +344,26 @@ GOOGLE_DEVELOPER_TOKEN=<developer-token>
 GOOGLE_MANAGER_ID=<mcc-id-no-dashes>
 GOOGLE_CUSTOMER_ID_DC=<customer-id-no-dashes>
 GOOGLE_REFRESH_TOKEN=<oauth-refresh-token>
+
+# Shopify - Display Champ
+SHOPIFY_DC_STORE_DOMAIN=display-champ.myshopify.com
+SHOPIFY_DC_ACCESS_TOKEN=<admin-api-access-token>
+
+# Shopify - Bright Ivy
+SHOPIFY_BI_STORE_DOMAIN=brightivy.myshopify.com
+SHOPIFY_BI_ACCESS_TOKEN=<admin-api-access-token>
+
+# Etsy - Display Champ
+ETSY_DC_API_KEY=<etsy-api-keystring>
+ETSY_DC_SHOP_ID=<etsy-shop-id>
+ETSY_DC_ACCESS_TOKEN=<oauth-access-token>
+ETSY_DC_REFRESH_TOKEN=<oauth-refresh-token>
+
+# Etsy - Bright Ivy
+ETSY_BI_API_KEY=<etsy-api-keystring>
+ETSY_BI_SHOP_ID=<etsy-shop-id>
+ETSY_BI_ACCESS_TOKEN=<oauth-access-token>
+ETSY_BI_REFRESH_TOKEN=<oauth-refresh-token>
 ```
 
 ---
@@ -388,6 +419,28 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ### Calendar
 - `POST /api/calendar/seed` - Import standard eCommerce events for a year
+
+### Order Sync (Shopify/Etsy)
+- `GET /api/shopify/sync` - Check Shopify connection status
+- `POST /api/shopify/sync` - Sync orders from Shopify
+- `GET /api/etsy/sync` - Check Etsy connection status
+- `POST /api/etsy/sync` - Sync orders from Etsy
+- `GET /api/orders/sync` - Check all platform connection status
+- `POST /api/orders/sync` - Sync orders from all platforms
+
+```json
+// POST /api/shopify/sync or /api/etsy/sync or /api/orders/sync
+{
+  "startDate": "2025-01-01",  // Optional, defaults to 30 days ago
+  "endDate": "2025-01-24",    // Optional, defaults to today
+  "brandCode": "DC | BI | all" // Optional, defaults to all
+}
+
+// Additional for /api/orders/sync
+{
+  "platforms": ["shopify", "etsy"] // Optional, defaults to all platforms
+}
+```
 
 ---
 

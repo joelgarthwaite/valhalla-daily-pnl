@@ -11,11 +11,18 @@ import {
   Calendar,
   ChevronLeft,
   Scale,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const adminNavItems = [
+  {
+    label: 'Order Sync',
+    href: '/admin/sync',
+    icon: RefreshCw,
+    description: 'Sync orders from Shopify and Etsy',
+  },
   {
     label: 'Ad Spend',
     href: '/admin/ad-spend',

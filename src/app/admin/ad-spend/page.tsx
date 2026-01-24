@@ -559,6 +559,28 @@ export default function AdSpendPage() {
         </Alert>
       )}
 
+      {/* Data Source Legend */}
+      <div className="bg-muted/50 rounded-lg p-4 text-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <Info className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">Data Source Legend</span>
+        </div>
+        <div className="flex flex-wrap gap-4 text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium text-green-600 bg-green-50">API</span>
+            <span>Live data from platform APIs (Meta, Google)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium text-amber-600 bg-amber-50">CSV</span>
+            <span>Imported from spreadsheet/CSV file</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium text-blue-600 bg-blue-50">Manual</span>
+            <span>Manually entered data</span>
+          </div>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -614,6 +636,7 @@ export default function AdSpendPage() {
                 <TableHead>Date</TableHead>
                 <TableHead>Brand</TableHead>
                 <TableHead>Platform</TableHead>
+                <TableHead>Source</TableHead>
                 <TableHead className="text-right">Spend</TableHead>
                 <TableHead className="text-right">Revenue</TableHead>
                 <TableHead className="text-right">ROAS</TableHead>
@@ -623,14 +646,14 @@ export default function AdSpendPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : adSpends.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    No ad spend data yet. Click "Add Ad Spend" to get started.
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    No ad spend data yet. Click &quot;Add Ad Spend&quot; to get started.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -638,11 +661,21 @@ export default function AdSpendPage() {
                   const roas = adSpend.spend > 0
                     ? adSpend.revenue_attributed / adSpend.spend
                     : 0;
+                  // Determine data source from notes
+                  const isApiData = adSpend.notes?.includes('Auto-synced') || adSpend.notes?.includes('API');
+                  const isCsvData = adSpend.notes?.toLowerCase().includes('csv') || adSpend.notes?.toLowerCase().includes('import');
+                  const sourceLabel = isApiData ? 'API' : isCsvData ? 'CSV' : 'Manual';
+                  const sourceColor = isApiData ? 'text-green-600 bg-green-50' : isCsvData ? 'text-amber-600 bg-amber-50' : 'text-blue-600 bg-blue-50';
                   return (
                     <TableRow key={adSpend.id}>
                       <TableCell>{format(new Date(adSpend.date), 'MMM d, yyyy')}</TableCell>
                       <TableCell>{getBrandName(adSpend.brand_id)}</TableCell>
                       <TableCell>{getPlatformLabel(adSpend.platform)}</TableCell>
+                      <TableCell>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sourceColor}`}>
+                          {sourceLabel}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right">{formatCurrency(adSpend.spend)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(adSpend.revenue_attributed)}</TableCell>
                       <TableCell className="text-right font-medium">
