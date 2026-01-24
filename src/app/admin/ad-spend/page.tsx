@@ -59,6 +59,12 @@ interface MetaTokenStatus {
   warning?: string;
 }
 
+interface GoogleTokenStatus {
+  status: 'active' | 'invalid' | 'not_configured' | 'missing_credentials';
+  error?: string;
+  authUrl?: string;
+}
+
 export default function AdSpendPage() {
   const [adSpends, setAdSpends] = useState<AdSpend[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -70,6 +76,10 @@ export default function AdSpendPage() {
   const [metaTokenStatus, setMetaTokenStatus] = useState<MetaTokenStatus | null>(null);
   const [isSyncingMeta, setIsSyncingMeta] = useState(false);
   const [syncDays, setSyncDays] = useState('30');
+
+  // Google sync state
+  const [googleTokenStatus, setGoogleTokenStatus] = useState<GoogleTokenStatus | null>(null);
+  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
 
   // Form state - simplified without impressions/clicks/conversions
   const [formData, setFormData] = useState({
