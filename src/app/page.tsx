@@ -1,32 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, RefreshCw, Settings } from 'lucide-react';
+import { Download, RefreshCw, Settings, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   DashboardFilters,
-  ExtendedKPIGrid,
+  HeroKPIGrid,
+  AlertBanner,
   PnLTable,
 } from '@/components/dashboard';
 import {
   RevenueTrendChart,
-  MultiMetricTrendChart,
   WaterfallChart,
-  ROASChart,
   TargetGauge,
 } from '@/components/charts';
 import { usePnLData, getDefaultDateRange } from '@/hooks/usePnLData';
 import { generateWaterfallData } from '@/lib/pnl/calculations';
 import { aggregatePnLByPeriod } from '@/lib/pnl/aggregations';
-import type { BrandFilter, PeriodType, DateRange } from '@/types';
+import type { BrandFilter, PeriodType, DateRange, DailyPnL } from '@/types';
 
 export default function DashboardPage() {
   const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
   const [periodType, setPeriodType] = useState<PeriodType>('daily');
   const [showYoY, setShowYoY] = useState(false);
+  const [showQuickSummary, setShowQuickSummary] = useState(false);
 
   const {
     dailyData,
@@ -47,13 +48,17 @@ export default function DashboardPage() {
   // Generate waterfall data from summary
   const waterfallData = summary ? generateWaterfallData(summary) : [];
 
-  // Get aggregated data for table
+  // Get aggregated data for table (limited to recent periods for quick summary)
   const aggregatedData = aggregatePnLByPeriod(dailyData as never[], periodType);
+  const quickSummaryData = aggregatedData.slice(0, 7); // Last 7 periods
+
+  // Get raw daily data for alert calculations
+  const rawDailyData = dailyData as unknown as DailyPnL[];
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card">
+      <header className="border-b bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -72,6 +77,12 @@ export default function DashboardPage() {
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
+              <Link href="/detailed">
+                <Button variant="default" size="sm">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Detailed Analytics
+                </Button>
+              </Link>
               <Button variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
                 Export
@@ -109,11 +120,25 @@ export default function DashboardPage() {
           onShowYoYChange={setShowYoY}
         />
 
-        {/* KPIs */}
-        <ExtendedKPIGrid summary={summary} isLoading={isLoading} />
+        {/* Hero KPIs (7 metrics) */}
+        <HeroKPIGrid
+          summary={summary}
+          quarterlyProgress={quarterlyProgress}
+          trendData={trendData}
+          isLoading={isLoading}
+        />
 
-        {/* Charts & Gauge Row */}
+        {/* Alert Banner */}
+        <AlertBanner
+          summary={summary}
+          roasData={roasData}
+          dailyData={rawDailyData}
+          isLoading={isLoading}
+        />
+
+        {/* Charts Row */}
         <div className="grid gap-6 lg:grid-cols-3">
+          {/* Revenue Trend Chart */}
           <div className="lg:col-span-2">
             <RevenueTrendChart
               data={trendData}
@@ -121,37 +146,52 @@ export default function DashboardPage() {
               isLoading={isLoading}
             />
           </div>
+
+          {/* Quarterly Target Gauge */}
           <div>
             <TargetGauge progress={quarterlyProgress} isLoading={isLoading} />
           </div>
         </div>
 
-        {/* Secondary Charts */}
-        <Tabs defaultValue="waterfall" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="waterfall">P&L Waterfall</TabsTrigger>
-            <TabsTrigger value="profit">Profit Trend</TabsTrigger>
-            <TabsTrigger value="roas">ROAS by Channel</TabsTrigger>
-          </TabsList>
+        {/* P&L Waterfall (always visible) */}
+        <WaterfallChart data={waterfallData} isLoading={isLoading} />
 
-          <TabsContent value="waterfall">
-            <WaterfallChart data={waterfallData} isLoading={isLoading} />
-          </TabsContent>
-
-          <TabsContent value="profit">
-            <MultiMetricTrendChart data={trendData} isLoading={isLoading} />
-          </TabsContent>
-
-          <TabsContent value="roas">
-            <ROASChart data={roasData} isLoading={isLoading} />
-          </TabsContent>
-        </Tabs>
-
-        {/* P&L Table */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Detailed P&L</h2>
-          <PnLTable data={aggregatedData} isLoading={isLoading} />
-        </div>
+        {/* Quick P&L Summary (collapsible) */}
+        <Collapsible open={showQuickSummary} onOpenChange={setShowQuickSummary}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    Quick P&L Summary
+                    <span className="text-sm font-normal text-muted-foreground">
+                      (Last {quickSummaryData.length} periods)
+                    </span>
+                  </CardTitle>
+                  <Button variant="ghost" size="sm">
+                    {showQuickSummary ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <PnLTable data={quickSummaryData} isLoading={isLoading} />
+                <div className="mt-4 text-center">
+                  <Link href="/detailed">
+                    <Button variant="outline" size="sm">
+                      View Full P&L Table
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       </main>
 
       {/* Footer */}

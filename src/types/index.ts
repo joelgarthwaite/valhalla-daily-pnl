@@ -315,15 +315,20 @@ export interface PnLFilters {
 }
 
 export interface PnLSummary {
-  // Revenue
-  totalRevenue: number;
-  shopifyRevenue: number;
-  etsyRevenue: number;
-  b2bRevenue: number;
+  // Revenue Breakdown (for transparency)
+  // productRevenue = subtotals only (excludes shipping/tax) - apples-to-apples across platforms
+  // shippingCharged = shipping paid by customers
+  // grossRevenue = productRevenue + shippingCharged (total customer paid, excluding tax)
+  totalRevenue: number;        // Product revenue (subtotals) - PRIMARY revenue metric
+  shopifyRevenue: number;      // Shopify product revenue (subtotal)
+  etsyRevenue: number;         // Etsy product revenue (subtotal)
+  b2bRevenue: number;          // B2B product revenue (subtotal)
+  shippingCharged: number;     // Total shipping charged to customers
+  grossRevenue: number;        // totalRevenue + shippingCharged (what customers actually paid)
 
   // Refunds
   totalRefunds: number;
-  netRevenue: number;
+  netRevenue: number;          // totalRevenue - refunds (product revenue after refunds)
   refundCount: number;
 
   // Costs

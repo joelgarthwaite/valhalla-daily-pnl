@@ -25,14 +25,18 @@ import { formatCurrency, formatPercentage } from '@/lib/pnl/targets';
 
 // KPI Definitions for tooltips
 const KPI_DEFINITIONS: Record<string, string> = {
-  'Total Revenue': 'Sum of all Shopify, Etsy, and B2B sales (excluding refunds)',
+  'Product Revenue': 'Sum of product sales (subtotals) across Shopify, Etsy, and B2B. Excludes shipping and tax. This is the primary revenue metric for P&L.',
+  'Total Revenue': 'Product revenue (subtotals) across all platforms. Excludes shipping charged to customers.',
+  'Shipping Revenue': 'Total shipping charged to customers. Tracked separately from product revenue.',
+  'Gross Revenue': 'Total customer payments: Product Revenue + Shipping Charged. What customers actually paid (excluding tax).',
+  'Net Revenue': 'Product revenue minus refunds. Used for margin calculations.',
   'Total Orders': 'Count of completed orders across all platforms',
   'Gross AOV': 'Gross Average Order Value: Total paid by customer (product + shipping) per order',
   'Net AOV': 'Net Average Order Value: Product revenue after discounts per order (excludes shipping)',
-  'GP1': 'Gross Profit 1: Revenue minus Cost of Goods Sold (30% of revenue)',
+  'GP1': 'Gross Profit 1: Net Revenue minus Cost of Goods Sold (estimated 30%)',
   'GP2': 'Gross Profit 2: GP1 minus operational costs (pick/pack, payment fees, logistics)',
   'GP3': 'Gross Profit 3: GP2 minus advertising spend - your true profit after all costs',
-  'Gross Margin': 'Gross profit as a percentage of net revenue',
+  'Gross Margin': 'Gross profit (GP1) as a percentage of net revenue',
   'Net Margin': 'Net profit (GP3) as a percentage of net revenue',
   'Gross Profit': 'Revenue minus Cost of Goods Sold (same as GP1)',
   'Net Profit': 'Final profit after all costs including ads (same as GP3)',
@@ -42,6 +46,7 @@ const KPI_DEFINITIONS: Record<string, string> = {
   'Blended ROAS': 'Return on Ad Spend: Total revenue divided by total ad spend',
   'Marketing Cost': 'Advertising spend as a percentage of total revenue',
   'Refunds': 'Total refund amount and count for the period',
+  'Shipping Margin': 'Shipping charged minus shipping cost. Profit/loss on shipping.',
 };
 
 interface KPIGridProps {

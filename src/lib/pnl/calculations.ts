@@ -307,12 +307,15 @@ export function calculateDailyPnL(input: DailyDataInput): Omit<DailyPnL, 'id' | 
     }
   }
 
-  // Calculate gross revenue (before refunds)
-  const shopifyRevenue = shopifyOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-  const etsyRevenue = etsyOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+  // Calculate product revenue (SUBTOTAL - excludes shipping and tax)
+  // This ensures apples-to-apples comparison across Shopify and Etsy
+  // Shopify: subtotal_price = line items after discounts, excludes shipping/tax
+  // Etsy: subtotal = total_price minus coupon discounts, excludes shipping/tax
+  const shopifyRevenue = shopifyOrders.reduce((sum, o) => sum + Number(o.subtotal || 0), 0);
+  const etsyRevenue = etsyOrders.reduce((sum, o) => sum + Number(o.subtotal || 0), 0);
   const b2bRevenueTotal = b2bRevenue
     .filter((b) => b.date === date)
-    .reduce((sum, b) => sum + Number(b.total || 0), 0);
+    .reduce((sum, b) => sum + Number(b.subtotal || 0), 0);
   const totalRevenue = shopifyRevenue + etsyRevenue + b2bRevenueTotal;
 
   // Net revenue after refunds
@@ -431,11 +434,19 @@ export function calculateDailyPnL(input: DailyDataInput): Omit<DailyPnL, 'id' | 
  * Calculate P&L summary from daily data
  */
 export function calculatePnLSummary(dailyData: DailyPnL[]): PnLSummary {
-  // Revenue
+  // Revenue Breakdown
+  // totalRevenue = product revenue only (subtotals, excludes shipping/tax)
+  // This ensures apples-to-apples comparison across Shopify and Etsy
   const totalRevenue = dailyData.reduce((sum, d) => sum + Number(d.total_revenue || 0), 0);
   const shopifyRevenue = dailyData.reduce((sum, d) => sum + Number(d.shopify_revenue || 0), 0);
   const etsyRevenue = dailyData.reduce((sum, d) => sum + Number(d.etsy_revenue || 0), 0);
   const b2bRevenue = dailyData.reduce((sum, d) => sum + Number(d.b2b_revenue || 0), 0);
+
+  // Shipping charged to customers (separate from product revenue)
+  const shippingCharged = dailyData.reduce((sum, d) => sum + Number(d.shipping_charged || 0), 0);
+
+  // Gross revenue = what customers actually paid (product + shipping, excluding tax)
+  const grossRevenue = totalRevenue + shippingCharged;
 
   // Refunds - calculate netRevenue from totalRevenue - refunds (for backward compatibility)
   const totalRefunds = dailyData.reduce((sum, d) => sum + Number(d.total_refunds || 0), 0);
@@ -471,8 +482,7 @@ export function calculatePnLSummary(dailyData: DailyPnL[]): PnLSummary {
   // Orders
   const totalOrders = dailyData.reduce((sum, d) => sum + Number(d.total_orders || 0), 0);
 
-  // Calculate averaged AOV values
-  const shippingCharged = dailyData.reduce((sum, d) => sum + Number(d.shipping_charged || 0), 0);
+  // Calculate averaged AOV values (shippingCharged already calculated above)
   const grossAOV = calculateGrossAOV(totalRevenue, shippingCharged, totalOrders);
   const netAOV = calculateNetAOV(netRevenue, totalDiscounts, totalOrders);
 
@@ -484,13 +494,18 @@ export function calculatePnLSummary(dailyData: DailyPnL[]): PnLSummary {
   const marketingCostRatio = calculateMarketingCostRatio(totalAdSpend, totalRevenue);
 
   return {
-    totalRevenue,
+    // Revenue breakdown
+    totalRevenue,      // Product revenue (subtotals only)
     shopifyRevenue,
     etsyRevenue,
     b2bRevenue,
+    shippingCharged,   // Shipping charged to customers
+    grossRevenue,      // Total customer paid (product + shipping)
+    // Refunds
     totalRefunds,
-    netRevenue,
+    netRevenue,        // Product revenue after refunds
     refundCount,
+    // Costs
     cogs,
     shippingCost,
     pickPackCost,
@@ -498,17 +513,21 @@ export function calculatePnLSummary(dailyData: DailyPnL[]): PnLSummary {
     totalAdSpend,
     platformFees,
     totalDiscounts,
+    // Profit tiers
     gp1,
     gp2,
     gp3,
+    // Legacy/derived
     grossProfit,
     grossMarginPct: calculateMarginPct(grossProfit, netRevenue || totalRevenue),
     shippingMargin,
     netProfit,
     netMarginPct: calculateMarginPct(netProfit, netRevenue || totalRevenue),
+    // Orders
     totalOrders,
     grossAOV,
     netAOV,
+    // Efficiency metrics
     blendedRoas: calculateROAS(totalRevenue, totalAdSpend),
     poas,
     cop,
@@ -552,14 +571,16 @@ export function calculatePnLSummaryWithComparison(
 
 /**
  * Generate waterfall chart data from P&L summary
- * Now shows GP1 -> GP2 -> GP3 progression
+ * Shows: Product Revenue → Refunds → Net Revenue → COGS → GP1 → Ops → GP2 → Ads → GP3
+ * Note: Product Revenue = subtotals only (excludes shipping charged to customers)
+ * Shipping margin is tracked separately and not included in this P&L flow
  */
 export function generateWaterfallData(summary: PnLSummary): WaterfallDataPoint[] {
   return [
-    { name: 'Gross Revenue', value: summary.totalRevenue, isTotal: true },
+    { name: 'Product Revenue', value: summary.totalRevenue, isTotal: true },
     { name: 'Refunds', value: -summary.totalRefunds, isSubtraction: true },
     { name: 'Net Revenue', value: summary.netRevenue || (summary.totalRevenue - summary.totalRefunds), isTotal: true },
-    { name: 'COGS', value: -summary.cogs, isSubtraction: true },
+    { name: 'COGS (30%)', value: -summary.cogs, isSubtraction: true },
     { name: 'GP1', value: summary.gp1, isTotal: true },
     { name: 'Pick & Pack', value: -summary.pickPackCost, isSubtraction: true },
     { name: 'Platform Fees', value: -summary.platformFees, isSubtraction: true },
