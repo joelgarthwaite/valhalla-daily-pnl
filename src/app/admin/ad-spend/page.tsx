@@ -118,6 +118,7 @@ export default function AdSpendPage() {
   useEffect(() => {
     fetchData();
     checkMetaTokenStatus();
+    checkGoogleTokenStatus();
   }, []);
 
   const checkMetaTokenStatus = async () => {
@@ -127,6 +128,52 @@ export default function AdSpendPage() {
       setMetaTokenStatus(data);
     } catch (error) {
       console.error('Error checking Meta token:', error);
+    }
+  };
+
+  const checkGoogleTokenStatus = async () => {
+    try {
+      const response = await fetch('/api/google/sync');
+      const data = await response.json();
+      setGoogleTokenStatus(data);
+    } catch (error) {
+      console.error('Error checking Google token:', error);
+    }
+  };
+
+  const handleGoogleSync = async () => {
+    setIsSyncingGoogle(true);
+    try {
+      const endDate = format(new Date(), 'yyyy-MM-dd');
+      const startDate = format(subDays(new Date(), parseInt(syncDays)), 'yyyy-MM-dd');
+
+      const response = await fetch('/api/google/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate,
+          endDate,
+          brandCode: 'all',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Sync failed');
+      }
+
+      const totalRecords = data.results.reduce(
+        (sum: number, r: { recordsSynced: number }) => sum + r.recordsSynced,
+        0
+      );
+      toast.success(`Synced ${totalRecords} records from Google Ads`);
+      fetchData();
+    } catch (error) {
+      console.error('Error syncing Google:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to sync Google data');
+    } finally {
+      setIsSyncingGoogle(false);
     }
   };
 
@@ -269,46 +316,66 @@ export default function AdSpendPage() {
             Track advertising spend across platforms
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Ad Spend
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          {/* Sync Date Range Selector */}
+          {(metaTokenStatus?.status === 'valid' || googleTokenStatus?.status === 'active') && (
+            <Select value={syncDays} onValueChange={setSyncDays}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="14">Last 14 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="60">Last 60 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
 
           {/* Meta Sync Button */}
           {metaTokenStatus?.status === 'valid' && (
-            <div className="flex items-center gap-2">
-              <Select value={syncDays} onValueChange={setSyncDays}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">Last 7 days</SelectItem>
-                  <SelectItem value="14">Last 14 days</SelectItem>
-                  <SelectItem value="30">Last 30 days</SelectItem>
-                  <SelectItem value="60">Last 60 days</SelectItem>
-                  <SelectItem value="90">Last 90 days</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                onClick={handleMetaSync}
-                disabled={isSyncingMeta}
-              >
-                {isSyncingMeta ? (
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Sync Meta
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              onClick={handleMetaSync}
+              disabled={isSyncingMeta}
+            >
+              {isSyncingMeta ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Sync Meta
+            </Button>
           )}
+
+          {/* Google Sync Button */}
+          {googleTokenStatus?.status === 'active' && (
+            <Button
+              variant="outline"
+              onClick={handleGoogleSync}
+              disabled={isSyncingGoogle}
+            >
+              {isSyncingGoogle ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Sync Google
+            </Button>
+          )}
+
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Ad Spend
+              </Button>
+            </DialogTrigger>
+
 
           <DialogContent className="max-w-lg">
             <DialogHeader>
@@ -422,6 +489,7 @@ export default function AdSpendPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Meta Token Status Alert */}
@@ -454,6 +522,39 @@ export default function AdSpendPage() {
           <AlertDescription>
             Token valid for {metaTokenStatus.daysRemaining} days.
             {metaTokenStatus.expiresAt && ` Expires: ${format(new Date(metaTokenStatus.expiresAt), 'MMM d, yyyy')}`}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Google Token Status Alerts */}
+      {googleTokenStatus?.status === 'active' && (
+        <Alert>
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertTitle>Google Ads API Connected</AlertTitle>
+          <AlertDescription>
+            Google Ads API is connected and ready to sync.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {googleTokenStatus?.status === 'invalid' && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Google Ads Token Invalid</AlertTitle>
+          <AlertDescription>
+            {googleTokenStatus.error || 'Your Google Ads token is invalid.'}{' '}
+            <a href="/api/google/auth" className="underline font-medium">Re-authorize here</a>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {googleTokenStatus?.status === 'not_configured' && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Google Ads Not Connected</AlertTitle>
+          <AlertDescription>
+            Google Ads is not configured.{' '}
+            <a href={googleTokenStatus.authUrl || '/api/google/auth'} className="underline font-medium">Connect Google Ads</a>
           </AlertDescription>
         </Alert>
       )}
