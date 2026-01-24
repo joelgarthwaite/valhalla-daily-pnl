@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
-import { Plus, Trash2, Edit2 } from 'lucide-react';
+import { format, subDays } from 'date-fns';
+import { Plus, Trash2, Edit2, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +43,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/pnl/targets';
 import type { AdSpend, Brand, AdPlatform } from '@/types';
 import { Info } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const AD_PLATFORMS: { value: AdPlatform; label: string }[] = [
   { value: 'meta', label: 'Meta (Facebook/Instagram)' },
@@ -51,12 +52,24 @@ const AD_PLATFORMS: { value: AdPlatform; label: string }[] = [
   { value: 'etsy_ads', label: 'Etsy Ads' },
 ];
 
+interface MetaTokenStatus {
+  status: 'valid' | 'expired' | 'not_configured';
+  expiresAt: string | null;
+  daysRemaining: number | null;
+  warning?: string;
+}
+
 export default function AdSpendPage() {
   const [adSpends, setAdSpends] = useState<AdSpend[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Meta sync state
+  const [metaTokenStatus, setMetaTokenStatus] = useState<MetaTokenStatus | null>(null);
+  const [isSyncingMeta, setIsSyncingMeta] = useState(false);
+  const [syncDays, setSyncDays] = useState('30');
 
   // Form state - simplified without impressions/clicks/conversions
   const [formData, setFormData] = useState({
@@ -94,7 +107,54 @@ export default function AdSpendPage() {
 
   useEffect(() => {
     fetchData();
+    checkMetaTokenStatus();
   }, []);
+
+  const checkMetaTokenStatus = async () => {
+    try {
+      const response = await fetch('/api/meta/token');
+      const data = await response.json();
+      setMetaTokenStatus(data);
+    } catch (error) {
+      console.error('Error checking Meta token:', error);
+    }
+  };
+
+  const handleMetaSync = async () => {
+    setIsSyncingMeta(true);
+    try {
+      const endDate = format(new Date(), 'yyyy-MM-dd');
+      const startDate = format(subDays(new Date(), parseInt(syncDays)), 'yyyy-MM-dd');
+
+      const response = await fetch('/api/meta/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate,
+          endDate,
+          brandCode: 'all',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Sync failed');
+      }
+
+      const totalRecords = data.results.reduce(
+        (sum: number, r: { recordsSynced: number }) => sum + r.recordsSynced,
+        0
+      );
+      toast.success(`Synced ${totalRecords} records from Meta`);
+      fetchData();
+    } catch (error) {
+      console.error('Error syncing Meta:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to sync Meta data');
+    } finally {
+      setIsSyncingMeta(false);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -209,6 +269,37 @@ export default function AdSpendPage() {
               Add Ad Spend
             </Button>
           </DialogTrigger>
+
+          {/* Meta Sync Button */}
+          {metaTokenStatus?.status === 'valid' && (
+            <div className="flex items-center gap-2">
+              <Select value={syncDays} onValueChange={setSyncDays}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">Last 7 days</SelectItem>
+                  <SelectItem value="14">Last 14 days</SelectItem>
+                  <SelectItem value="30">Last 30 days</SelectItem>
+                  <SelectItem value="60">Last 60 days</SelectItem>
+                  <SelectItem value="90">Last 90 days</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                onClick={handleMetaSync}
+                disabled={isSyncingMeta}
+              >
+                {isSyncingMeta ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Sync Meta
+              </Button>
+            </div>
+          )}
+
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Edit' : 'Add'} Ad Spend</DialogTitle>
@@ -322,6 +413,40 @@ export default function AdSpendPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Meta Token Status Alert */}
+      {metaTokenStatus && metaTokenStatus.status === 'valid' && metaTokenStatus.daysRemaining !== null && metaTokenStatus.daysRemaining < 7 && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Meta Token Expiring Soon</AlertTitle>
+          <AlertDescription>
+            Your Meta access token expires in {metaTokenStatus.daysRemaining} days.
+            Generate a new long-lived token to continue syncing ad spend.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {metaTokenStatus && metaTokenStatus.status === 'expired' && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Meta Token Expired</AlertTitle>
+          <AlertDescription>
+            Your Meta access token has expired. Generate a new token from the Meta Developer portal
+            and update META_ACCESS_TOKEN in your environment.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {metaTokenStatus && metaTokenStatus.status === 'valid' && metaTokenStatus.daysRemaining !== null && metaTokenStatus.daysRemaining >= 7 && (
+        <Alert>
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertTitle>Meta API Connected</AlertTitle>
+          <AlertDescription>
+            Token valid for {metaTokenStatus.daysRemaining} days.
+            {metaTokenStatus.expiresAt && ` Expires: ${format(new Date(metaTokenStatus.expiresAt), 'MMM d, yyyy')}`}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">

@@ -95,11 +95,13 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    const insertedEvents = data || [];
+
     return NextResponse.json({
       success: true,
-      message: `Successfully imported ${data.length} events for ${year}`,
-      count: data.length,
-      events: data,
+      message: `Successfully imported ${insertedEvents.length} events for ${year}`,
+      count: insertedEvents.length,
+      events: insertedEvents,
     });
   } catch (error) {
     console.error('Error seeding calendar events:', error);
