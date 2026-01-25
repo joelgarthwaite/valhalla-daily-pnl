@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, RefreshCw, Settings, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, RefreshCw, Settings, BarChart3, ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,6 +87,12 @@ export default function DashboardPage() {
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
+              <Link href="/help">
+                <Button variant="outline" size="sm">
+                  <HelpCircle className="h-4 w-4 mr-2" />
+                  Help
+                </Button>
+              </Link>
               <Link href="/admin">
                 <Button variant="outline" size="sm">
                   <Settings className="h-4 w-4 mr-2" />
