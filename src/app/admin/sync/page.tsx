@@ -204,6 +204,66 @@ export default function OrderSyncPage() {
     }
   };
 
+  // Combined sync + P&L refresh in one action
+  const [syncStep, setSyncStep] = useState<'idle' | 'syncing' | 'refreshing' | 'done'>('idle');
+
+  const handleSyncAndUpdate = async () => {
+    setSyncStep('syncing');
+    setLastSyncResults(null);
+
+    try {
+      const { startDate, endDate } = getDateRange();
+
+      // Step 1: Sync orders
+      const syncResponse = await fetch('/api/orders/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startDate, endDate, brandCode: 'all' }),
+      });
+
+      const syncData = await syncResponse.json();
+
+      if (!syncResponse.ok) {
+        throw new Error(syncData.error || 'Sync failed');
+      }
+
+      setLastSyncResults(syncData.results);
+      const totalRecords = syncData.results.reduce(
+        (sum: number, r: SyncResult) => sum + r.recordsSynced,
+        0
+      );
+
+      // Step 2: Refresh P&L
+      setSyncStep('refreshing');
+
+      const refreshResponse = await fetch('/api/pnl/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: parseInt(syncDays) || 90 }),
+      });
+
+      const refreshData = await refreshResponse.json();
+
+      if (!refreshResponse.ok) {
+        // Sync succeeded but refresh failed - still show partial success
+        toast.warning(`Synced ${totalRecords} orders, but P&L refresh failed. Try clicking "Refresh P&L" manually.`);
+        setSyncStep('idle');
+        return;
+      }
+
+      setSyncStep('done');
+      toast.success(`Done! Synced ${totalRecords} orders and updated dashboard.`);
+      fetchPlatformStatus();
+
+      // Reset to idle after showing success
+      setTimeout(() => setSyncStep('idle'), 3000);
+    } catch (error) {
+      console.error('Error syncing:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to sync');
+      setSyncStep('idle');
+    }
+  };
+
   const handleRefreshPnL = async () => {
     setIsRefreshingPnL(true);
     try {
@@ -229,7 +289,7 @@ export default function OrderSyncPage() {
   const totalConfigured =
     (shopifyStatus?.configuredStores || 0) + (etsyStatus?.configuredStores || 0);
 
-  const anySyncing = isSyncing.shopify || isSyncing.etsy || isSyncing.all;
+  const anySyncing = isSyncing.shopify || isSyncing.etsy || isSyncing.all || syncStep !== 'idle';
 
   return (
     <div className="space-y-6">
@@ -428,72 +488,101 @@ export default function OrderSyncPage() {
 
           <Separator />
 
-          {/* Sync Buttons */}
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={handleShopifySync}
-              disabled={anySyncing || !shopifyStatus?.configuredStores}
-              variant="outline"
-            >
-              {isSyncing.shopify ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Store className="h-4 w-4 mr-2" />
-              )}
-              Sync Shopify
-            </Button>
-
-            <Button
-              onClick={handleEtsySync}
-              disabled={anySyncing || !etsyStatus?.configuredStores}
-              variant="outline"
-            >
-              {isSyncing.etsy ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <ShoppingBag className="h-4 w-4 mr-2" />
-              )}
-              Sync Etsy
-            </Button>
-
-            <Button
-              onClick={handleSyncAll}
-              disabled={anySyncing || totalConfigured === 0}
-            >
-              {isSyncing.all ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Sync All Platforms
-            </Button>
-
-            <div className="flex-1" />
-
-            <Button
-              onClick={handleRefreshPnL}
-              disabled={isRefreshingPnL}
-              variant="secondary"
-            >
-              {isRefreshingPnL ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Database className="h-4 w-4 mr-2" />
-              )}
-              Refresh P&L
-            </Button>
+          {/* Primary Action - Sync & Update */}
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-lg">Sync Orders & Update Dashboard</h3>
+                <p className="text-sm text-muted-foreground">
+                  {syncStep === 'idle' && 'Pull new orders from all platforms and refresh dashboard data'}
+                  {syncStep === 'syncing' && 'Step 1/2: Syncing orders from Shopify & Etsy...'}
+                  {syncStep === 'refreshing' && 'Step 2/2: Updating dashboard calculations...'}
+                  {syncStep === 'done' && '✓ Complete! Dashboard is now up to date.'}
+                </p>
+              </div>
+              <Button
+                onClick={handleSyncAndUpdate}
+                disabled={syncStep !== 'idle' || totalConfigured === 0}
+                size="lg"
+                className="min-w-[180px]"
+              >
+                {syncStep === 'idle' && (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sync & Update
+                  </>
+                )}
+                {syncStep === 'syncing' && (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Syncing...
+                  </>
+                )}
+                {syncStep === 'refreshing' && (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                )}
+                {syncStep === 'done' && (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Done!
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
-          <div className="text-xs text-muted-foreground bg-muted/50 rounded p-3 space-y-1">
-            <p><strong>How sync works:</strong></p>
-            <ul className="list-disc list-inside space-y-0.5 ml-2">
-              <li>Fetches orders created within the selected date range from the platform API</li>
-              <li>New orders are added to the database</li>
-              <li>Existing orders are updated (status changes, fulfillments, etc.)</li>
-              <li>Orders outside the date range are not affected</li>
-              <li>Safe to run multiple times &ndash; won&apos;t create duplicates</li>
-            </ul>
-          </div>
+          {/* Advanced Options (collapsed) */}
+          <details className="text-sm">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Advanced: Sync individual platforms or refresh P&L only
+            </summary>
+            <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t">
+              <Button
+                onClick={handleShopifySync}
+                disabled={anySyncing || syncStep !== 'idle' || !shopifyStatus?.configuredStores}
+                variant="outline"
+                size="sm"
+              >
+                {isSyncing.shopify ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Store className="h-4 w-4 mr-2" />
+                )}
+                Sync Shopify Only
+              </Button>
+
+              <Button
+                onClick={handleEtsySync}
+                disabled={anySyncing || syncStep !== 'idle' || !etsyStatus?.configuredStores}
+                variant="outline"
+                size="sm"
+              >
+                {isSyncing.etsy ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <ShoppingBag className="h-4 w-4 mr-2" />
+                )}
+                Sync Etsy Only
+              </Button>
+
+              <Button
+                onClick={handleRefreshPnL}
+                disabled={isRefreshingPnL || syncStep !== 'idle'}
+                variant="outline"
+                size="sm"
+              >
+                {isRefreshingPnL ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Database className="h-4 w-4 mr-2" />
+                )}
+                Refresh P&L Only
+              </Button>
+            </div>
+          </details>
         </CardContent>
       </Card>
 
