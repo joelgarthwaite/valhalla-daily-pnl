@@ -454,7 +454,28 @@ Run migrations in order via Supabase SQL editor:
 
 ## Deployment
 
-Deploy to Vercel as a separate project from Valhalla Dashboard. Set all environment variables in Vercel dashboard.
+### Production
+- **GitHub:** https://github.com/joelgarthwaite/valhalla-daily-pnl
+- **Hosting:** Vercel (auto-deploys on push to `main`)
+- **URL:** Your Vercel deployment URL
+
+### Auto-Deploy Workflow
+```bash
+# Make changes, then:
+git add .
+git commit -m "Description of changes"
+git push
+# Vercel auto-builds and deploys within ~2 minutes
+```
+
+### User Accounts
+| Email | Password | Role |
+|-------|----------|------|
+| joel@displaychamp.com | Valhalla | Admin |
+| lee@brightivy.com | Valhalla | User |
+
+### Environment Variables (Vercel)
+All variables from `.env.local` must be added to Vercel Dashboard → Project Settings → Environment Variables.
 
 **Important:** Meta and Google tokens need periodic refresh:
 - Meta: ~60 days (exchange via `/api/meta/token`)
