@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import type {
   Brand,
   DailyPnL,
@@ -57,87 +56,34 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const supabase = createClient();
-
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Fetch brands
-      const { data: brandsData, error: brandsError } = await supabase
-        .from('brands')
-        .select('*')
-        .returns<Brand[]>();
-
-      if (brandsError) throw brandsError;
-      setBrands(brandsData || []);
-
-      // Determine brand ID filter
-      let brandId: string | null = null;
-      if (brandFilter !== 'all' && brandsData) {
-        const brand = brandsData.find((b) => b.code === brandFilter);
-        brandId = brand?.id || null;
-      }
-
-      // Fetch daily P&L data
+      // Use server-side API route to bypass slow RLS
       const fromDate = format(dateRange.from, 'yyyy-MM-dd');
       const toDate = format(dateRange.to, 'yyyy-MM-dd');
 
-      // Build and execute daily P&L query
-      const dailyQueryBuilder = supabase
-        .from('daily_pnl')
-        .select('*')
-        .gte('date', fromDate)
-        .lte('date', toDate)
-        .order('date', { ascending: true });
+      const params = new URLSearchParams({
+        from: fromDate,
+        to: toDate,
+        brand: brandFilter,
+      });
 
-      const dailyQuery = brandId
-        ? dailyQueryBuilder.eq('brand_id', brandId)
-        : dailyQueryBuilder;
+      const response = await fetch(`/api/pnl/data?${params}`);
 
-      const { data: dailyPnLData, error: dailyError } = await dailyQuery.returns<DailyPnL[]>();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
 
-      if (dailyError) throw dailyError;
-      setDailyData(dailyPnLData || []);
+      const data = await response.json();
 
-      // Fetch ad spend data for ROAS
-      const adSpendQueryBuilder = supabase
-        .from('ad_spend')
-        .select('*')
-        .gte('date', fromDate)
-        .lte('date', toDate);
-
-      const adSpendQuery = brandId
-        ? adSpendQueryBuilder.eq('brand_id', brandId)
-        : adSpendQueryBuilder;
-
-      const { data: adSpend, error: adSpendError } = await adSpendQuery.returns<AdSpend[]>();
-
-      if (adSpendError) throw adSpendError;
-      setAdSpendData(adSpend || []);
-
-      // Fetch current quarterly goal
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      const currentQuarter = Math.ceil((currentDate.getMonth() + 1) / 3);
-
-      const goalQueryBuilder = supabase
-        .from('quarterly_goals')
-        .select('*')
-        .eq('year', currentYear)
-        .eq('quarter', currentQuarter);
-
-      const goalQuery = brandId
-        ? goalQueryBuilder.eq('brand_id', brandId)
-        : goalQueryBuilder;
-
-      const { data: goalData, error: goalError } = await goalQuery
-        .returns<QuarterlyGoal[]>()
-        .maybeSingle();
-
-      if (goalError && goalError.code !== 'PGRST116') throw goalError;
-      setQuarterlyGoal(goalData);
+      setBrands(data.brands || []);
+      setDailyData(data.dailyPnl || []);
+      setAdSpendData(data.adSpend || []);
+      setQuarterlyGoal(data.quarterlyGoal);
 
     } catch (err) {
       console.error('Error fetching P&L data:', err);
@@ -145,7 +91,7 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
     } finally {
       setIsLoading(false);
     }
-  }, [supabase, brandFilter, dateRange]);
+  }, [brandFilter, dateRange]);
 
   useEffect(() => {
     fetchData();
