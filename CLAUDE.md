@@ -46,6 +46,7 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 **Migrations:**
 - `supabase/migrations/002_pnl_schema.sql` - Core P&L tables
 - `supabase/migrations/003_enhanced_metrics.sql` - GP1/GP2/GP3, refunds, enhanced metrics
+- `supabase/migrations/004_add_user_roles_index.sql` - Index for faster RLS policy checks
 
 ---
 
@@ -256,7 +257,9 @@ valhalla-daily-pnl/
 │   │   │   ├── promotions/page.tsx     # Promotions
 │   │   │   └── reconciliation/page.tsx # Revenue reconciliation vs spreadsheet
 │   │   ├── api/
-│   │   │   ├── pnl/refresh/route.ts    # Refresh P&L calculations
+│   │   │   ├── pnl/
+│   │   │   │   ├── data/route.ts       # Fast P&L data fetch (bypasses RLS)
+│   │   │   │   └── refresh/route.ts    # Refresh P&L calculations
 │   │   │   ├── calendar/seed/route.ts  # Import standard events
 │   │   │   ├── b2b/import/route.ts     # Bulk import B2B revenue
 │   │   │   ├── meta/                   # Meta API integration
@@ -313,7 +316,8 @@ valhalla-daily-pnl/
 ├── supabase/
 │   └── migrations/
 │       ├── 002_pnl_schema.sql          # Core P&L tables
-│       └── 003_enhanced_metrics.sql    # Enhanced metrics columns
+│       ├── 003_enhanced_metrics.sql    # Enhanced metrics columns
+│       └── 004_add_user_roles_index.sql # Index for faster RLS
 ├── .env.local                          # Environment variables (not committed)
 └── package.json
 ```
@@ -388,10 +392,47 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
+## Data Flow & Sync Architecture
+
+### How Data Flows
+
+```
+Shopify/Etsy APIs → orders table → daily_pnl table → Dashboard
+                         ↑                ↑
+                    Order Sync       P&L Refresh
+```
+
+1. **Order Sync**: Fetches orders from Shopify/Etsy and saves to `orders` table
+2. **P&L Refresh**: Aggregates orders into `daily_pnl` table with calculated metrics
+3. **Dashboard**: Reads from `daily_pnl` table for fast display
+
+### Simplified Sync Workflow
+
+The sync page (`/admin/sync`) has ONE primary button: **"Sync & Update Dashboard"**
+
+This button automatically:
+1. Syncs orders from all connected platforms (Shopify, Etsy)
+2. Refreshes P&L calculations for the selected date range
+3. Shows progress: "Syncing..." → "Updating..." → "Done!"
+
+Advanced options (individual platform sync, P&L-only refresh) are available under a collapsed section.
+
+### Performance Optimizations
+
+- **API Route for Dashboard Data** (`/api/pnl/data`): Bypasses slow RLS policies using service role key
+- **Date-Range Filtered P&L Refresh**: Only processes orders within specified date range (default: 90 days)
+- **User Roles Index**: `idx_user_roles_user_id` for faster auth checks
+
+---
+
 ## API Endpoints
 
-### P&L
-- `POST /api/pnl/refresh` - Recalculate all daily P&L records
+### P&L Data
+- `GET /api/pnl/data` - Fast P&L data fetch (bypasses RLS)
+  - Query params: `from`, `to`, `brand`
+- `POST /api/pnl/refresh` - Recalculate daily P&L records
+  - Body: `{ "days": 90 }` or `{ "startDate": "2025-01-01", "endDate": "2025-01-25" }`
+  - Defaults to last 90 days if no params provided
 
 ### B2B Revenue
 - `GET /api/b2b/import` - Get import format documentation
@@ -449,6 +490,7 @@ Open [http://localhost:3000](http://localhost:3000)
 Run migrations in order via Supabase SQL editor:
 1. `supabase/migrations/002_pnl_schema.sql` - Core tables
 2. `supabase/migrations/003_enhanced_metrics.sql` - Enhanced metrics (optional)
+3. `supabase/migrations/004_add_user_roles_index.sql` - Performance index (recommended)
 
 ---
 
