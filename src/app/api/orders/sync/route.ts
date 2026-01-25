@@ -500,22 +500,10 @@ export async function POST(request: NextRequest) {
     const totalSynced = results.reduce((sum, r) => sum + r.recordsSynced, 0);
     const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0);
 
-    // Auto-trigger P&L refresh after syncing orders
-    let pnlRefreshResult = null;
-    if (totalSynced > 0) {
-      try {
-        pnlRefreshResult = await refreshPnLData(supabase);
-      } catch (pnlError) {
-        console.error('Error refreshing P&L after sync:', pnlError);
-        pnlRefreshResult = { error: pnlError instanceof Error ? pnlError.message : 'Unknown error' };
-      }
-    }
-
     return NextResponse.json({
       success: totalErrors === 0,
-      message: `Order sync complete: ${totalSynced} orders synced across ${platformsToSync.join(' and ')}${totalErrors > 0 ? `, ${totalErrors} errors` : ''}`,
+      message: `Order sync complete: ${totalSynced} orders synced across ${platformsToSync.join(' and ')}${totalErrors > 0 ? `, ${totalErrors} errors` : ''}. Click "Refresh P&L" to update the dashboard.`,
       results,
-      pnlRefresh: pnlRefreshResult,
     });
   } catch (error) {
     console.error('Error syncing orders:', error);
