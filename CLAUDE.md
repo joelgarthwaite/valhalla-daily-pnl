@@ -457,7 +457,7 @@ Run migrations in order via Supabase SQL editor:
 ### Production
 - **GitHub:** https://github.com/joelgarthwaite/valhalla-daily-pnl
 - **Hosting:** Vercel (auto-deploys on push to `main`)
-- **URL:** Your Vercel deployment URL
+- **URL:** https://pnl.displaychamp.com
 
 ### Auto-Deploy Workflow
 ```bash
