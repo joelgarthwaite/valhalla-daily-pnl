@@ -247,6 +247,7 @@ valhalla-daily-pnl/
 │   ├── app/
 │   │   ├── page.tsx                    # Main dashboard
 │   │   ├── detailed/page.tsx           # Detailed P&L view
+│   │   ├── help/page.tsx               # P&L Help Guide (CFO-grade documentation)
 │   │   ├── login/page.tsx              # Login page
 │   │   ├── admin/                      # Admin pages
 │   │   │   ├── sync/page.tsx           # Order sync from Shopify/Etsy
@@ -286,6 +287,14 @@ valhalla-daily-pnl/
 │   │   │   ├── PnLTable.tsx            # P&L data table
 │   │   │   └── AlertBanner.tsx         # Status alerts
 │   │   ├── charts/                     # Recharts components
+│   │   ├── help/                       # Help guide components
+│   │   │   ├── TableOfContents.tsx     # Sticky sidebar navigation
+│   │   │   ├── HelpWaterfall.tsx       # Interactive P&L flow chart
+│   │   │   ├── KPIDefinitionsTable.tsx # Metric definition tables
+│   │   │   ├── WorkedExample.tsx       # Step-by-step calculation
+│   │   │   ├── PlatformBreakdown.tsx   # Platform fees & sources
+│   │   │   ├── AdminFunctionsGuide.tsx # Admin capabilities guide
+│   │   │   └── index.ts                # Barrel export
 │   │   └── forms/                      # Form components
 │   ├── hooks/
 │   │   └── usePnLData.ts               # P&L data fetching hook
