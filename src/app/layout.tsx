@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Valhalla Daily P&L',
+  title: 'Valhalla P&L Dashboard',
   description: 'Daily P&L reporting for Display Champ and Bright Ivy',
 };
 
