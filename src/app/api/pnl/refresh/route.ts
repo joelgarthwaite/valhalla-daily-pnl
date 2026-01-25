@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { CostConfig } from '@/types';
 import {
@@ -21,7 +21,7 @@ const SHOPIFY_FEE_RATE = 0.029; // 2.9%
 const SHOPIFY_FEE_FIXED = 0.30; // £0.30 per transaction
 const ETSY_FEE_RATE = 0.065; // ~6.5% total Etsy fees
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     // Use service role key for full access
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,6 +33,19 @@ export async function POST() {
         { status: 500 }
       );
     }
+
+    // Parse optional date range from request body
+    const body = await request.json().catch(() => ({}));
+    const { startDate, endDate, days } = body as {
+      startDate?: string;
+      endDate?: string;
+      days?: number;
+    };
+
+    // Default to last 90 days if no date range specified (for performance)
+    const defaultDays = days || 90;
+    const toDate = endDate || new Date().toISOString().split('T')[0];
+    const fromDate = startDate || new Date(Date.now() - defaultDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -61,36 +74,44 @@ export async function POST() {
       const pickPackRate = costConfig ? costConfig.pick_pack_pct / 100 : DEFAULT_PICK_PACK_RATE;
       const logisticsRate = costConfig ? costConfig.logistics_pct / 100 : DEFAULT_LOGISTICS_RATE;
 
-      // Fetch orders grouped by date and platform (extract refunds from raw_data)
+      // Fetch orders within date range (extract refunds from raw_data)
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select('order_date, platform, subtotal, shipping_charged, total, raw_data')
-        .eq('brand_id', brand.id);
+        .eq('brand_id', brand.id)
+        .gte('order_date', fromDate)
+        .lte('order_date', toDate + 'T23:59:59');
 
       if (ordersError) throw ordersError;
 
-      // Fetch shipments grouped by date
+      // Fetch shipments within date range
       const { data: shipments, error: shipmentsError } = await supabase
         .from('shipments')
         .select('shipping_date, shipping_cost')
         .eq('brand_id', brand.id)
-        .not('shipping_date', 'is', null);
+        .not('shipping_date', 'is', null)
+        .gte('shipping_date', fromDate)
+        .lte('shipping_date', toDate + 'T23:59:59');
 
       if (shipmentsError) throw shipmentsError;
 
-      // Fetch ad spend
+      // Fetch ad spend within date range
       const { data: adSpend, error: adSpendError } = await supabase
         .from('ad_spend')
         .select('date, platform, spend')
-        .eq('brand_id', brand.id);
+        .eq('brand_id', brand.id)
+        .gte('date', fromDate)
+        .lte('date', toDate);
 
       if (adSpendError) throw adSpendError;
 
-      // Fetch B2B revenue
+      // Fetch B2B revenue within date range
       const { data: b2bRevenue, error: b2bError } = await supabase
         .from('b2b_revenue')
         .select('date, subtotal, shipping_charged, total')
-        .eq('brand_id', brand.id);
+        .eq('brand_id', brand.id)
+        .gte('date', fromDate)
+        .lte('date', toDate);
 
       if (b2bError) throw b2bError;
 
@@ -359,8 +380,9 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: `P&L data refreshed successfully`,
+      message: `P&L data refreshed for ${fromDate} to ${toDate}`,
       recordsProcessed: totalRecordsProcessed,
+      dateRange: { from: fromDate, to: toDate },
     });
 
   } catch (error) {
