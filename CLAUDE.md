@@ -246,6 +246,7 @@ valhalla-daily-pnl/
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx                    # Main dashboard
+│   │   ├── country/page.tsx            # Country analysis (P&L by shipping destination)
 │   │   ├── detailed/page.tsx           # Detailed P&L view
 │   │   ├── help/page.tsx               # P&L Help Guide (CFO-grade documentation)
 │   │   ├── login/page.tsx              # Login page
@@ -260,6 +261,7 @@ valhalla-daily-pnl/
 │   │   ├── api/
 │   │   │   ├── pnl/
 │   │   │   │   ├── data/route.ts       # Fast P&L data fetch (bypasses RLS)
+│   │   │   │   ├── country/route.ts    # Country P&L data (GP2 by shipping destination)
 │   │   │   │   └── refresh/route.ts    # Refresh P&L calculations
 │   │   │   ├── calendar/seed/route.ts  # Import standard events
 │   │   │   ├── b2b/import/route.ts     # Bulk import B2B revenue
@@ -287,6 +289,11 @@ valhalla-daily-pnl/
 │   │   │   ├── PnLTable.tsx            # P&L data table
 │   │   │   └── AlertBanner.tsx         # Status alerts
 │   │   ├── charts/                     # Recharts components
+│   │   ├── country/                    # Country analysis components
+│   │   │   ├── CountrySummaryCards.tsx # KPI cards (countries, top country, domestic %)
+│   │   │   ├── CountryTable.tsx        # P&L breakdown table by country
+│   │   │   ├── CountryRevenueChart.tsx # Revenue bar chart by country
+│   │   │   └── index.ts                # Barrel export
 │   │   ├── help/                       # Help guide components
 │   │   │   ├── TableOfContents.tsx     # Sticky sidebar navigation
 │   │   │   ├── HelpWaterfall.tsx       # Interactive P&L flow chart
@@ -302,6 +309,7 @@ valhalla-daily-pnl/
 │   │   ├── supabase/                   # Supabase client config
 │   │   ├── pnl/                        # P&L calculation engine
 │   │   │   ├── calculations.ts         # GP1/GP2/GP3, POAS, MER, AOV
+│   │   │   ├── country-calculations.ts # Country P&L calculations (GP1/GP2)
 │   │   │   ├── aggregations.ts         # Time period rollups
 │   │   │   ├── targets.ts              # Target calculations
 │   │   │   └── reconciliation.ts       # Expected vs actual comparison
@@ -439,6 +447,9 @@ Advanced options (individual platform sync, P&L-only refresh) are available unde
 ### P&L Data
 - `GET /api/pnl/data` - Fast P&L data fetch (bypasses RLS)
   - Query params: `from`, `to`, `brand`
+- `GET /api/pnl/country` - Country P&L breakdown (GP2 by shipping destination)
+  - Query params: `from`, `to`, `brand`
+  - Returns: countries array + summary statistics
 - `POST /api/pnl/refresh` - Recalculate daily P&L records
   - Body: `{ "days": 90 }` or `{ "startDate": "2025-01-01", "endDate": "2025-01-25" }`
   - Defaults to last 90 days if no params provided
@@ -575,6 +586,56 @@ Admin > Reconciliation (`/admin/reconciliation`)
 
 ### Expected Data
 Update `EXPECTED_2025_DATA` in `src/lib/pnl/reconciliation.ts` with actual CSV values.
+
+---
+
+## Country Analysis
+
+### Purpose
+Analyze P&L metrics by customer shipping destination. Shows GP2 (before ad spend) since ad spend cannot be attributed to specific countries.
+
+### Location
+Dashboard header → Country Analysis button (`/country`)
+
+### Features
+- **Summary Cards**: Total countries, top country by revenue, domestic %, top GP2 margin
+- **Revenue Chart**: Horizontal bar chart showing top 10 countries with "Others" aggregation
+- **Country Table**: Full P&L breakdown with sortable columns and expandable platform details
+- Filter by brand and date range with quick presets
+
+### Metrics Shown (per country)
+| Metric | Definition |
+|--------|------------|
+| Revenue | Product revenue (subtotals) from that country |
+| Orders | Total order count |
+| AOV | Average Order Value (Revenue / Orders) |
+| COGS | Cost of Goods (30% of revenue) |
+| GP1 | Gross Profit 1 (Revenue - COGS) |
+| Platform Fees | Shopify (2.9% + 30p) + Etsy (6.5%) |
+| Pick & Pack | 5% of revenue |
+| Logistics | 3% of revenue |
+| GP2 | Gross Profit 2 (GP1 - Fees - Pick/Pack - Logistics) |
+| GP2 % | GP2 margin as percentage of revenue |
+
+### Why GP2 (not GP3)?
+Ad spend cannot be reliably attributed to specific countries because:
+- Meta/Google ads don't report by customer location
+- Attribution would require guessing or even distribution
+- GP2 shows true operational profitability per market
+
+### API Endpoint
+```
+GET /api/pnl/country?from=YYYY-MM-DD&to=YYYY-MM-DD&brand=all|DC|BI
+```
+
+Returns:
+- `countries[]` - Array of country P&L data sorted by revenue
+- `summary` - Aggregate statistics (total countries, domestic/international split, etc.)
+
+### Data Source
+Queries `orders` table directly using `shipping_address.country_code`:
+- Shopify: `shipping_address.country_code` from order
+- Etsy: `country_iso` stored in shipping address
 
 ---
 

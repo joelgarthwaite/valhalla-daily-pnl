@@ -1,0 +1,357 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { ArrowLeft, RefreshCw, Download, Globe } from 'lucide-react';
+import Link from 'next/link';
+import { format, subDays } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Label } from '@/components/ui/label';
+import { CalendarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  CountrySummaryCards,
+  CountryTable,
+  CountryRevenueChart,
+} from '@/components/country';
+import type { CountryPnL, CountrySummary } from '@/lib/pnl/country-calculations';
+import type { BrandFilter, DateRange } from '@/types';
+
+interface CountryApiResponse {
+  countries: CountryPnL[];
+  summary: CountrySummary;
+  dateRange: {
+    from: string;
+    to: string;
+  };
+  brandFilter: string;
+}
+
+// Preset date ranges
+const presets = {
+  thisWeek: {
+    label: 'This Week',
+    getRange: () => {
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+      const monday = new Date(now.setDate(diff));
+      monday.setHours(0, 0, 0, 0);
+      return { from: monday, to: new Date() };
+    },
+  },
+  lastWeek: {
+    label: 'Last Week',
+    getRange: () => {
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1) - 7;
+      const monday = new Date(now);
+      monday.setDate(diff);
+      monday.setHours(0, 0, 0, 0);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return { from: monday, to: sunday };
+    },
+  },
+  thisMonth: {
+    label: 'This Month',
+    getRange: () => {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { from: startOfMonth, to: now };
+    },
+  },
+  last30: {
+    label: 'Last 30 Days',
+    getRange: () => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      return { from: subDays(now, 29), to: now };
+    },
+  },
+  last90: {
+    label: 'Last 90 Days',
+    getRange: () => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      return { from: subDays(now, 89), to: now };
+    },
+  },
+};
+
+export default function CountryAnalysisPage() {
+  const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
+  const [dateRange, setDateRange] = useState<DateRange>(() => presets.last30.getRange());
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [countries, setCountries] = useState<CountryPnL[]>([]);
+  const [summary, setSummary] = useState<CountrySummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const fromDate = format(dateRange.from, 'yyyy-MM-dd');
+      const toDate = format(dateRange.to, 'yyyy-MM-dd');
+
+      const params = new URLSearchParams({
+        from: fromDate,
+        to: toDate,
+        brand: brandFilter,
+      });
+
+      const response = await fetch(`/api/pnl/country?${params}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const data: CountryApiResponse = await response.json();
+
+      setCountries(data.countries);
+      setSummary(data.summary);
+    } catch (err) {
+      console.error('Error fetching country data:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [brandFilter, dateRange]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handlePresetClick = (presetKey: keyof typeof presets) => {
+    const range = presets[presetKey].getRange();
+    setDateRange(range);
+    setIsCalendarOpen(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b bg-card sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Dashboard
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                  <Globe className="h-6 w-6" />
+                  Country Analysis
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  P&L breakdown by shipping destination (up to GP2)
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchData()}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" disabled>
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6 space-y-6">
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+            <p className="font-medium">Error loading data</p>
+            <p className="text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Brand Filter */}
+              <div className="flex items-center gap-2">
+                <Label htmlFor="brand-filter" className="text-sm font-medium text-muted-foreground">
+                  Brand
+                </Label>
+                <Select value={brandFilter} onValueChange={(v) => setBrandFilter(v as BrandFilter)}>
+                  <SelectTrigger id="brand-filter" className="w-[160px]">
+                    <SelectValue placeholder="Select brand" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Brands</SelectItem>
+                    <SelectItem value="DC">Display Champ</SelectItem>
+                    <SelectItem value="BI">Bright Ivy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date Range */}
+              <div className="flex items-center gap-2">
+                <Label className="text-sm font-medium text-muted-foreground">
+                  Date Range
+                </Label>
+                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-[280px] justify-start text-left font-normal',
+                        !dateRange && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange?.from ? (
+                        dateRange.to && dateRange.to.getTime() !== dateRange.from.getTime() ? (
+                          <>
+                            {format(dateRange.from, 'LLL dd, y')} -{' '}
+                            {format(dateRange.to, 'LLL dd, y')}
+                          </>
+                        ) : (
+                          format(dateRange.from, 'LLL dd, y')
+                        )
+                      ) : (
+                        <span>Pick a date range</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <div className="flex">
+                      {/* Presets sidebar */}
+                      <div className="border-r p-3 space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Quick Select</p>
+                        {Object.entries(presets).map(([key, preset]) => (
+                          <Button
+                            key={key}
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start text-xs h-7"
+                            onClick={() => handlePresetClick(key as keyof typeof presets)}
+                          >
+                            {preset.label}
+                          </Button>
+                        ))}
+                      </div>
+
+                      {/* Calendar */}
+                      <div className="p-3">
+                        <div className="flex gap-4 mb-2 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">Start:</span>
+                            <span>{dateRange.from ? format(dateRange.from, 'MMM d, y') : 'Select'}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">End:</span>
+                            <span>{dateRange.to ? format(dateRange.to, 'MMM d, y') : 'Select'}</span>
+                          </div>
+                        </div>
+                        <Calendar
+                          initialFocus
+                          mode="range"
+                          defaultMonth={dateRange?.from}
+                          selected={{ from: dateRange.from, to: dateRange.to }}
+                          onSelect={(range) => {
+                            if (range?.from && range?.to) {
+                              setDateRange({ from: range.from, to: range.to });
+                              setIsCalendarOpen(false);
+                            } else if (range?.from) {
+                              setDateRange({ from: range.from, to: range.from });
+                            }
+                          }}
+                          numberOfMonths={2}
+                          weekStartsOn={1}
+                        />
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Quick preset buttons */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Quick:</span>
+                {(['thisWeek', 'lastWeek', 'thisMonth', 'last30'] as const).map((key) => (
+                  <Button
+                    key={key}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handlePresetClick(key)}
+                  >
+                    {presets[key].label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Info Banner */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm text-blue-700">
+            <strong>Note:</strong> Country analysis shows P&L metrics up to GP2 (Gross Profit 2)
+            because ad spend cannot be attributed to specific countries. GP2 includes:
+            Revenue - COGS - Platform Fees - Pick & Pack - Logistics.
+          </p>
+        </div>
+
+        {/* Summary Cards */}
+        <CountrySummaryCards summary={summary} isLoading={isLoading} />
+
+        {/* Revenue Chart */}
+        <CountryRevenueChart data={countries} isLoading={isLoading} />
+
+        {/* Country Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Country Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CountryTable data={countries} isLoading={isLoading} />
+          </CardContent>
+        </Card>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t bg-card mt-12">
+        <div className="container mx-auto px-4 py-4">
+          <p className="text-sm text-muted-foreground text-center">
+            Valhalla Daily P&L &copy; {new Date().getFullYear()}
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+}

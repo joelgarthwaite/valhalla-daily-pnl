@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, RefreshCw, Settings, BarChart3, ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
+import { Download, RefreshCw, Settings, BarChart3, ChevronDown, ChevronUp, HelpCircle, Globe } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -81,6 +81,12 @@ export default function DashboardPage() {
                 <Button variant="default" size="sm">
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Detailed Analytics
+                </Button>
+              </Link>
+              <Link href="/country">
+                <Button variant="outline" size="sm">
+                  <Globe className="h-4 w-4 mr-2" />
+                  Country Analysis
                 </Button>
               </Link>
               <Button variant="outline" size="sm">
