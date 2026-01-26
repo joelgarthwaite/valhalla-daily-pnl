@@ -385,6 +385,9 @@ ETSY_BI_API_KEY=<etsy-api-keystring>
 ETSY_BI_SHOP_ID=<etsy-shop-id>
 ETSY_BI_ACCESS_TOKEN=<oauth-access-token>
 ETSY_BI_REFRESH_TOKEN=<oauth-refresh-token>
+
+# Cron Job
+CRON_SECRET=<random-secret-for-manual-trigger>
 ```
 
 ---
@@ -440,9 +443,52 @@ Advanced options (individual platform sync, P&L-only refresh) are available unde
 - **Date-Range Filtered P&L Refresh**: Only processes orders within specified date range (default: 90 days)
 - **User Roles Index**: `idx_user_roles_user_id` for faster auth checks
 
+### Automatic Daily Sync (Cron Job)
+
+Vercel cron jobs run twice daily at **5:00 AM** and **6:00 PM UTC** to automatically sync all data:
+
+1. Syncs Shopify orders (last 7 days)
+2. Syncs Etsy orders (last 7 days)
+3. Syncs Meta ad spend (last 7 days)
+4. Refreshes P&L calculations
+
+**Schedule:**
+| Time (UTC) | Time (UK) |
+|------------|-----------|
+| 05:00 | 5:00 AM |
+| 18:00 | 6:00 PM |
+
+**Configuration:** `vercel.json`
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-sync",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/daily-sync",
+      "schedule": "0 18 * * *"
+    }
+  ]
+}
+```
+
+**Manual Trigger:**
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/cron/daily-sync
+```
+
+**Environment Variable:** `CRON_SECRET` - Required for manual triggering (Vercel cron calls are authenticated automatically)
+
 ---
 
 ## API Endpoints
+
+### Cron / Scheduled Tasks
+- `GET /api/cron/daily-sync` - Automated daily sync (Shopify, Etsy, Meta, P&L refresh)
+  - Runs automatically at 6:00 AM UTC via Vercel Cron
+  - Manual trigger: `Authorization: Bearer $CRON_SECRET` header required
 
 ### P&L Data
 - `GET /api/pnl/data` - Fast P&L data fetch (bypasses RLS)
