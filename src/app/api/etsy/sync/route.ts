@@ -39,9 +39,9 @@ async function getEtsyStoresFromEnv(
 
   if (dcApiKey && dcShopId && dcAccessToken && dcBrand) {
     stores.push({
-      brandId: dcBrand.id,
+      brandId: (dcBrand as Brand).id,
       brandCode: 'DC',
-      brandName: dcBrand.name,
+      brandName: (dcBrand as Brand).name,
       storeId: 'env-dc', // Virtual store ID for env-based config
       storeName: 'Display Champ Etsy (env)',
       apiKey: dcApiKey,
@@ -62,9 +62,9 @@ async function getEtsyStoresFromEnv(
 
   if (biApiKey && biShopId && biAccessToken && biBrand) {
     stores.push({
-      brandId: biBrand.id,
+      brandId: (biBrand as Brand).id,
       brandCode: 'BI',
-      brandName: biBrand.name,
+      brandName: (biBrand as Brand).name,
       storeId: 'env-bi',
       storeName: 'Bright Ivy Etsy (env)',
       apiKey: biApiKey,
