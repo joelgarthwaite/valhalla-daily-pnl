@@ -8,6 +8,26 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 
 ---
 
+## Developer Documentation
+
+For comprehensive technical documentation, see:
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete systems architecture, data flows, and consolidation roadmap
+- **[docs/API.md](docs/API.md)** - Full API endpoint reference with request/response examples
+- **[docs/diagrams/](docs/diagrams/)** - Mermaid diagrams for data flow, database schema, and P&L waterfall
+
+### Related Projects (Valhalla Hub)
+
+| Project | Location | Purpose |
+|---------|----------|---------|
+| **P&L Dashboard** | This repo | Daily P&L analysis (GP1→GP2→GP3→Net) |
+| **Shipping Dashboard** | `/Bright Ivy Postage Project (Claude)/` | Carrier costs & shipping margins |
+| **EOS Framework** | `/Valhalla Holdings EOS Framework/` | Rocks, Scorecard, L10 meetings |
+
+All projects share the same Supabase database and are planned for consolidation into a unified **Valhalla Hub** at `valhalla.displaychamp.com`.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -59,6 +79,8 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - `supabase/migrations/009_b2b_order_tagging.sql` - B2B tagging on orders (is_b2b, b2b_customer_name)
 - `supabase/migrations/010_country_ad_spend.sql` - Country-level ad spend from Meta API
 - `supabase/migrations/011_order_exclusions.sql` - Order exclusion system (excluded_at, excluded_orders table)
+- `supabase/migrations/012_unmatched_invoices.sql` - Unmatched invoice records for reconciliation
+- `supabase/migrations/013_add_deutschepost_carrier.sql` - Deutsche Post carrier support
 
 ---
 
@@ -156,6 +178,52 @@ Real-time bank balances displayed on the dashboard from Xero accounting software
 - `GET /api/xero/auth?brand=DC|BI` - Start OAuth flow
 - `GET /api/xero/callback` - OAuth callback (stores tokens)
 - `GET /api/xero/balances?brand=all|DC|BI` - Fetch bank balances
+
+---
+
+## ShipStation Integration
+
+Syncs shipment data from ShipStation to link tracking numbers with orders and enable shipping cost allocation.
+
+### Supported Carriers
+
+| Carrier | ShipStation Code | Database Code |
+|---------|------------------|---------------|
+| Royal Mail | `royal_mail` | `royalmail` |
+| DHL Express | `dhl_express_uk` | `dhl` |
+| Deutsche Post Cross-Border | `deutsche_post_cross_border` | `deutschepost` |
+
+### How It Works
+
+1. ShipStation stores all shipments with tracking numbers and order references
+2. Sync API fetches shipments and matches to orders by `orderNumber` (Shopify order ID)
+3. Creates/updates `shipments` table with tracking numbers linked to orders
+4. Carrier invoice costs can then be matched to shipments by tracking number
+
+### API Endpoints
+- `GET /api/shipstation/sync` - Check connection status
+- `POST /api/shipstation/sync` - Sync shipments from ShipStation
+  ```json
+  {
+    "startDate": "2025-01-01",
+    "endDate": "2025-01-31",
+    "carrierCode": "deutsche_post_cross_border",  // optional filter
+    "updateExisting": true  // default: true
+  }
+  ```
+
+### GlobalMail / Batch Shipments
+
+DHL GlobalMail invoices contain batch costs (not individual tracking numbers). These are handled by:
+1. Syncing individual shipments from ShipStation (with `LY...DE` tracking numbers)
+2. Allocating batch invoice costs proportionally across shipments by ship date
+3. Marking batch records as "Resolved" in unmatched invoices queue
+
+### Environment Variables
+```bash
+SHIPSTATION_API_KEY=<api-key>
+SHIPSTATION_API_SECRET=<api-secret>
+```
 
 ---
 
@@ -524,6 +592,10 @@ RESEND_API_KEY=<resend-api-key>
 # Xero Integration (Bank Balances)
 XERO_CLIENT_ID=<from-xero-developer-portal>
 XERO_CLIENT_SECRET=<from-xero-developer-portal>
+
+# ShipStation API (Shipment Sync)
+SHIPSTATION_API_KEY=<api-key>
+SHIPSTATION_API_SECRET=<api-secret>
 ```
 
 ---
@@ -769,6 +841,44 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?test=true"
 }
 ```
 
+### ShipStation (Shipment Sync)
+- `GET /api/shipstation/sync` - Check ShipStation connection status
+- `POST /api/shipstation/sync` - Sync shipments from ShipStation
+
+```json
+// POST /api/shipstation/sync
+{
+  "startDate": "2025-01-01",
+  "endDate": "2025-01-31",
+  "carrierCode": "deutsche_post_cross_border",  // Optional
+  "updateExisting": true
+}
+
+// Response
+{
+  "success": true,
+  "message": "Synced 570 shipments (3 created, 466 updated)",
+  "results": {
+    "matched": 570,
+    "created": 3,
+    "updated": 466,
+    "notFound": 3,
+    "errors": 0,
+    "carrierStats": { "royalmail": 466, "deutschepost": 103, "dhl": 4 }
+  }
+}
+```
+
+### Invoice Processing
+- `POST /api/invoices/analyze` - Analyze carrier invoice CSV before processing
+- `POST /api/invoices/process` - Process analyzed invoice records
+
+### Unmatched Invoices
+- `GET /api/invoices/unmatched` - List unmatched invoice records
+  - Query: `status`, `carrier`, `limit`, `offset`
+- `PATCH /api/invoices/unmatched` - Update record status (match, void, resolve)
+- `DELETE /api/invoices/unmatched?id=uuid` - Delete a record
+
 ---
 
 ## Database Migration
@@ -986,6 +1096,73 @@ excluded_orders (
   exclusion_reason TEXT,
   excluded_at TIMESTAMPTZ,
   UNIQUE(platform, platform_order_id)
+);
+```
+
+---
+
+## Unmatched Invoice Records
+
+When carrier invoices are uploaded, any line items that can't be matched to existing orders/shipments are captured in a reconciliation queue for manual review.
+
+### Purpose
+- Identify wasted/unused shipping labels
+- Catch overpayments or billing errors
+- Reconcile batch shipments (e.g., GlobalMail)
+- Ensure all shipping costs are properly allocated
+
+### Location
+Shipping > Unmatched button (`/shipping/unmatched`)
+
+### Status Workflow
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Needs review - no matching order found |
+| `matched` | Manually linked to an order (creates shipment) |
+| `voided` | Wasted label / cancelled shipment |
+| `resolved` | Investigated and closed (with notes) |
+
+### Features
+- **Summary Cards**: Count by status (Pending, Voided, Matched, Resolved)
+- **Records Table**: All unmatched invoice line items with details
+- **Actions**: Link to Order, Mark as Voided, Mark as Resolved, Delete
+- **Badge on Shipping Page**: Shows pending count for visibility
+
+### API Endpoints
+- `GET /api/invoices/unmatched` - List unmatched records
+  - Query params: `status` (pending/matched/voided/resolved/all), `carrier`, `limit`, `offset`
+- `PATCH /api/invoices/unmatched` - Update record status
+  ```json
+  {
+    "id": "uuid",
+    "status": "voided",
+    "resolution_notes": "Customer cancelled before shipping"
+  }
+  ```
+- `DELETE /api/invoices/unmatched?id=uuid` - Delete a record
+
+### Database Schema
+```sql
+unmatched_invoice_records (
+  id UUID PRIMARY KEY,
+  tracking_number TEXT NOT NULL,
+  carrier VARCHAR(50) NOT NULL,
+  shipping_cost DECIMAL(10, 2) NOT NULL,
+  currency VARCHAR(3) DEFAULT 'GBP',
+  service_type TEXT,
+  weight_kg DECIMAL(10, 3),
+  shipping_date DATE,
+  invoice_number TEXT,
+  file_name TEXT,
+  status VARCHAR(20) DEFAULT 'pending',  -- pending, matched, voided, resolved
+  resolution_notes TEXT,
+  matched_order_id UUID,
+  matched_shipment_id UUID,
+  created_at TIMESTAMPTZ,
+  resolved_at TIMESTAMPTZ,
+  raw_data JSONB,
+  UNIQUE(tracking_number, invoice_number)
 );
 ```
 

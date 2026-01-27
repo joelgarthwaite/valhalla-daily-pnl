@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { ChevronDown, ChevronRight, ArrowUpDown, Info } from 'lucide-react';
 import {
   Table,
@@ -163,8 +163,8 @@ export function CountryTable({ data, isLoading = false, hasAdSpendData = false }
             const isGP3Profit = row.gp3 !== null && row.gp3 >= 0;
 
             return (
-              <>
-                <TableRow key={row.countryCode} className="hover:bg-muted/50">
+              <Fragment key={row.countryCode}>
+                <TableRow className="hover:bg-muted/50">
                   <TableCell>
                     <Button
                       variant="ghost"
@@ -397,7 +397,7 @@ export function CountryTable({ data, isLoading = false, hasAdSpendData = false }
                     </TableCell>
                   </TableRow>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </TableBody>

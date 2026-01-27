@@ -1,0 +1,115 @@
+%% Valhalla Hub - Target Architecture (Post-Consolidation)
+%% Render with: https://mermaid.live or VS Code Mermaid extension
+
+flowchart TB
+    subgraph Users["Users"]
+        ADMIN["Admin<br/>joel@displaychamp.com"]
+        EDITOR["Editor<br/>lee@brightivy.com"]
+        VIEWER["Viewer<br/>Read-only access"]
+    end
+
+    subgraph Domain["valhalla.displaychamp.com"]
+        HOME["/ Home<br/>Hub Overview Dashboard<br/>Cross-module KPIs"]
+
+        subgraph PNL["P&L Module /pnl"]
+            PNL_MAIN["/pnl<br/>Main P&L Dashboard"]
+            PNL_COUNTRY["/pnl/country<br/>Country Analysis"]
+            PNL_DETAILED["/pnl/detailed<br/>Detailed View"]
+        end
+
+        subgraph SHIPPING["Shipping Module /shipping"]
+            SHIP_MAIN["/shipping<br/>Shipping Dashboard"]
+            SHIP_UPLOAD["/shipping/upload<br/>Invoice Upload"]
+            SHIP_CARRIERS["/shipping/carriers<br/>Carrier Analysis"]
+        end
+
+        subgraph EOS["EOS Module /eos"]
+            EOS_DASH["/eos<br/>EOS Dashboard"]
+            EOS_SCORE["/eos/scorecard<br/>Weekly Scorecard"]
+            EOS_ROCKS["/eos/rocks<br/>Quarterly Rocks"]
+            EOS_ISSUES["/eos/issues<br/>IDS List"]
+            EOS_L10["/eos/meeting<br/>Level 10 Meeting"]
+            EOS_VISION["/eos/vision<br/>Vision/Traction"]
+        end
+
+        subgraph FINANCE["Finance Module /finance"]
+            CASHFLOW["/finance/cashflow<br/>Cash Flow Projections"]
+            INVESTOR["/finance/investor<br/>M&A Metrics"]
+            XERO["/finance/banking<br/>Bank Balances"]
+        end
+
+        subgraph ADMIN_PAGES["Admin /admin"]
+            SYNC["/admin/sync<br/>Data Sync"]
+            OPEX["/admin/opex<br/>Operating Expenses"]
+            GOALS["/admin/goals<br/>Quarterly Goals"]
+            B2B["/admin/b2b<br/>B2B Revenue"]
+            EVENTS["/admin/events<br/>Calendar Events"]
+        end
+
+        HELP["/help<br/>Documentation"]
+        LOGIN["/login<br/>Authentication"]
+    end
+
+    subgraph Tech["Shared Technology Layer"]
+        NEXT["Next.js 16<br/>React 19"]
+        TAILWIND["Tailwind CSS 4<br/>shadcn/ui"]
+        RECHARTS["Recharts 3.7"]
+        SUPABASE_CLIENT["Supabase Client<br/>RLS + Service Role"]
+    end
+
+    subgraph DB["Supabase Database"]
+        ORDERS_T[("orders")]
+        DAILY_PNL_T[("daily_pnl")]
+        SHIPMENTS_T[("shipments")]
+        AD_SPEND_T[("ad_spend")]
+        EOS_T[("eos_*<br/>rocks, scorecard,<br/>issues, todos")]
+        OPEX_T[("operating_expenses")]
+    end
+
+    subgraph External["External Integrations"]
+        SHOPIFY_INT["Shopify API"]
+        ETSY_INT["Etsy API"]
+        META_INT["Meta API"]
+        GOOGLE_INT["Google Ads API"]
+        XERO_INT["Xero API"]
+        RESEND_INT["Resend Email"]
+    end
+
+    %% User access
+    ADMIN --> HOME
+    EDITOR --> HOME
+    VIEWER --> HOME
+
+    %% Navigation
+    HOME --> PNL_MAIN
+    HOME --> SHIP_MAIN
+    HOME --> EOS_DASH
+    HOME --> CASHFLOW
+
+    %% Tech layer
+    NEXT --> HOME
+    TAILWIND --> HOME
+    RECHARTS --> HOME
+    SUPABASE_CLIENT --> DB
+
+    %% External integrations
+    SHOPIFY_INT --> ORDERS_T
+    ETSY_INT --> ORDERS_T
+    META_INT --> AD_SPEND_T
+    GOOGLE_INT --> AD_SPEND_T
+    XERO_INT --> CASHFLOW
+
+    %% Styling
+    classDef user fill:#e3f2fd,stroke:#1565c0
+    classDef module fill:#e8f5e9,stroke:#2e7d32
+    classDef admin fill:#fff3e0,stroke:#e65100
+    classDef tech fill:#f3e5f5,stroke:#7b1fa2
+    classDef db fill:#fce4ec,stroke:#c2185b
+    classDef external fill:#eceff1,stroke:#546e7a
+
+    class ADMIN,EDITOR,VIEWER user
+    class HOME,PNL_MAIN,PNL_COUNTRY,PNL_DETAILED,SHIP_MAIN,SHIP_UPLOAD,SHIP_CARRIERS,EOS_DASH,EOS_SCORE,EOS_ROCKS,EOS_ISSUES,EOS_L10,EOS_VISION,CASHFLOW,INVESTOR,XERO,HELP,LOGIN module
+    class SYNC,OPEX,GOALS,B2B,EVENTS admin
+    class NEXT,TAILWIND,RECHARTS,SUPABASE_CLIENT tech
+    class ORDERS_T,DAILY_PNL_T,SHIPMENTS_T,AD_SPEND_T,EOS_T,OPEX_T db
+    class SHOPIFY_INT,ETSY_INT,META_INT,GOOGLE_INT,XERO_INT,RESEND_INT external

@@ -1,0 +1,247 @@
+%% Valhalla Hub - Database Schema (ERD)
+%% Render with: https://mermaid.live or VS Code Mermaid extension
+
+erDiagram
+    %% Core Tables
+    brands ||--o{ stores : "has"
+    brands ||--o{ orders : "has"
+    brands ||--o{ daily_pnl : "has"
+    brands ||--o{ ad_spend : "has"
+    brands ||--o{ b2b_revenue : "has"
+    brands ||--o{ operating_expenses : "has"
+    brands ||--o{ quarterly_goals : "has"
+    brands ||--o{ cost_config : "has"
+
+    stores ||--o{ orders : "receives"
+    orders ||--o| shipments : "has"
+    orders ||--o| excluded_orders : "may be"
+
+    %% EOS Tables (Proposed)
+    brands ||--o{ eos_rocks : "has"
+    brands ||--o{ eos_scorecard : "has"
+    brands ||--o{ eos_issues : "has"
+    brands ||--o{ eos_todos : "has"
+    brands ||--o{ eos_meetings : "has"
+    eos_scorecard ||--o{ eos_scorecard_entries : "has"
+    eos_issues ||--o{ eos_todos : "generates"
+    eos_meetings ||--o{ eos_todos : "creates"
+
+    brands {
+        uuid id PK
+        text name "Display Champ, Bright Ivy"
+        text code "DC, BI"
+        timestamp created_at
+    }
+
+    stores {
+        uuid id PK
+        uuid brand_id FK
+        text platform "shopify, etsy"
+        text store_name
+        text store_domain
+        jsonb api_credentials "OAuth tokens"
+        timestamp last_sync_at
+    }
+
+    orders {
+        uuid id PK
+        uuid store_id FK
+        text platform "shopify, etsy"
+        text platform_order_id UK
+        text order_number
+        date order_date
+        decimal subtotal "PRODUCT REVENUE ONLY"
+        decimal shipping_charged
+        decimal tax
+        decimal total
+        decimal refund_amount
+        text refund_status "none, partial, full"
+        boolean is_b2b
+        text b2b_customer_name
+        timestamp excluded_at "NULL if not excluded"
+        jsonb shipping_address "country_code inside"
+        jsonb raw_data "Full API response"
+    }
+
+    shipments {
+        uuid id PK
+        uuid order_id FK
+        text carrier "DHL, Royal Mail"
+        text tracking_number
+        decimal shipping_cost
+        text cost_type "actual, estimated"
+        text cost_confidence
+        date shipping_date
+        text match_method
+    }
+
+    daily_pnl {
+        uuid id PK
+        date date UK
+        uuid brand_id FK,UK
+        decimal total_revenue
+        decimal net_revenue "Revenue - Refunds"
+        decimal shopify_revenue
+        decimal etsy_revenue
+        decimal b2b_revenue
+        decimal total_refunds
+        decimal cogs
+        decimal gp1 "Gross Profit 1"
+        decimal shopify_fees
+        decimal etsy_fees
+        decimal pick_pack
+        decimal logistics
+        decimal gp2 "Gross Profit 2"
+        decimal total_ad_spend
+        decimal gp3 "Gross Profit 3"
+        decimal total_opex
+        decimal true_net_profit "BOTTOM LINE"
+        integer order_count
+    }
+
+    ad_spend {
+        uuid id PK
+        date date
+        uuid brand_id FK
+        text platform "meta, google, etsy_ads, manual"
+        decimal spend
+        integer impressions
+        integer clicks
+        integer conversions
+        decimal revenue_attributed
+        text source "auto, manual"
+    }
+
+    country_ad_spend {
+        uuid id PK
+        date date
+        uuid brand_id FK
+        text country_code
+        text platform
+        decimal spend
+    }
+
+    b2b_revenue {
+        uuid id PK
+        date date
+        uuid brand_id FK
+        text customer_name
+        decimal subtotal
+        decimal shipping_charged
+        text notes
+    }
+
+    operating_expenses {
+        uuid id PK
+        uuid brand_id FK
+        text name
+        text category "staff, premises, software..."
+        decimal amount
+        text frequency "monthly, quarterly, annual, one_time"
+        date start_date
+        date end_date "NULL if ongoing"
+        date expense_date "For one_time only"
+        boolean is_active
+    }
+
+    quarterly_goals {
+        uuid id PK
+        uuid brand_id FK
+        integer year
+        integer quarter
+        decimal revenue_target
+        decimal gross_margin_target
+    }
+
+    cost_config {
+        uuid id PK
+        uuid brand_id FK,UK
+        decimal cogs_pct "Default 30%"
+        decimal pick_pack_pct "Default 5%"
+        decimal logistics_pct "Default 3%"
+    }
+
+    excluded_orders {
+        uuid id PK
+        text platform
+        text platform_order_id UK
+        text exclusion_reason
+        timestamp excluded_at
+    }
+
+    user_roles {
+        uuid id PK
+        uuid user_id FK
+        text role "admin, editor, viewer"
+        uuid[] brand_access
+    }
+
+    xero_connections {
+        uuid id PK
+        uuid brand_id FK
+        text tenant_id
+        text access_token
+        text refresh_token
+        timestamp token_expires_at
+    }
+
+    %% EOS Tables (Proposed)
+    eos_rocks {
+        uuid id PK
+        uuid brand_id FK
+        text quarter "Q1-2026"
+        text owner
+        text title
+        integer progress "0-100"
+        text status "on_track, at_risk, off_track, complete"
+        text notes
+        jsonb milestones
+    }
+
+    eos_scorecard {
+        uuid id PK
+        uuid brand_id FK
+        text metric_name
+        text owner
+        decimal goal
+        boolean is_active
+    }
+
+    eos_scorecard_entries {
+        uuid id PK
+        uuid scorecard_id FK
+        date week_start
+        decimal actual
+        text notes
+    }
+
+    eos_issues {
+        uuid id PK
+        uuid brand_id FK
+        text title
+        text description
+        integer priority "1-999"
+        text status "open, in_discussion, resolved"
+        text source "scorecard, meeting, other"
+    }
+
+    eos_todos {
+        uuid id PK
+        uuid brand_id FK
+        uuid issue_id FK
+        uuid meeting_id FK
+        text owner
+        text description
+        date due_date
+        text status "pending, done"
+    }
+
+    eos_meetings {
+        uuid id PK
+        uuid brand_id FK
+        date meeting_date
+        integer rating "1-10"
+        integer issues_solved
+        integer todos_created
+        jsonb section_notes
+    }

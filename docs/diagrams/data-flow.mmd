@@ -1,0 +1,98 @@
+%% Valhalla Hub - Complete Data Flow Diagram
+%% Render with: https://mermaid.live or VS Code Mermaid extension
+
+flowchart TB
+    subgraph External["External Data Sources"]
+        SHOPIFY["Shopify GraphQL API<br/>display-champ.myshopify.com<br/>brightivy.myshopify.com"]
+        ETSY["Etsy REST API v3<br/>BrightIvyUK (48268436)<br/>DisplayChampUK (54850131)"]
+        META["Meta Marketing API<br/>act_892968716290721 (DC)<br/>act_3210136152487456 (BI)"]
+        GOOGLE["Google Ads API<br/>281-641-2476 (DC)<br/>⏳ Pending Approval"]
+        XERO["Xero API<br/>Bank Balances<br/>Monzo, Amex"]
+        CARRIER["Carrier Invoices<br/>DHL (actual)<br/>Royal Mail (estimated)"]
+    end
+
+    subgraph Sync["Sync Layer (API Routes)"]
+        SHOP_SYNC["/api/shopify/sync<br/>GraphQL: orders query"]
+        ETSY_SYNC["/api/etsy/sync<br/>GET /receipts<br/>Auto token refresh"]
+        META_SYNC["/api/meta/sync<br/>GET /insights<br/>+ country breakdown"]
+        GOOGLE_SYNC["/api/google/sync<br/>GAQL queries"]
+        XERO_SYNC["/api/xero/balances<br/>GET /Accounts"]
+        INVOICE_UPLOAD["/api/invoices/process<br/>CSV/Excel/PDF parser"]
+    end
+
+    subgraph DB["Supabase Database (pbfaoshmaogrsgatfojs)"]
+        ORDERS[("orders<br/>subtotal, shipping_charged<br/>tax, refund_amount<br/>shipping_address")]
+        AD_SPEND[("ad_spend<br/>date, platform, spend<br/>revenue_attributed")]
+        COUNTRY_AD[("country_ad_spend<br/>date, country_code<br/>platform, spend")]
+        SHIPMENTS[("shipments<br/>tracking_number<br/>shipping_cost<br/>cost_type")]
+        B2B[("b2b_revenue<br/>date, customer<br/>subtotal")]
+        OPEX[("operating_expenses<br/>category, amount<br/>frequency, dates")]
+    end
+
+    subgraph Calc["P&L Calculation Engine"]
+        REFRESH["/api/pnl/refresh<br/>Aggregate orders + costs"]
+        DAILY_PNL[("daily_pnl<br/>gp1, gp2, gp3<br/>true_net_profit")]
+    end
+
+    subgraph API["Presentation APIs"]
+        PNL_DATA["/api/pnl/data<br/>Fast query (service role)"]
+        PNL_COUNTRY["/api/pnl/country<br/>GP2 by destination"]
+        OPEX_API["/api/opex<br/>Period totals"]
+    end
+
+    subgraph UI["Frontend (React 19 + Next.js 16)"]
+        DASHBOARD["Main Dashboard<br/>Hero KPIs, Charts<br/>P&L Table"]
+        COUNTRY_PAGE["Country Analysis<br/>Top countries<br/>Platform breakdown"]
+        ADMIN["Admin Pages<br/>Sync, OPEX, Goals<br/>B2B, Events"]
+    end
+
+    %% Data Flow Connections
+    SHOPIFY --> SHOP_SYNC
+    ETSY --> ETSY_SYNC
+    META --> META_SYNC
+    GOOGLE -.-> GOOGLE_SYNC
+    XERO --> XERO_SYNC
+    CARRIER --> INVOICE_UPLOAD
+
+    SHOP_SYNC --> ORDERS
+    ETSY_SYNC --> ORDERS
+    META_SYNC --> AD_SPEND
+    META_SYNC --> COUNTRY_AD
+    GOOGLE_SYNC -.-> AD_SPEND
+    INVOICE_UPLOAD --> SHIPMENTS
+
+    ORDERS --> REFRESH
+    AD_SPEND --> REFRESH
+    B2B --> REFRESH
+    OPEX --> REFRESH
+    REFRESH --> DAILY_PNL
+
+    DAILY_PNL --> PNL_DATA
+    ORDERS --> PNL_COUNTRY
+    COUNTRY_AD --> PNL_COUNTRY
+    OPEX --> OPEX_API
+
+    PNL_DATA --> DASHBOARD
+    PNL_COUNTRY --> COUNTRY_PAGE
+    OPEX_API --> DASHBOARD
+
+    %% Cron Job
+    CRON["Vercel Cron<br/>5am & 6pm UTC"] --> SHOP_SYNC
+    CRON --> ETSY_SYNC
+    CRON --> META_SYNC
+    CRON --> REFRESH
+
+    %% Styling
+    classDef external fill:#e1f5fe,stroke:#01579b
+    classDef sync fill:#fff3e0,stroke:#e65100
+    classDef db fill:#e8f5e9,stroke:#2e7d32
+    classDef calc fill:#fce4ec,stroke:#880e4f
+    classDef api fill:#f3e5f5,stroke:#4a148c
+    classDef ui fill:#e8eaf6,stroke:#1a237e
+
+    class SHOPIFY,ETSY,META,GOOGLE,XERO,CARRIER external
+    class SHOP_SYNC,ETSY_SYNC,META_SYNC,GOOGLE_SYNC,XERO_SYNC,INVOICE_UPLOAD sync
+    class ORDERS,AD_SPEND,COUNTRY_AD,SHIPMENTS,B2B,OPEX db
+    class REFRESH,DAILY_PNL calc
+    class PNL_DATA,PNL_COUNTRY,OPEX_API api
+    class DASHBOARD,COUNTRY_PAGE,ADMIN ui

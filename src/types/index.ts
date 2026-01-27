@@ -572,6 +572,11 @@ export interface Database {
         Insert: Omit<CostConfig, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<CostConfig, 'id' | 'created_at' | 'updated_at'>>;
       };
+      upload_history: {
+        Row: UploadHistory;
+        Insert: Omit<UploadHistory, 'id' | 'created_at'>;
+        Update: Partial<Omit<UploadHistory, 'id' | 'created_at'>>;
+      };
     };
   };
 }
@@ -713,6 +718,73 @@ export const OPEX_FREQUENCY_LABELS: Record<OpexFrequency, string> = {
 };
 
 // ============================================
+// Invoice Upload Types
+// ============================================
+
+export type UploadMode = 'add_only' | 'overwrite_all' | 'update_if_higher' | 'update_if_lower' | 'add_to_existing';
+
+export interface UploadModeOption {
+  value: UploadMode;
+  label: string;
+  description: string;
+  newRecords: string;
+  existingSameCost: string;
+  existingDifferentCost: string;
+}
+
+// Analysis types for pre-upload preview
+export type RecordAction = 'create' | 'update' | 'skip' | 'blocked' | 'add';
+
+export interface AnalyzedRecord {
+  tracking_number: string;
+  shipping_cost: number;
+  currency: string;
+  service_type: string;
+  weight_kg: number;
+  shipping_date: string;
+  action: RecordAction;
+  reason: string;
+  existing_cost?: number;
+  existing_cost_type?: 'actual' | 'estimated';
+  cost_difference?: number;
+}
+
+export interface AnalysisResult {
+  total: number;
+  toCreate: number;
+  toUpdate: number;
+  toSkip: number;
+  toBlock: number;
+  toAdd: number;  // For add_to_existing mode - costs to add to existing shipments
+  records: AnalyzedRecord[];
+  warnings: string[];
+}
+
+// Upload History types
+export interface UploadHistory {
+  id: string;
+  carrier: 'dhl' | 'royalmail';
+  upload_mode: UploadMode;
+  file_name: string | null;
+  total_records: number;
+  created_count: number;
+  updated_count: number;
+  skipped_count: number;
+  error_count: number;
+  blocked_count: number;
+  uploaded_by: string | null;
+  created_at: string;
+}
+
+// Extended upload result with action type
+export interface UploadResultExtended {
+  tracking_number: string;
+  status: 'success' | 'error' | 'not_found' | 'skipped' | 'blocked';
+  action: 'created' | 'updated' | 'added' | 'skipped' | 'blocked' | 'error';
+  message: string;
+}
+
+// ============================================
 // Xero Integration Types
 // ============================================
 
@@ -749,3 +821,41 @@ export interface XeroBalancesResponse {
   lastUpdated: string;
   errors?: string[];
 }
+
+// ============================================
+// Unmatched Invoice Records Types
+// ============================================
+
+export type UnmatchedRecordStatus = 'pending' | 'matched' | 'voided' | 'resolved';
+
+export interface UnmatchedInvoiceRecord {
+  id: string;
+  tracking_number: string;
+  carrier: 'dhl' | 'royalmail';
+  shipping_cost: number;
+  currency: string;
+  service_type: string | null;
+  weight_kg: number | null;
+  shipping_date: string | null;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  file_name: string | null;
+  destination_country: string | null;
+  destination_city: string | null;
+  receiver_name: string | null;
+  status: UnmatchedRecordStatus;
+  resolution_notes: string | null;
+  matched_order_id: string | null;
+  matched_shipment_id: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  raw_data: Record<string, unknown> | null;
+}
+
+export const UNMATCHED_STATUS_LABELS: Record<UnmatchedRecordStatus, string> = {
+  pending: 'Pending Review',
+  matched: 'Matched to Order',
+  voided: 'Voided/Wasted',
+  resolved: 'Resolved',
+};

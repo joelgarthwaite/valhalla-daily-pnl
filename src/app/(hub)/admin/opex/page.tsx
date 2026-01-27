@@ -107,6 +107,7 @@ export default function OpexPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<OpexCategory | 'all'>('all');
+  const [mounted, setMounted] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -148,6 +149,7 @@ export default function OpexPage() {
   };
 
   useEffect(() => {
+    setMounted(true);
     fetchData();
   }, []);
 
@@ -311,19 +313,20 @@ export default function OpexPage() {
             Manage overhead costs like staff, premises, software, and professional services
           </p>
         </div>
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Expense
-            </Button>
-          </DialogTrigger>
+        {mounted ? (
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) resetForm();
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Expense
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Edit' : 'Add'} Operating Expense</DialogTitle>
@@ -488,6 +491,12 @@ export default function OpexPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        ) : (
+          <Button disabled>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Expense
+          </Button>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -600,22 +609,28 @@ export default function OpexPage() {
       {/* Filter */}
       <div className="flex items-center gap-4">
         <Label>Filter by category:</Label>
-        <Select
-          value={filterCategory}
-          onValueChange={(v) => setFilterCategory(v as OpexCategory | 'all')}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {CATEGORIES.map((category) => (
-              <SelectItem key={category} value={category}>
-                {OPEX_CATEGORY_LABELS[category]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {mounted ? (
+          <Select
+            value={filterCategory}
+            onValueChange={(v) => setFilterCategory(v as OpexCategory | 'all')}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {CATEGORIES.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {OPEX_CATEGORY_LABELS[category]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="w-[200px] h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+            All Categories
+          </div>
+        )}
       </div>
 
       {/* Table */}
