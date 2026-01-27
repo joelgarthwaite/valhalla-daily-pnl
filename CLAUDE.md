@@ -790,6 +790,13 @@ git push
 | joel@displaychamp.com | Valhalla | Admin |
 | lee@brightivy.com | Valhalla | User |
 
+### Supabase Auth Configuration
+In Supabase Dashboard → Authentication → URL Configuration:
+- **Site URL:** `https://pnl.displaychamp.com`
+- **Redirect URLs:** `https://pnl.displaychamp.com/**`
+
+This ensures password reset and auth emails redirect to production (not localhost).
+
 ### Environment Variables (Vercel)
 All variables from `.env.local` must be added to Vercel Dashboard → Project Settings → Environment Variables.
 
