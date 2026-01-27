@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Building2, CreditCard, RefreshCw, AlertCircle, TrendingUp, TrendingDown, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,6 +47,34 @@ function formatTime(isoString: string): string {
   });
 }
 
+// Sort accounts: Monzo first, then Amex, then others
+function sortAccounts(accounts: BrandBalance[]): BrandBalance[] {
+  return [...accounts].sort((a, b) => {
+    const aName = a.accountName.toLowerCase();
+    const bName = b.accountName.toLowerCase();
+
+    // Monzo accounts first
+    const aIsMonzo = aName.includes('monzo');
+    const bIsMonzo = bName.includes('monzo');
+    if (aIsMonzo && !bIsMonzo) return -1;
+    if (!aIsMonzo && bIsMonzo) return 1;
+
+    // Then Amex accounts
+    const aIsAmex = aName.includes('amex') || aName.includes('american express');
+    const bIsAmex = bName.includes('amex') || bName.includes('american express');
+    if (aIsAmex && !bIsAmex) return -1;
+    if (!aIsAmex && bIsAmex) return 1;
+
+    // Then alphabetically
+    return aName.localeCompare(bName);
+  });
+}
+
+// Calculate totals for a brand
+function calculateBrandTotal(accounts: BrandBalance[]): number {
+  return accounts.reduce((sum, acc) => sum + acc.balance, 0);
+}
+
 export function CashPositionCard() {
   const [data, setData] = useState<BalancesResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,6 +107,19 @@ export function CashPositionCard() {
     const interval = setInterval(fetchBalances, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Organize accounts by brand
+  const { dcAccounts, biAccounts, sharedAccounts } = useMemo(() => {
+    if (!data?.balances) {
+      return { dcAccounts: [], biAccounts: [], sharedAccounts: [] };
+    }
+
+    const dc = sortAccounts(data.balances.filter(b => b.brand === 'DC'));
+    const bi = sortAccounts(data.balances.filter(b => b.brand === 'BI'));
+    const shared = sortAccounts(data.balances.filter(b => b.brand === 'SHARED'));
+
+    return { dcAccounts: dc, biAccounts: bi, sharedAccounts: shared };
+  }, [data?.balances]);
 
   // No connections state
   if (!isLoading && data?.balances.length === 0) {
@@ -123,9 +164,9 @@ export function CashPositionCard() {
     );
   }
 
-  // Separate bank accounts and credit cards
-  const bankAccounts = data?.balances.filter(b => b.accountType === 'BANK') || [];
-  const creditCards = data?.balances.filter(b => b.accountType === 'CREDITCARD') || [];
+  const dcTotal = calculateBrandTotal(dcAccounts);
+  const biTotal = calculateBrandTotal(biAccounts);
+  const sharedTotal = calculateBrandTotal(sharedAccounts);
 
   return (
     <Card>
@@ -164,7 +205,7 @@ export function CashPositionCard() {
       </CardHeader>
       <CardContent>
         {/* Total Net Position */}
-        <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 rounded-lg">
+        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 rounded-lg">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Net Position</p>
@@ -198,33 +239,64 @@ export function CashPositionCard() {
           </div>
         </div>
 
-        {/* Account Grid */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Bank Accounts */}
-          {isLoading ? (
-            <>
-              <AccountCardSkeleton />
-              <AccountCardSkeleton />
-            </>
-          ) : (
-            bankAccounts.map((account, i) => (
-              <AccountCard key={`bank-${i}`} account={account} />
-            ))
-          )}
+        {/* Two Column Layout: DC | BI */}
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Display Champ Column */}
+          <BrandColumn
+            brandName="Display Champ"
+            brandCode="DC"
+            accounts={dcAccounts}
+            total={dcTotal}
+            isLoading={isLoading}
+            colorClass="blue"
+          />
 
-          {/* Credit Cards */}
-          {isLoading ? (
-            <AccountCardSkeleton />
-          ) : (
-            creditCards.map((account, i) => (
-              <AccountCard key={`card-${i}`} account={account} />
-            ))
-          )}
+          {/* Bright Ivy Column */}
+          <BrandColumn
+            brandName="Bright Ivy"
+            brandCode="BI"
+            accounts={biAccounts}
+            total={biTotal}
+            isLoading={isLoading}
+            colorClass="emerald"
+          />
         </div>
+
+        {/* Shared Accounts (Credit Cards) */}
+        {(sharedAccounts.length > 0 || isLoading) && (
+          <div className="mt-6 pt-6 border-t">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Shared Credit Cards
+              </h4>
+              {!isLoading && (
+                <span className={cn(
+                  'text-sm font-bold',
+                  sharedTotal >= 0 ? 'text-green-600' : 'text-purple-600'
+                )}>
+                  {formatCurrency(sharedTotal)}
+                </span>
+              )}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {isLoading ? (
+                <>
+                  <AccountCardSkeleton />
+                  <AccountCardSkeleton />
+                </>
+              ) : (
+                sharedAccounts.map((account, i) => (
+                  <AccountCard key={`shared-${i}`} account={account} />
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Errors */}
         {data?.errors && data.errors.length > 0 && (
-          <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-950/20 rounded text-xs text-yellow-700 dark:text-yellow-400">
+          <div className="mt-4 p-2 bg-yellow-50 dark:bg-yellow-950/20 rounded text-xs text-yellow-700 dark:text-yellow-400">
             {data.errors.map((err, i) => (
               <p key={i}>{err}</p>
             ))}
@@ -235,57 +307,142 @@ export function CashPositionCard() {
   );
 }
 
-function AccountCard({ account }: { account: BrandBalance }) {
+function BrandColumn({
+  brandName,
+  brandCode,
+  accounts,
+  total,
+  isLoading,
+  colorClass,
+}: {
+  brandName: string;
+  brandCode: string;
+  accounts: BrandBalance[];
+  total: number;
+  isLoading: boolean;
+  colorClass: 'blue' | 'emerald';
+}) {
+  const bankAccounts = accounts.filter(a => a.accountType === 'BANK');
+  const creditCards = accounts.filter(a => a.accountType === 'CREDITCARD');
+
+  const colors = {
+    blue: {
+      bg: 'bg-blue-50 dark:bg-blue-950/30',
+      border: 'border-blue-200 dark:border-blue-800',
+      text: 'text-blue-700 dark:text-blue-300',
+      icon: 'text-blue-600',
+    },
+    emerald: {
+      bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+      border: 'border-emerald-200 dark:border-emerald-800',
+      text: 'text-emerald-700 dark:text-emerald-300',
+      icon: 'text-emerald-600',
+    },
+  };
+
+  const c = colors[colorClass];
+
+  return (
+    <div className={cn('rounded-lg border p-4', c.bg, c.border)}>
+      {/* Brand Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h4 className={cn('font-semibold', c.text)}>{brandName}</h4>
+        {!isLoading && (
+          <span className={cn(
+            'text-lg font-bold',
+            total >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-red-600'
+          )}>
+            {formatCurrency(total)}
+          </span>
+        )}
+      </div>
+
+      {/* Bank Accounts */}
+      <div className="space-y-2">
+        {isLoading ? (
+          <>
+            <AccountCardSkeleton />
+            <AccountCardSkeleton />
+          </>
+        ) : (
+          <>
+            {/* Monzo / Bank accounts first */}
+            {bankAccounts.map((account, i) => (
+              <AccountCard key={`bank-${i}`} account={account} compact />
+            ))}
+
+            {/* Credit cards for this brand */}
+            {creditCards.map((account, i) => (
+              <AccountCard key={`card-${i}`} account={account} compact />
+            ))}
+
+            {/* Empty state */}
+            {accounts.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No accounts connected
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AccountCard({ account, compact = false }: { account: BrandBalance; compact?: boolean }) {
   const isPositive = account.balance >= 0;
   const isCreditCard = account.accountType === 'CREDITCARD';
+  const isMonzo = account.accountName.toLowerCase().includes('monzo');
+  const isAmex = account.accountName.toLowerCase().includes('amex') ||
+                 account.accountName.toLowerCase().includes('american express');
 
   return (
     <div className={cn(
-      'p-3 rounded-lg border transition-colors',
+      'rounded-lg border transition-colors',
+      compact ? 'p-2' : 'p-3',
       isCreditCard
         ? 'bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800'
         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'
     )}>
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
           {isCreditCard ? (
-            <CreditCard className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <CreditCard className="h-4 w-4 text-purple-600 dark:text-purple-400 flex-shrink-0" />
           ) : (
-            <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
           )}
-          <span className="text-xs font-medium text-muted-foreground uppercase">
-            {account.brand === 'SHARED' ? 'Shared' : account.brand}
+          <span className="text-sm text-muted-foreground truncate" title={account.accountName}>
+            {account.accountName}
           </span>
         </div>
+        <p className={cn(
+          'font-bold flex-shrink-0 ml-2',
+          compact ? 'text-base' : 'text-lg',
+          isCreditCard
+            ? isPositive
+              ? 'text-green-600 dark:text-green-400'
+              : 'text-purple-700 dark:text-purple-300'
+            : isPositive
+              ? 'text-slate-900 dark:text-slate-100'
+              : 'text-red-600 dark:text-red-400'
+        )}>
+          {formatCurrency(account.balance)}
+        </p>
       </div>
-      <p className={cn(
-        'text-lg font-bold',
-        isCreditCard
-          ? isPositive
-            ? 'text-green-600 dark:text-green-400' // Credit on card (unusual but possible)
-            : 'text-purple-700 dark:text-purple-300' // Owed amount
-          : isPositive
-            ? 'text-slate-900 dark:text-slate-100'
-            : 'text-red-600 dark:text-red-400'
-      )}>
-        {formatCurrency(account.balance)}
-      </p>
-      <p className="text-xs text-muted-foreground truncate" title={account.accountName}>
-        {account.accountName}
-      </p>
     </div>
   );
 }
 
 function AccountCardSkeleton() {
   return (
-    <div className="p-3 rounded-lg border bg-white dark:bg-slate-900">
-      <div className="flex items-center gap-2 mb-2">
-        <Skeleton className="h-4 w-4" />
-        <Skeleton className="h-3 w-8" />
+    <div className="p-2 rounded-lg border bg-white dark:bg-slate-900">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-4 w-4" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <Skeleton className="h-5 w-16" />
       </div>
-      <Skeleton className="h-6 w-20 mb-1" />
-      <Skeleton className="h-3 w-24" />
     </div>
   );
 }
