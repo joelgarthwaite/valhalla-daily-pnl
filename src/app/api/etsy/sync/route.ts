@@ -6,7 +6,78 @@ import {
   verifyEtsyCredentials,
   getEtsyStoresFromDb,
   refreshEtsyToken,
+  EtsyStoreCredentials,
 } from '@/lib/etsy/client';
+
+interface Brand {
+  id: string;
+  code: string;
+  name: string;
+}
+
+/**
+ * Get Etsy stores from environment variables (fallback when DB has no stores)
+ */
+async function getEtsyStoresFromEnv(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any
+): Promise<EtsyStoreCredentials[]> {
+  const stores: EtsyStoreCredentials[] = [];
+
+  // Get brand IDs from database
+  const { data: brands } = await supabase.from('brands').select('id, code, name');
+  const brandMap = new Map<string, Brand>(
+    (brands as Brand[] || []).map((b) => [b.code, b])
+  );
+
+  // Check DC environment variables
+  const dcApiKey = process.env.ETSY_DC_API_KEY;
+  const dcShopId = process.env.ETSY_DC_SHOP_ID;
+  const dcAccessToken = process.env.ETSY_DC_ACCESS_TOKEN;
+  const dcRefreshToken = process.env.ETSY_DC_REFRESH_TOKEN;
+  const dcBrand = brandMap.get('DC');
+
+  if (dcApiKey && dcShopId && dcAccessToken && dcBrand) {
+    stores.push({
+      brandId: dcBrand.id,
+      brandCode: 'DC',
+      brandName: dcBrand.name,
+      storeId: 'env-dc', // Virtual store ID for env-based config
+      storeName: 'Display Champ Etsy (env)',
+      apiKey: dcApiKey,
+      shopId: dcShopId,
+      accessToken: dcAccessToken,
+      refreshToken: dcRefreshToken || null,
+      expiresAt: null,
+      lastSyncAt: null,
+    });
+  }
+
+  // Check BI environment variables
+  const biApiKey = process.env.ETSY_BI_API_KEY;
+  const biShopId = process.env.ETSY_BI_SHOP_ID;
+  const biAccessToken = process.env.ETSY_BI_ACCESS_TOKEN;
+  const biRefreshToken = process.env.ETSY_BI_REFRESH_TOKEN;
+  const biBrand = brandMap.get('BI');
+
+  if (biApiKey && biShopId && biAccessToken && biBrand) {
+    stores.push({
+      brandId: biBrand.id,
+      brandCode: 'BI',
+      brandName: biBrand.name,
+      storeId: 'env-bi',
+      storeName: 'Bright Ivy Etsy (env)',
+      apiKey: biApiKey,
+      shopId: biShopId,
+      accessToken: biAccessToken,
+      refreshToken: biRefreshToken || null,
+      expiresAt: null,
+      lastSyncAt: null,
+    });
+  }
+
+  return stores;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,24 +111,44 @@ export async function POST(request: NextRequest) {
       ? new Date(startDate)
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    // Get Etsy stores from database (OAuth credentials from Valhalla Dashboard)
+    // Get Etsy stores from database
     const dbStores = await getEtsyStoresFromDb(supabase);
 
-    if (dbStores.length === 0) {
+    // Get stores from environment variables
+    const envStores = await getEtsyStoresFromEnv(supabase);
+
+    // Merge: use DB stores, but add env stores for brands not in DB
+    const dbBrandCodes = new Set(dbStores.map(s => s.brandCode));
+    const allStores = [
+      ...dbStores,
+      ...envStores.filter(s => !dbBrandCodes.has(s.brandCode))
+    ];
+
+    console.log(`Etsy stores: ${dbStores.length} from DB, ${envStores.filter(s => !dbBrandCodes.has(s.brandCode)).length} from env vars`);
+
+    if (allStores.length === 0) {
       return NextResponse.json(
-        { error: 'No Etsy stores connected. Connect stores via the Valhalla Dashboard at /admin/connections' },
+        {
+          error: 'No Etsy stores configured. Set ETSY_DC_* or ETSY_BI_* environment variables, or connect stores via Valhalla Dashboard.',
+          required: {
+            ETSY_DC_API_KEY: 'Your Etsy API keystring',
+            ETSY_DC_SHOP_ID: 'Your Etsy shop ID (numeric)',
+            ETSY_DC_ACCESS_TOKEN: 'OAuth access token',
+            ETSY_DC_REFRESH_TOKEN: 'OAuth refresh token (optional)',
+          }
+        },
         { status: 400 }
       );
     }
 
     // Filter stores by brand code if specified
     const storesToSync = brandCode && brandCode !== 'all'
-      ? dbStores.filter((s) => s.brandCode === brandCode)
-      : dbStores;
+      ? allStores.filter((s) => s.brandCode === brandCode)
+      : allStores;
 
     if (storesToSync.length === 0) {
       return NextResponse.json(
-        { error: `No Etsy store connected for brand ${brandCode}` },
+        { error: `No Etsy store configured for brand ${brandCode}` },
         { status: 400 }
       );
     }

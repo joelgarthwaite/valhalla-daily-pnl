@@ -527,6 +527,10 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/cr
 ### Calendar
 - `POST /api/calendar/seed` - Import standard eCommerce events for a year
 
+### Etsy OAuth
+- `GET /api/etsy/auth?brand=DC|BI` - Get OAuth authorization URL
+- `GET /api/etsy/callback` - OAuth callback (returns access/refresh tokens)
+
 ### Order Sync (Shopify/Etsy)
 - `GET /api/shopify/sync` - Check Shopify connection status
 - `POST /api/shopify/sync` - Sync orders from Shopify
