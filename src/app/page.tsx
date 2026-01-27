@@ -18,6 +18,7 @@ import {
   AlertBanner,
   PnLTable,
   SyncProgressModal,
+  CashPositionCard,
 } from '@/components/dashboard';
 import {
   RevenueTrendChart,
@@ -217,6 +218,9 @@ export default function DashboardPage() {
           dailyData={rawDailyData}
           isLoading={isLoading}
         />
+
+        {/* Cash Position (Bank Balances from Xero) */}
+        <CashPositionCard />
 
         {/* Charts Row */}
         <div className="grid gap-6 lg:grid-cols-3">

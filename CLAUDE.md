@@ -44,6 +44,7 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - `cost_config` - Configurable cost percentages (COGS, pick/pack, logistics)
 - `operating_expenses` - OPEX tracking (staff, premises, software, overheads)
 - `etsy_fees` - Actual Etsy fees from Payment Ledger API
+- `xero_connections` - Xero OAuth tokens for bank balance fetching
 
 **Migrations:**
 - `supabase/migrations/002_pnl_schema.sql` - Core P&L tables
@@ -52,6 +53,7 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - `supabase/migrations/005_etsy_fees.sql` - Actual Etsy fees from Payment Ledger
 - `supabase/migrations/006_fix_quarterly_goals_rls.sql` - RLS policy fixes
 - `supabase/migrations/007_operating_expenses.sql` - Operating expenses (OPEX) table
+- `supabase/migrations/008_xero_integration.sql` - Xero integration for bank balances
 
 ---
 
@@ -110,6 +112,44 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - Access tokens expire in 1 hour
 - **Auto-refresh is enabled** - sync code refreshes tokens automatically
 - Refresh tokens are long-lived (until user revokes app)
+
+---
+
+## Xero Integration
+
+Real-time bank balances displayed on the dashboard from Xero accounting software.
+
+### Account Structure
+
+| Account | Brand | Xero Tenant | Type |
+|---------|-------|-------------|------|
+| Monzo DC | Display Champ | DC Xero | Bank Account |
+| Monzo BI | Bright Ivy | BI Xero | Bank Account |
+| Amex Gold | Shared | Both Xero accounts | Credit Card |
+
+### OAuth Flow
+
+1. `GET /api/xero/auth?brand=DC` - Redirects to Xero OAuth
+2. User authorizes in Xero
+3. Callback exchanges code for tokens, stores in `xero_connections` table
+4. Tokens auto-refresh when fetching balances
+
+### Token Management
+- Access tokens expire in **30 minutes**
+- Refresh tokens last **60 days**
+- **Auto-refresh is enabled** - balance fetches automatically refresh tokens
+- No manual intervention needed unless user revokes access
+
+### Features
+- Balances displayed on main dashboard (Cash Position card)
+- Admin page to connect/disconnect Xero accounts (`/admin/xero`)
+- Shared credit cards deduplicated automatically (shown once as "Shared")
+- 5-minute auto-refresh on dashboard
+
+### API Endpoints
+- `GET /api/xero/auth?brand=DC|BI` - Start OAuth flow
+- `GET /api/xero/callback` - OAuth callback (stores tokens)
+- `GET /api/xero/balances?brand=all|DC|BI` - Fetch bank balances
 
 ---
 
@@ -320,6 +360,7 @@ valhalla-daily-pnl/
 │   │   │   ├── ad-spend/page.tsx       # Ad spend with Meta/Google sync
 │   │   │   ├── b2b-revenue/page.tsx    # B2B revenue entry
 │   │   │   ├── opex/page.tsx           # Operating expenses (OPEX)
+│   │   │   ├── xero/page.tsx           # Xero integration settings
 │   │   │   ├── events/page.tsx         # Calendar events
 │   │   │   ├── goals/page.tsx          # Quarterly goals
 │   │   │   ├── promotions/page.tsx     # Promotions
@@ -342,6 +383,10 @@ valhalla-daily-pnl/
 │   │   │   │   └── sync/route.ts       # Sync orders from Shopify
 │   │   │   ├── etsy/                   # Etsy order sync
 │   │   │   │   └── sync/route.ts       # Sync orders from Etsy
+│   │   │   ├── xero/                   # Xero integration
+│   │   │   │   ├── auth/route.ts       # OAuth initiation
+│   │   │   │   ├── callback/route.ts   # OAuth callback (stores tokens)
+│   │   │   │   └── balances/route.ts   # Fetch bank balances
 │   │   │   └── orders/                 # Combined order sync
 │   │   │       └── sync/route.ts       # Sync from all platforms
 │   │   └── layout.tsx                  # Root layout
@@ -353,7 +398,8 @@ valhalla-daily-pnl/
 │   │   │   ├── KPIGrid.tsx             # KPI cards with tooltips
 │   │   │   ├── HeroKPIGrid.tsx         # Hero metrics display
 │   │   │   ├── PnLTable.tsx            # P&L data table
-│   │   │   └── AlertBanner.tsx         # Status alerts
+│   │   │   ├── AlertBanner.tsx         # Status alerts
+│   │   │   └── CashPositionCard.tsx    # Bank balances from Xero
 │   │   ├── charts/                     # Recharts components
 │   │   ├── country/                    # Country analysis components
 │   │   │   ├── CountrySummaryCards.tsx # KPI cards (countries, top country, domestic %)
@@ -384,6 +430,8 @@ valhalla-daily-pnl/
 │   │   │   └── client.ts               # Fetch ad spend, token management
 │   │   ├── google/                     # Google Ads API
 │   │   │   └── client.ts               # OAuth, fetch ad spend
+│   │   ├── xero/                       # Xero Accounting API
+│   │   │   └── client.ts               # OAuth, fetch bank balances
 │   │   ├── shopify/                    # Shopify Order API
 │   │   │   └── client.ts               # GraphQL API, order fetch/transform
 │   │   ├── etsy/                       # Etsy Order API
@@ -461,6 +509,10 @@ CRON_SECRET=<random-secret-for-manual-trigger>
 
 # Email Notifications (Resend)
 RESEND_API_KEY=<resend-api-key>
+
+# Xero Integration (Bank Balances)
+XERO_CLIENT_ID=<from-xero-developer-portal>
+XERO_CLIENT_SECRET=<from-xero-developer-portal>
 ```
 
 ---
@@ -648,6 +700,41 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?test=true"
 - `GET /api/etsy/auth?brand=DC|BI` - Get OAuth authorization URL
 - `GET /api/etsy/callback` - OAuth callback (returns access/refresh tokens)
 
+### Xero (Bank Balances)
+- `GET /api/xero/auth?brand=DC|BI` - Start Xero OAuth flow
+- `GET /api/xero/callback` - OAuth callback (stores tokens in database)
+- `GET /api/xero/balances?brand=all|DC|BI` - Fetch bank balances from Xero
+
+```json
+// Response from /api/xero/balances
+{
+  "success": true,
+  "balances": [
+    {
+      "brand": "DC",
+      "brandName": "Display Champ",
+      "accountName": "Monzo Business",
+      "accountType": "BANK",
+      "balance": 12450.00,
+      "currency": "GBP"
+    },
+    {
+      "brand": "SHARED",
+      "brandName": "Shared",
+      "accountName": "Amex Gold",
+      "accountType": "CREDITCARD",
+      "balance": -2150.00,
+      "currency": "GBP"
+    }
+  ],
+  "totals": {
+    "totalCash": 20770.00,
+    "totalCredit": -2150.00,
+    "netPosition": 18620.00
+  },
+  "lastUpdated": "2026-01-27T12:45:00Z"
+}
+
 ### Order Sync (Shopify/Etsy)
 - `GET /api/shopify/sync` - Check Shopify connection status
 - `POST /api/shopify/sync` - Sync orders from Shopify
@@ -706,9 +793,10 @@ git push
 ### Environment Variables (Vercel)
 All variables from `.env.local` must be added to Vercel Dashboard → Project Settings → Environment Variables.
 
-**Important:** Meta and Google tokens need periodic refresh:
+**Important:** Token management:
 - Meta: ~60 days (exchange via `/api/meta/token`)
 - Google: Refresh token is long-lived, but monitor for revocation
+- Xero: Tokens auto-refresh when fetching balances (stored in database)
 
 ---
 

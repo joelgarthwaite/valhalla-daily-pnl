@@ -709,3 +709,41 @@ export const OPEX_FREQUENCY_LABELS: Record<OpexFrequency, string> = {
   annual: 'Annual',
   one_time: 'One-time',
 };
+
+// ============================================
+// Xero Integration Types
+// ============================================
+
+export interface XeroConnection {
+  id: string;
+  brand_id: string;
+  tenant_id: string;           // Xero organization ID
+  tenant_name: string;         // "Display Champ" or "Bright Ivy"
+  access_token: string;
+  refresh_token: string;
+  token_expires_at: string;
+  scopes: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface XeroBankBalance {
+  brand: string;               // Brand code (DC, BI) or "SHARED" for shared accounts
+  brandName: string;
+  accountName: string;
+  accountType: 'BANK' | 'CREDITCARD';
+  balance: number;
+  currency: string;
+}
+
+export interface XeroBalancesResponse {
+  success: boolean;
+  balances: XeroBankBalance[];
+  totals: {
+    totalCash: number;         // Sum of all bank accounts
+    totalCredit: number;       // Sum of credit card balances (usually negative)
+    netPosition: number;       // totalCash + totalCredit
+  };
+  lastUpdated: string;
+  errors?: string[];
+}
