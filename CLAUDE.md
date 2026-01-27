@@ -227,6 +227,73 @@ SHIPSTATION_API_SECRET=<api-secret>
 
 ---
 
+## Royal Mail CSV Processor
+
+Allocates shipping costs from Royal Mail invoice CSVs to shipments by matching date and product type.
+
+### How It Works
+
+Royal Mail invoices contain aggregated costs per manifest/date (not individual tracking numbers). The processor:
+
+1. Parses the CSV to extract daily costs by product type (TPS, TPM, MPR, MP7, SD1)
+2. Matches shipments by shipping date + service type
+3. Applies the average cost per item for that date/product combination
+4. Falls back to ±1 day matching if exact date not found
+5. Optionally applies service-type averages to old unmatched shipments (>14 days)
+
+### Product Code Mapping
+
+| CSV Code | Service Type | Description |
+|----------|--------------|-------------|
+| TPS | rm_tracked_48 | Royal Mail Tracked 48 (UK domestic) |
+| TPM | rm_tracked_24 | Royal Mail Tracked 24 (UK domestic) |
+| SD1 | special_delivery_1pm | Special Delivery Guaranteed by 1pm |
+| MPR | intl_tracked_ddp | International Business Parcels Tracked DDP |
+| MP7 | intl_tracked_packet | International Business NPC Tracked Packet |
+
+### API Endpoint
+
+```
+POST /api/invoices/royalmail
+```
+
+**Parameters:**
+```json
+{
+  "csvContent": "string (required) - Royal Mail CSV file content",
+  "dryRun": "boolean (default: false) - Preview changes without applying",
+  "startDate": "string (YYYY-MM-DD) - Filter shipments from this date",
+  "endDate": "string (YYYY-MM-DD) - Filter shipments to this date",
+  "batchSize": "number (default: 50) - Parallel updates per batch",
+  "applyAverageToOld": "boolean (default: false) - Apply averages to old unmatched",
+  "minDaysForAverage": "number (default: 14) - Minimum age for average fallback"
+}
+```
+
+**Response includes:**
+- `shipments.matched` - Shipments with costs allocated from CSV
+- `shipments.unmatched` - Shipments with no matching CSV data
+- `unmatchedBreakdown` - Split by age (older/newer than 14 days)
+- `serviceTypeAverages` - Calculated averages by service type
+- `averageUpdates` - Results of average fallback (if enabled)
+
+### Cost Confidence Levels
+
+| Level | Match Method | Description |
+|-------|--------------|-------------|
+| `estimated_date_country` | `royalmail_csv_date_average` | Matched from CSV by date + service type |
+| `estimated_country_only` | `royalmail_service_average` | Applied service-type average (no exact match) |
+
+### Weekly Workflow
+
+1. Royal Mail invoices arrive weekly
+2. Upload CSV via API or admin interface
+3. Processor matches costs to shipments automatically
+4. Unmatched shipments within 14 days wait for next invoice
+5. After 14 days, optionally apply averages with `applyAverageToOld: true`
+
+---
+
 ## P&L Data Sources
 
 ### Revenue
@@ -872,6 +939,16 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?test=true"
 ### Invoice Processing
 - `POST /api/invoices/analyze` - Analyze carrier invoice CSV before processing
 - `POST /api/invoices/process` - Process analyzed invoice records
+- `GET /api/invoices/royalmail` - Get Royal Mail processor documentation
+- `POST /api/invoices/royalmail` - Process Royal Mail CSV and allocate costs
+  ```json
+  {
+    "csvContent": "...",
+    "dryRun": false,
+    "applyAverageToOld": true,
+    "minDaysForAverage": 14
+  }
+  ```
 
 ### Unmatched Invoices
 - `GET /api/invoices/unmatched` - List unmatched invoice records
