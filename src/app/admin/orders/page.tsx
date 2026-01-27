@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { format, subDays, startOfWeek, startOfMonth, endOfWeek, subWeeks } from 'date-fns';
-import { RefreshCw, Building2, Check, X, ChevronLeft, ChevronRight, CalendarIcon, Globe, Ban, RotateCcw, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Building2, Check, X, ChevronLeft, ChevronRight, CalendarIcon, Globe, Ban, RotateCcw, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,6 +97,10 @@ type B2BFilter = 'all' | 'b2b' | 'regular';
 type CountryFilter = string; // 'all' or ISO country code
 type ExcludedFilter = 'active' | 'excluded' | 'all';
 
+// Sortable columns
+type SortColumn = 'order_date' | 'order_number' | 'customer_name' | 'country' | 'brand' | 'platform' | 'subtotal' | 'is_b2b';
+type SortDirection = 'asc' | 'desc';
+
 // Date preset helpers
 const getPresetDates = {
   last7: () => ({ from: subDays(new Date(), 6), to: new Date() }),
@@ -139,6 +143,10 @@ export default function OrdersPage() {
   const [showExcludeDialog, setShowExcludeDialog] = useState(false);
   const [excludeReason, setExcludeReason] = useState('');
   const [pendingExcludeOrderId, setPendingExcludeOrderId] = useState<string | null>(null);
+
+  // Sorting
+  const [sortColumn, setSortColumn] = useState<SortColumn>('order_date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Quick date preset handler
   const applyDatePreset = (preset: keyof typeof getPresetDates) => {
@@ -391,6 +399,83 @@ export default function OrdersPage() {
     setSelectAll(newSelected.size === orders.length);
   };
 
+  // Handle column sort
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to descending for amounts/dates, ascending for text
+      setSortColumn(column);
+      setSortDirection(column === 'subtotal' || column === 'order_date' ? 'desc' : 'asc');
+    }
+  };
+
+  // Sort orders client-side
+  const sortedOrders = [...orders].sort((a, b) => {
+    let aVal: string | number | boolean;
+    let bVal: string | number | boolean;
+
+    switch (sortColumn) {
+      case 'order_date':
+        aVal = new Date(a.order_date).getTime();
+        bVal = new Date(b.order_date).getTime();
+        break;
+      case 'order_number':
+        aVal = (a.order_number || a.platform_order_id).toLowerCase();
+        bVal = (b.order_number || b.platform_order_id).toLowerCase();
+        break;
+      case 'customer_name':
+        aVal = (a.customer_name || a.customer_email || '').toLowerCase();
+        bVal = (b.customer_name || b.customer_email || '').toLowerCase();
+        break;
+      case 'country':
+        aVal = (a.shipping_address?.country_code || '').toLowerCase();
+        bVal = (b.shipping_address?.country_code || '').toLowerCase();
+        break;
+      case 'brand':
+        aVal = (a.brand?.code || '').toLowerCase();
+        bVal = (b.brand?.code || '').toLowerCase();
+        break;
+      case 'platform':
+        aVal = a.platform.toLowerCase();
+        bVal = b.platform.toLowerCase();
+        break;
+      case 'subtotal':
+        aVal = a.subtotal;
+        bVal = b.subtotal;
+        break;
+      case 'is_b2b':
+        aVal = a.is_b2b ? 1 : 0;
+        bVal = b.is_b2b ? 1 : 0;
+        break;
+      default:
+        return 0;
+    }
+
+    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Sortable header component
+  const SortableHeader = ({ column, children, className }: { column: SortColumn; children: React.ReactNode; className?: string }) => (
+    <TableHead className={cn('cursor-pointer select-none hover:bg-muted/50', className)} onClick={() => handleSort(column)}>
+      <div className="flex items-center gap-1">
+        {children}
+        {sortColumn === column ? (
+          sortDirection === 'asc' ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-30" />
+        )}
+      </div>
+    </TableHead>
+  );
+
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.ceil(total / limit);
 
@@ -587,14 +672,14 @@ export default function OrdersPage() {
                     aria-label="Select all orders"
                   />
                 </TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Order #</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Platform</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="text-center">B2B</TableHead>
+                <SortableHeader column="order_date">Date</SortableHeader>
+                <SortableHeader column="order_number">Order #</SortableHeader>
+                <SortableHeader column="customer_name">Customer</SortableHeader>
+                <SortableHeader column="country">Country</SortableHeader>
+                <SortableHeader column="brand">Brand</SortableHeader>
+                <SortableHeader column="platform">Platform</SortableHeader>
+                <SortableHeader column="subtotal" className="text-right">Amount</SortableHeader>
+                <SortableHeader column="is_b2b" className="text-center">B2B</SortableHeader>
                 <TableHead>B2B Customer</TableHead>
                 <TableHead className="text-center">Actions</TableHead>
               </TableRow>
@@ -607,14 +692,14 @@ export default function OrdersPage() {
                     Loading orders...
                   </TableCell>
                 </TableRow>
-              ) : orders.length === 0 ? (
+              ) : sortedOrders.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                     No orders found for the selected filters.
                   </TableCell>
                 </TableRow>
               ) : (
-                orders.map((order) => (
+                sortedOrders.map((order) => (
                   <TableRow
                     key={order.id}
                     className={cn(
