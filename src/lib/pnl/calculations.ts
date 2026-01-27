@@ -459,8 +459,9 @@ export function calculatePnLSummary(
   const totalRefunds = dailyData.reduce((sum, d) => sum + Number(d.total_refunds || 0), 0);
   const refundCount = dailyData.reduce((sum, d) => sum + Number(d.refund_count || 0), 0);
   // Use database net_revenue if available, otherwise calculate from totalRevenue - totalRefunds
+  // Note: netRevenue could be negative if refunds exceed new sales for the period
   const dbNetRevenue = dailyData.reduce((sum, d) => sum + Number(d.net_revenue || 0), 0);
-  const netRevenue = dbNetRevenue > 0 ? dbNetRevenue : totalRevenue - totalRefunds;
+  const netRevenue = dbNetRevenue !== 0 ? dbNetRevenue : totalRevenue - totalRefunds;
 
   // Costs
   const cogs = dailyData.reduce((sum, d) => sum + Number(d.cogs_estimated || 0), 0);
@@ -482,9 +483,12 @@ export function calculatePnLSummary(
   const dbGp3 = dailyData.reduce((sum, d) => sum + Number(d.gp3 || 0), 0);
 
   // Calculate GP tiers if not in database
-  const gp1 = dbGp1 > 0 ? dbGp1 : calculateGP1(netRevenue, cogs);
-  const gp2 = dbGp2 > 0 ? dbGp2 : calculateGP2(gp1, pickPackCost, platformFees, logisticsCost);
-  const gp3 = dbGp3 > 0 ? dbGp3 : calculateGP3(gp2, totalAdSpend);
+  // Note: We use !== 0 instead of > 0 to correctly handle negative profit days
+  // A zero sum with daily data indicates the columns exist but sum to zero (break-even)
+  // which is different from no GP columns existing (old schema fallback)
+  const gp1 = dbGp1 !== 0 ? dbGp1 : calculateGP1(netRevenue, cogs);
+  const gp2 = dbGp2 !== 0 ? dbGp2 : calculateGP2(gp1, pickPackCost, platformFees, logisticsCost);
+  const gp3 = dbGp3 !== 0 ? dbGp3 : calculateGP3(gp2, totalAdSpend);
 
   // Legacy (backwards compatibility)
   const grossProfit = dailyData.reduce((sum, d) => sum + Number(d.gross_profit || 0), 0) || gp1;
