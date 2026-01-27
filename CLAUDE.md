@@ -78,6 +78,36 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 
 ---
 
+## Etsy Integration
+
+**Full guide:** See `docs/ETSY_INTEGRATION_GUIDE.md`
+
+### Connected Shops
+
+| Brand | Shop Name | Shop ID | Status | Orders |
+|-------|-----------|---------|--------|--------|
+| Bright Ivy | BrightIvyUK | 48268436 | ✅ Active | 412+ |
+| Display Champ | DisplayChampUK | 54850131 | ⚠️ Needs token refresh | - |
+
+### OAuth Flow
+
+1. `GET /api/etsy/auth?brand=BI` - Get authorization URL
+2. Open URL, authorize in Etsy
+3. Callback returns access + refresh tokens
+4. Tokens stored in `stores` table, auto-refresh enabled
+
+### API Limits
+- **Rate:** 5 queries/second
+- **Daily:** 5,000 queries/day
+- **Scopes:** `transactions_r`, `shops_r`
+
+### Token Refresh
+- Access tokens expire in 1 hour
+- **Auto-refresh is enabled** - sync code refreshes tokens automatically
+- Refresh tokens are long-lived (until user revokes app)
+
+---
+
 ## P&L Data Sources
 
 ### Revenue
