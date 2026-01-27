@@ -364,7 +364,7 @@ valhalla-daily-pnl/
 │   │   ├── admin/                      # Admin pages
 │   │   │   ├── sync/page.tsx           # Order sync from Shopify/Etsy
 │   │   │   ├── ad-spend/page.tsx       # Ad spend with Meta/Google sync + brand filter
-│   │   │   ├── orders/page.tsx         # Order list with B2B tagging + exclusions
+│   │   │   ├── orders/page.tsx         # Order list with B2B tagging, exclusions, sorting
 │   │   │   ├── b2b-revenue/page.tsx    # B2B revenue entry
 │   │   │   ├── opex/page.tsx           # Operating expenses (OPEX)
 │   │   │   ├── xero/page.tsx           # Xero integration settings
@@ -945,6 +945,7 @@ Permanently exclude test orders, duplicates, or internal orders from P&L calcula
 Admin > Orders (`/admin/orders`)
 
 ### Features
+- **Sortable Columns**: Click column headers to sort (Date, Order #, Customer, Country, Brand, Platform, Amount, B2B)
 - **Status Filter**: Toggle between "Active Only", "Excluded Only", or "All Orders"
 - **Exclude Button**: Click to exclude an order with a reason
 - **Restore Button**: Click to restore an excluded order
