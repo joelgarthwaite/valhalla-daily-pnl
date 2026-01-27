@@ -838,6 +838,7 @@ Uses ISO week numbering for consistency with spreadsheets:
 - This Week, Last Week
 - This Month, Last Month
 - Last 30 Days, Last 90 Days
+- Year to Date (YTD)
 
 ---
 
