@@ -13,6 +13,7 @@ interface OrdersQueryParams {
   brand?: string;
   platform?: string;
   isB2B?: string;
+  country?: string;
   limit?: string;
   offset?: string;
 }
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
     brand: searchParams.get('brand') || undefined,
     platform: searchParams.get('platform') || undefined,
     isB2B: searchParams.get('isB2B') || undefined,
+    country: searchParams.get('country') || undefined,
     limit: searchParams.get('limit') || '50',
     offset: searchParams.get('offset') || '0',
   };
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Build query
     let query = supabaseAdmin
       .from('orders')
-      .select('id, platform, platform_order_id, order_number, order_date, customer_name, customer_email, brand_id, subtotal, total, is_b2b, b2b_customer_name, status, fulfillment_status', { count: 'exact' })
+      .select('id, platform, platform_order_id, order_number, order_date, customer_name, customer_email, brand_id, subtotal, total, is_b2b, b2b_customer_name, status, fulfillment_status, shipping_address', { count: 'exact' })
       .order('order_date', { ascending: false });
 
     // Apply filters
@@ -64,6 +66,10 @@ export async function GET(request: NextRequest) {
       query = query.eq('is_b2b', true);
     } else if (params.isB2B === 'false') {
       query = query.eq('is_b2b', false);
+    }
+    if (params.country && params.country !== 'all') {
+      // Filter by shipping address country code (JSONB field)
+      query = query.filter('shipping_address->>country_code', 'ilike', params.country);
     }
 
     // Apply pagination

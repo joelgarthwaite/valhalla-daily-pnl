@@ -45,6 +45,7 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - `operating_expenses` - OPEX tracking (staff, premises, software, overheads)
 - `etsy_fees` - Actual Etsy fees from Payment Ledger API
 - `xero_connections` - Xero OAuth tokens for bank balance fetching
+- `country_ad_spend` - Ad spend by country from Meta API (for GP3 in Country Analysis)
 
 **Migrations:**
 - `supabase/migrations/002_pnl_schema.sql` - Core P&L tables
@@ -54,6 +55,8 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - `supabase/migrations/006_fix_quarterly_goals_rls.sql` - RLS policy fixes
 - `supabase/migrations/007_operating_expenses.sql` - Operating expenses (OPEX) table
 - `supabase/migrations/008_xero_integration.sql` - Xero integration for bank balances
+- `supabase/migrations/009_b2b_order_tagging.sql` - B2B tagging on orders (is_b2b, b2b_customer_name)
+- `supabase/migrations/010_country_ad_spend.sql` - Country-level ad spend from Meta API
 
 ---
 
@@ -75,6 +78,7 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
   - Display Champ: `act_892968716290721`
   - Bright Ivy: `act_3210136152487456`
 - **Data Synced:** Daily spend, impressions, clicks, conversions, purchase value (revenue attributed)
+- **Country Breakdown:** Ad spend by country (where ad was shown) synced for Country Analysis GP3
 
 ### Google Ads - PENDING APPROVAL
 - **Status:** Awaiting Basic Access approval (Explorer mode)
@@ -357,7 +361,8 @@ valhalla-daily-pnl/
 │   │   ├── login/page.tsx              # Login page
 │   │   ├── admin/                      # Admin pages
 │   │   │   ├── sync/page.tsx           # Order sync from Shopify/Etsy
-│   │   │   ├── ad-spend/page.tsx       # Ad spend with Meta/Google sync
+│   │   │   ├── ad-spend/page.tsx       # Ad spend with Meta/Google sync + brand filter
+│   │   │   ├── orders/page.tsx         # Order list with B2B tagging
 │   │   │   ├── b2b-revenue/page.tsx    # B2B revenue entry
 │   │   │   ├── opex/page.tsx           # Operating expenses (OPEX)
 │   │   │   ├── xero/page.tsx           # Xero integration settings
@@ -368,12 +373,13 @@ valhalla-daily-pnl/
 │   │   ├── api/
 │   │   │   ├── pnl/
 │   │   │   │   ├── data/route.ts       # Fast P&L data fetch (bypasses RLS)
-│   │   │   │   ├── country/route.ts    # Country P&L data (GP2 by shipping destination)
+│   │   │   │   ├── country/route.ts    # Country P&L data (GP2/GP3 by shipping destination)
 │   │   │   │   └── refresh/route.ts    # Refresh P&L calculations
 │   │   │   ├── calendar/seed/route.ts  # Import standard events
 │   │   │   ├── b2b/import/route.ts     # Bulk import B2B revenue
 │   │   │   ├── meta/                   # Meta API integration
 │   │   │   │   ├── sync/route.ts       # Sync ad spend from Meta
+│   │   │   │   ├── country-sync/route.ts # Sync country-level ad spend
 │   │   │   │   └── token/route.ts      # Token status & exchange
 │   │   │   ├── google/                 # Google Ads integration
 │   │   │   │   ├── auth/route.ts       # OAuth initiation
@@ -387,8 +393,9 @@ valhalla-daily-pnl/
 │   │   │   │   ├── auth/route.ts       # OAuth initiation
 │   │   │   │   ├── callback/route.ts   # OAuth callback (stores tokens)
 │   │   │   │   └── balances/route.ts   # Fetch bank balances
-│   │   │   └── orders/                 # Combined order sync
-│   │   │       └── sync/route.ts       # Sync from all platforms
+│   │   │   ├── orders/                 # Order management
+│   │   │   │   ├── route.ts            # List/update orders (B2B tagging)
+│   │   │   │   └── sync/route.ts       # Sync from all platforms
 │   │   └── layout.tsx                  # Root layout
 │   ├── components/
 │   │   ├── ui/                         # shadcn/ui components
@@ -416,13 +423,14 @@ valhalla-daily-pnl/
 │   │   │   └── index.ts                # Barrel export
 │   │   └── forms/                      # Form components
 │   ├── hooks/
-│   │   └── usePnLData.ts               # P&L data fetching hook
+│   │   ├── usePnLData.ts               # P&L data fetching hook
+│   │   └── useFilterParams.ts          # URL-based filter persistence (sticky filters)
 │   ├── lib/
 │   │   ├── supabase/                   # Supabase client config
 │   │   ├── pnl/                        # P&L calculation engine
 │   │   │   ├── calculations.ts         # GP1/GP2/GP3/True Net Profit, POAS, MER, AOV
 │   │   │   ├── opex.ts                 # OPEX calculations (daily allocation, period totals)
-│   │   │   ├── country-calculations.ts # Country P&L calculations (GP1/GP2)
+│   │   │   ├── country-calculations.ts # Country P&L calculations (GP1/GP2/GP3)
 │   │   │   ├── aggregations.ts         # Time period rollups
 │   │   │   ├── targets.ts              # Target calculations
 │   │   │   └── reconciliation.ts       # Expected vs actual comparison
@@ -642,8 +650,9 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?test=true"
 ## API Endpoints
 
 ### Cron / Scheduled Tasks
-- `GET /api/cron/daily-sync` - Automated daily sync (Shopify, Etsy, Meta, P&L refresh)
-  - Runs automatically at 6:00 AM UTC via Vercel Cron
+- `GET /api/cron/daily-sync` - Automated daily sync (Shopify, Etsy, Meta, Meta Country, P&L refresh)
+  - Runs automatically at 5:00 AM and 6:00 PM UTC via Vercel Cron
+  - Syncs: Orders (Shopify/Etsy), Ad Spend (Meta), Country Ad Spend (Meta), P&L refresh
   - Manual trigger: `Authorization: Bearer $CRON_SECRET` header required
 
 ### P&L Data
@@ -854,7 +863,7 @@ Update `EXPECTED_2025_DATA` in `src/lib/pnl/reconciliation.ts` with actual CSV v
 ## Country Analysis
 
 ### Purpose
-Analyze P&L metrics by customer shipping destination. Shows GP2 (before ad spend) since ad spend cannot be attributed to specific countries.
+Analyze P&L metrics by customer shipping destination. Shows GP2 and GP3 (when ad spend data is available).
 
 ### Location
 Dashboard header → Country Analysis button (`/country`)
@@ -863,7 +872,8 @@ Dashboard header → Country Analysis button (`/country`)
 - **Summary Cards**: Total countries, top country by revenue, domestic %, top GP2 margin
 - **Revenue Chart**: Horizontal bar chart showing top 10 countries with "Others" aggregation
 - **Country Table**: Full P&L breakdown with sortable columns and expandable platform details
-- Filter by brand and date range with quick presets
+- **GP3 with Ad Spend**: When Meta country ad spend data is synced, shows Ad Spend, GP3, and GP3% columns
+- Filter by brand and date range with quick presets (URL-persisted)
 
 ### Metrics Shown (per country)
 | Metric | Definition |
@@ -878,12 +888,23 @@ Dashboard header → Country Analysis button (`/country`)
 | Logistics | 3% of revenue |
 | GP2 | Gross Profit 2 (GP1 - Fees - Pick/Pack - Logistics) |
 | GP2 % | GP2 margin as percentage of revenue |
+| Ad Spend | Meta ad spend by country (where ad was shown) |
+| GP3 | Gross Profit 3 (GP2 - Ad Spend) |
+| GP3 % | GP3 margin as percentage of revenue |
 
-### Why GP2 (not GP3)?
-Ad spend cannot be reliably attributed to specific countries because:
-- Meta/Google ads don't report by customer location
-- Attribution would require guessing or even distribution
-- GP2 shows true operational profitability per market
+### Country Ad Spend Data
+Meta's `breakdowns=country` parameter provides ad spend by country where the ad was **delivered** (shown to user). This may differ from shipping destination but provides useful market-level attribution.
+
+**Sync**: Runs automatically in daily cron job, or manually via:
+```
+POST /api/meta/country-sync
+Body: { "brandCode": "all", "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD" }
+```
+
+**Check status**:
+```
+GET /api/meta/country-sync
+```
 
 ### API Endpoint
 ```
@@ -891,13 +912,13 @@ GET /api/pnl/country?from=YYYY-MM-DD&to=YYYY-MM-DD&brand=all|DC|BI
 ```
 
 Returns:
-- `countries[]` - Array of country P&L data sorted by revenue
+- `countries[]` - Array of country P&L data sorted by revenue (includes GP3 when ad data exists)
 - `summary` - Aggregate statistics (total countries, domestic/international split, etc.)
+- `hasAdSpendData` - Boolean indicating if country ad spend is available
 
-### Data Source
-Queries `orders` table directly using `shipping_address.country_code`:
-- Shopify: `shipping_address.country_code` from order
-- Etsy: `country_iso` stored in shipping address
+### Data Sources
+- **Orders**: `orders` table using `shipping_address.country_code`
+- **Ad Spend**: `country_ad_spend` table (synced from Meta API)
 
 ---
 

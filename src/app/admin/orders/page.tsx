@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { format, subDays } from 'date-fns';
-import { RefreshCw, Building2, Check, X, ChevronLeft, ChevronRight, CalendarIcon } from 'lucide-react';
+import { format, subDays, startOfWeek, startOfMonth, endOfWeek, subWeeks } from 'date-fns';
+import { RefreshCw, Building2, Check, X, ChevronLeft, ChevronRight, CalendarIcon, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,12 +57,29 @@ interface OrderWithBrand {
   b2b_customer_name: string | null;
   status: string | null;
   fulfillment_status: string | null;
+  shipping_address: {
+    country_code?: string;
+  } | null;
   brand: {
     id: string;
     code: string;
     name: string;
   } | null;
 }
+
+// Common countries for filter
+const COUNTRY_OPTIONS = [
+  { code: 'all', name: 'All Countries' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'US', name: 'United States' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'IE', name: 'Ireland' },
+  { code: 'NZ', name: 'New Zealand' },
+  { code: 'NL', name: 'Netherlands' },
+];
 
 interface OrdersResponse {
   orders: OrderWithBrand[];
@@ -75,6 +92,29 @@ interface OrdersResponse {
 type BrandFilter = 'all' | 'DC' | 'BI';
 type PlatformFilter = 'all' | 'shopify' | 'etsy';
 type B2BFilter = 'all' | 'b2b' | 'regular';
+type CountryFilter = string; // 'all' or ISO country code
+
+// Date preset helpers
+const getPresetDates = {
+  last7: () => ({ from: subDays(new Date(), 6), to: new Date() }),
+  last30: () => ({ from: subDays(new Date(), 29), to: new Date() }),
+  thisWeek: () => {
+    const now = new Date();
+    const monday = startOfWeek(now, { weekStartsOn: 1 });
+    return { from: monday, to: now };
+  },
+  lastWeek: () => {
+    const now = new Date();
+    const lastMonday = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+    const lastSunday = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+    return { from: lastMonday, to: lastSunday };
+  },
+  thisMonth: () => {
+    const now = new Date();
+    const firstOfMonth = startOfMonth(now);
+    return { from: firstOfMonth, to: now };
+  },
+};
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderWithBrand[]>([]);
@@ -86,9 +126,17 @@ export default function OrdersPage() {
   const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [b2bFilter, setB2BFilter] = useState<B2BFilter>('all');
+  const [countryFilter, setCountryFilter] = useState<CountryFilter>('all');
   const [dateFrom, setDateFrom] = useState<Date>(() => subDays(new Date(), 30));
   const [dateTo, setDateTo] = useState<Date>(() => new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  // Quick date preset handler
+  const applyDatePreset = (preset: keyof typeof getPresetDates) => {
+    const { from, to } = getPresetDates[preset]();
+    setDateFrom(from);
+    setDateTo(to);
+  };
 
   // Pagination
   const [offset, setOffset] = useState(0);
@@ -114,6 +162,10 @@ export default function OrdersPage() {
         limit: String(limit),
         offset: String(offset),
       });
+
+      if (countryFilter !== 'all') {
+        params.set('country', countryFilter);
+      }
 
       if (b2bFilter === 'b2b') {
         params.set('isB2B', 'true');
@@ -316,24 +368,35 @@ export default function OrdersPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateFrom}
-                    selected={{ from: dateFrom, to: dateTo }}
-                    onSelect={(range) => {
-                      if (range?.from && range?.to) {
-                        setDateFrom(range.from);
-                        setDateTo(range.to);
-                        setIsCalendarOpen(false);
-                      } else if (range?.from) {
-                        setDateFrom(range.from);
-                        setDateTo(range.from);
-                      }
-                    }}
-                    numberOfMonths={2}
-                    weekStartsOn={1}
-                  />
+                  <div className="flex">
+                    {/* Quick presets */}
+                    <div className="border-r p-3 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Quick Select</p>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-7" onClick={() => { applyDatePreset('last7'); setIsCalendarOpen(false); }}>Last 7 Days</Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-7" onClick={() => { applyDatePreset('thisWeek'); setIsCalendarOpen(false); }}>This Week</Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-7" onClick={() => { applyDatePreset('lastWeek'); setIsCalendarOpen(false); }}>Last Week</Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-7" onClick={() => { applyDatePreset('thisMonth'); setIsCalendarOpen(false); }}>This Month</Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-7" onClick={() => { applyDatePreset('last30'); setIsCalendarOpen(false); }}>Last 30 Days</Button>
+                    </div>
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateFrom}
+                      selected={{ from: dateFrom, to: dateTo }}
+                      onSelect={(range) => {
+                        if (range?.from && range?.to) {
+                          setDateFrom(range.from);
+                          setDateTo(range.to);
+                          setIsCalendarOpen(false);
+                        } else if (range?.from) {
+                          setDateFrom(range.from);
+                          setDateTo(range.from);
+                        }
+                      }}
+                      numberOfMonths={2}
+                      weekStartsOn={1}
+                    />
+                  </div>
                 </PopoverContent>
               </Popover>
             </div>
@@ -389,6 +452,26 @@ export default function OrdersPage() {
               </Select>
             </div>
 
+            {/* Country Filter */}
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium text-muted-foreground">
+                <Globe className="h-4 w-4 inline mr-1" />
+                Country
+              </Label>
+              <Select value={countryFilter} onValueChange={setCountryFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRY_OPTIONS.map((country) => (
+                    <SelectItem key={country.code} value={country.code}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="ml-auto text-sm text-muted-foreground">
               {total} orders found
             </div>
@@ -412,6 +495,7 @@ export default function OrdersPage() {
                 <TableHead>Date</TableHead>
                 <TableHead>Order #</TableHead>
                 <TableHead>Customer</TableHead>
+                <TableHead>Country</TableHead>
                 <TableHead>Brand</TableHead>
                 <TableHead>Platform</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
@@ -422,14 +506,14 @@ export default function OrdersPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                     <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />
                     Loading orders...
                   </TableCell>
                 </TableRow>
               ) : orders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                     No orders found for the selected filters.
                   </TableCell>
                 </TableRow>
@@ -451,6 +535,9 @@ export default function OrdersPage() {
                     </TableCell>
                     <TableCell className="max-w-[150px] truncate">
                       {order.customer_name || order.customer_email || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {order.shipping_address?.country_code || '-'}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
