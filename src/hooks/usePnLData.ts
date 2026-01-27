@@ -143,10 +143,11 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
   };
 }
 
-// Default date range: last 30 days
+// Default date range: yesterday (single day view)
 export function getDefaultDateRange(): DateRange {
+  const yesterday = subDays(new Date(), 1);
   return {
-    from: subDays(new Date(), 30),
-    to: new Date(),
+    from: yesterday,
+    to: yesterday,
   };
 }
