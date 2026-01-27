@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Download, RefreshCw, Settings, BarChart3, ChevronDown, ChevronUp, HelpCircle, Globe, CloudDownload, FileSpreadsheet, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -25,17 +25,25 @@ import {
   WaterfallChart,
   TargetGauge,
 } from '@/components/charts';
-import { usePnLData, getDefaultDateRange } from '@/hooks/usePnLData';
+import { usePnLData } from '@/hooks/usePnLData';
+import { useFilterParams } from '@/hooks/useFilterParams';
 import { generateWaterfallData } from '@/lib/pnl/calculations';
 import { aggregatePnLByPeriod } from '@/lib/pnl/aggregations';
 import { exportToExcel, exportToPDF } from '@/lib/utils/export';
-import type { BrandFilter, PeriodType, DateRange, DailyPnL } from '@/types';
+import type { DailyPnL } from '@/types';
 
-export default function DashboardPage() {
-  const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
-  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
-  const [periodType, setPeriodType] = useState<PeriodType>('daily');
-  const [showYoY, setShowYoY] = useState(false);
+function DashboardContent() {
+  const {
+    brandFilter,
+    dateRange,
+    periodType,
+    showYoY,
+    setBrandFilter,
+    setDateRange,
+    setPeriodType,
+    setShowYoY,
+  } = useFilterParams();
+
   const [showQuickSummary, setShowQuickSummary] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -296,5 +304,25 @@ export default function DashboardPage() {
         onComplete={() => refetch()}
       />
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function DashboardLoading() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+        <p className="mt-2 text-muted-foreground">Loading dashboard...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <DashboardContent />
+    </Suspense>
   );
 }

@@ -12,12 +12,19 @@ import {
   RefreshCw,
   CheckCircle,
   AlertCircle,
+  ShoppingCart,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 const adminSections = [
+  {
+    title: 'Orders',
+    description: 'View and manage orders. Tag Shopify orders as B2B.',
+    href: '/admin/orders',
+    icon: ShoppingCart,
+  },
   {
     title: 'Ad Spend',
     description: 'Track advertising spend across Meta, Google, Microsoft, and Etsy Ads',

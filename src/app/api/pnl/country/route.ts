@@ -8,6 +8,7 @@ import {
   calculateCountrySummary,
   type CountryPnL,
   type CountrySummary,
+  type CountryAdSpendData,
 } from '@/lib/pnl/country-calculations';
 
 interface CountryApiResponse {
@@ -18,6 +19,7 @@ interface CountryApiResponse {
     to: string;
   };
   brandFilter: string;
+  hasAdSpendData: boolean;
 }
 
 /**
@@ -133,6 +135,53 @@ export async function GET(request: NextRequest) {
         }
       : undefined;
 
+    // Fetch country ad spend data if available
+    let countryAdSpendQuery = supabase
+      .from('country_ad_spend')
+      .select('country_code, spend, impressions, clicks, conversions, revenue_attributed')
+      .gte('date', fromDate)
+      .lte('date', toDate);
+
+    if (brandId) {
+      countryAdSpendQuery = countryAdSpendQuery.eq('brand_id', brandId);
+    }
+
+    const { data: countryAdSpendData, error: adSpendError } = await countryAdSpendQuery;
+
+    // Don't fail if table doesn't exist yet - just proceed without ad data
+    let adSpendByCountry: Map<string, CountryAdSpendData> | undefined;
+    let hasAdSpendData = false;
+
+    if (!adSpendError && countryAdSpendData && countryAdSpendData.length > 0) {
+      hasAdSpendData = true;
+      // Aggregate ad spend by country
+      const adSpendMap = new Map<string, CountryAdSpendData>();
+
+      for (const row of countryAdSpendData) {
+        const countryCode = row.country_code.toUpperCase();
+        const existing = adSpendMap.get(countryCode);
+
+        if (existing) {
+          existing.spend += Number(row.spend) || 0;
+          existing.impressions += row.impressions || 0;
+          existing.clicks += row.clicks || 0;
+          existing.conversions += row.conversions || 0;
+          existing.revenueAttributed += Number(row.revenue_attributed) || 0;
+        } else {
+          adSpendMap.set(countryCode, {
+            countryCode,
+            spend: Number(row.spend) || 0,
+            impressions: row.impressions || 0,
+            clicks: row.clicks || 0,
+            conversions: row.conversions || 0,
+            revenueAttributed: Number(row.revenue_attributed) || 0,
+          });
+        }
+      }
+
+      adSpendByCountry = adSpendMap;
+    }
+
     // Aggregate orders by country
     const rawCountryData = aggregateOrdersByCountry(
       (orders || []).map((o) => ({
@@ -142,8 +191,8 @@ export async function GET(request: NextRequest) {
       }))
     );
 
-    // Calculate P&L for each country
-    const countryPnLs = calculateAllCountryPnL(rawCountryData, costConfig);
+    // Calculate P&L for each country (including GP3 if ad spend data exists)
+    const countryPnLs = calculateAllCountryPnL(rawCountryData, costConfig, adSpendByCountry);
 
     // Calculate summary statistics
     const summary = calculateCountrySummary(countryPnLs, 'GB');
@@ -156,6 +205,7 @@ export async function GET(request: NextRequest) {
         to: toDate,
       },
       brandFilter: brandCode,
+      hasAdSpendData,
     };
 
     return NextResponse.json(response);

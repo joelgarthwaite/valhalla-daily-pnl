@@ -44,6 +44,8 @@ export interface Order {
   raw_data: Record<string, unknown> | null;
   refund_amount: number;
   refund_status: 'none' | 'partial' | 'full';
+  is_b2b: boolean;
+  b2b_customer_name: string | null;
   created_at: string;
   updated_at: string;
 }

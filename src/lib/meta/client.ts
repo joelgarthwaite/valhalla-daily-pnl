@@ -229,3 +229,121 @@ export async function getTokenExpiration(accessToken: string): Promise<{
     daysRemaining: Math.max(0, daysRemaining),
   };
 }
+
+/**
+ * Country ad spend data structure
+ */
+export interface MetaCountryAdSpend {
+  date: string;
+  countryCode: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  revenueAttributed: number;
+}
+
+interface MetaCountryInsight {
+  date_start: string;
+  date_stop: string;
+  country: string;  // ISO 3166-1 alpha-2 code
+  spend: string;
+  impressions?: string;
+  clicks?: string;
+  actions?: Array<{
+    action_type: string;
+    value: string;
+  }>;
+  action_values?: Array<{
+    action_type: string;
+    value: string;
+  }>;
+}
+
+interface MetaCountryInsightsResponse {
+  data: MetaCountryInsight[];
+  paging?: {
+    cursors: {
+      before: string;
+      after: string;
+    };
+    next?: string;
+  };
+}
+
+/**
+ * Fetch ad spend broken down by country from Meta Marketing API
+ * Uses the breakdowns=country parameter to get per-country metrics
+ *
+ * Note: The country code returned is where the ad was SHOWN (impression location),
+ * not necessarily where the customer will ship to.
+ *
+ * @param adAccountId - The ad account ID (e.g., act_123456789)
+ * @param accessToken - Meta API access token
+ * @param startDate - Start date (YYYY-MM-DD)
+ * @param endDate - End date (YYYY-MM-DD)
+ */
+export async function fetchMetaAdSpendByCountry(
+  adAccountId: string,
+  accessToken: string,
+  startDate: string,
+  endDate: string
+): Promise<MetaCountryAdSpend[]> {
+  const allData: MetaCountryAdSpend[] = [];
+  let nextUrl: string | undefined;
+
+  const params = new URLSearchParams({
+    access_token: accessToken,
+    fields: 'spend,impressions,clicks,actions,action_values',
+    time_range: JSON.stringify({
+      since: startDate,
+      until: endDate,
+    }),
+    time_increment: '1', // Daily breakdown
+    breakdowns: 'country', // Get per-country data
+    level: 'account',
+    limit: '500',
+  });
+
+  let url = `${META_BASE_URL}/${adAccountId}/insights?${params}`;
+
+  do {
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.error) {
+      throw new Error(`Meta API Error: ${data.error.message}`);
+    }
+
+    const insights: MetaCountryInsightsResponse = data;
+
+    for (const insight of insights.data) {
+      // Find purchase conversions (count)
+      const purchases = insight.actions?.find(
+        (a) => a.action_type === 'purchase' || a.action_type === 'omni_purchase'
+      );
+
+      // Find purchase value (revenue attributed by Meta)
+      const purchaseValue = insight.action_values?.find(
+        (a) => a.action_type === 'purchase' || a.action_type === 'omni_purchase'
+      );
+
+      allData.push({
+        date: insight.date_start,
+        countryCode: insight.country.toUpperCase(),
+        spend: parseFloat(insight.spend) || 0,
+        impressions: parseInt(insight.impressions || '0', 10),
+        clicks: parseInt(insight.clicks || '0', 10),
+        conversions: parseInt(purchases?.value || '0', 10),
+        revenueAttributed: parseFloat(purchaseValue?.value || '0'),
+      });
+    }
+
+    nextUrl = insights.paging?.next;
+    if (nextUrl) {
+      url = nextUrl;
+    }
+  } while (nextUrl);
+
+  return allData;
+}

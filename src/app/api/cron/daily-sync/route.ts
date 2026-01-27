@@ -12,7 +12,9 @@ import { fetchAllMetaAdSpend, verifyMetaToken } from '@/lib/meta/client';
  * 1. Sync orders from Shopify (all brands)
  * 2. Sync orders from Etsy (all brands)
  * 3. Sync ad spend from Meta (all brands)
- * 4. Refresh P&L calculations
+ * 4. Sync country-level ad spend from Meta (for Country Analysis GP3)
+ * 5. Refresh P&L calculations
+ * 6. Send daily summary email (evening sync only)
  */
 
 const BRAND_AD_ACCOUNTS: Record<string, string> = {
@@ -201,7 +203,43 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Step 4: Refresh P&L Calculations
+  // Step 4: Sync Meta Country Ad Spend
+  if (metaAccessToken) {
+    try {
+      const countryResponse = await fetch(
+        `${new URL(request.url).origin}/api/meta/country-sync`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startDate, endDate, brandCode: 'all' }),
+        }
+      );
+      const countryData = await countryResponse.json();
+
+      results.push({
+        step: 'Meta Country Ad Sync',
+        success: countryResponse.ok,
+        message: countryResponse.ok
+          ? `Synced ${countryData.results?.reduce((sum: number, r: { recordsSynced: number }) => sum + r.recordsSynced, 0) || 0} country ad records`
+          : countryData.error,
+        details: countryData,
+      });
+    } catch (error) {
+      results.push({
+        step: 'Meta Country Ad Sync',
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  } else {
+    results.push({
+      step: 'Meta Country Ad Sync',
+      success: false,
+      message: 'META_ACCESS_TOKEN not configured',
+    });
+  }
+
+  // Step 5: Refresh P&L Calculations
   try {
     const pnlResponse = await fetch(
       `${new URL(request.url).origin}/api/pnl/refresh`,
@@ -227,7 +265,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Step 5: Send Daily Summary Email (only at 6pm sync, not morning sync)
+  // Step 6: Send Daily Summary Email (only at 6pm sync, not morning sync)
   const currentHour = new Date().getUTCHours();
   const isEveningSync = currentHour >= 17; // 5pm UTC or later (6pm UK in winter, 5pm UK in summer)
 

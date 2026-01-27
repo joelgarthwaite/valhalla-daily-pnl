@@ -247,8 +247,23 @@ export interface CountryPnL {
   gp2: number;
   gp2Margin: number;
 
+  // Ad Spend and GP3 (only available if country ad spend data exists)
+  adSpend: number | null;
+  gp3: number | null;
+  gp3Margin: number | null;
+  hasAdData: boolean;
+
   // Percentage of total
   revenueShare: number;
+}
+
+export interface CountryAdSpendData {
+  countryCode: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  revenueAttributed: number;
 }
 
 export interface CountrySummary {
@@ -277,7 +292,8 @@ export function calculateCountryPnL(
     cogsPct?: number;
     pickPackPct?: number;
     logisticsPct?: number;
-  }
+  },
+  adSpendData?: CountryAdSpendData | null
 ): CountryPnL {
   const cogsPct = costConfig?.cogsPct ?? DEFAULT_COGS_PERCENTAGE;
   const pickPackPct = costConfig?.pickPackPct ?? DEFAULT_PICK_PACK_PERCENTAGE;
@@ -294,6 +310,12 @@ export function calculateCountryPnL(
   // Calculate profit tiers
   const gp1 = calculateGP1(data.revenue, cogs);
   const gp2 = calculateGP2(gp1, pickPackCost, totalPlatformFees, logisticsCost);
+
+  // Calculate GP3 if ad spend data is available
+  const hasAdData = !!adSpendData && adSpendData.spend > 0;
+  const adSpend = hasAdData ? adSpendData!.spend : null;
+  const gp3 = hasAdData ? gp2 - adSpendData!.spend : null;
+  const gp3Margin = hasAdData && data.revenue > 0 ? (gp3! / data.revenue) * 100 : null;
 
   // Calculate margins
   const gp1Margin = calculateMarginPct(gp1, data.revenue);
@@ -326,12 +348,19 @@ export function calculateCountryPnL(
     gp1Margin,
     gp2,
     gp2Margin,
+    adSpend,
+    gp3,
+    gp3Margin,
+    hasAdData,
     revenueShare,
   };
 }
 
 /**
  * Calculate country P&L for all countries from raw data
+ * @param rawData - Aggregated order data by country
+ * @param costConfig - Cost configuration percentages
+ * @param adSpendByCountry - Map of country code to ad spend data
  */
 export function calculateAllCountryPnL(
   rawData: RawCountryData[],
@@ -339,13 +368,17 @@ export function calculateAllCountryPnL(
     cogsPct?: number;
     pickPackPct?: number;
     logisticsPct?: number;
-  }
+  },
+  adSpendByCountry?: Map<string, CountryAdSpendData>
 ): CountryPnL[] {
   // Calculate total revenue first
   const totalRevenue = rawData.reduce((sum, d) => sum + d.revenue, 0);
 
   // Calculate P&L for each country
-  const countryPnLs = rawData.map((data) => calculateCountryPnL(data, totalRevenue, costConfig));
+  const countryPnLs = rawData.map((data) => {
+    const adSpendData = adSpendByCountry?.get(data.countryCode) || null;
+    return calculateCountryPnL(data, totalRevenue, costConfig, adSpendData);
+  });
 
   // Sort by revenue descending
   return countryPnLs.sort((a, b) => b.revenue - a.revenue);

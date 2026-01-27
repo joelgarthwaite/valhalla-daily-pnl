@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, ArrowUpDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, ArrowUpDown, Info } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -12,6 +12,12 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { CountryPnL } from '@/lib/pnl/country-calculations';
 import { formatCurrency, formatPercentage } from '@/lib/pnl/targets';
@@ -19,12 +25,13 @@ import { formatCurrency, formatPercentage } from '@/lib/pnl/targets';
 interface CountryTableProps {
   data: CountryPnL[];
   isLoading?: boolean;
+  hasAdSpendData?: boolean;
 }
 
-type SortKey = 'revenue' | 'orders' | 'gp2' | 'gp2Margin' | 'aov';
+type SortKey = 'revenue' | 'orders' | 'gp2' | 'gp2Margin' | 'aov' | 'gp3' | 'gp3Margin' | 'adSpend';
 type SortDirection = 'asc' | 'desc';
 
-export function CountryTable({ data, isLoading = false }: CountryTableProps) {
+export function CountryTable({ data, isLoading = false, hasAdSpendData = false }: CountryTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('revenue');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -51,8 +58,13 @@ export function CountryTable({ data, isLoading = false }: CountryTableProps) {
   // Sort data
   const sortedData = [...data].sort((a, b) => {
     const multiplier = sortDirection === 'asc' ? 1 : -1;
-    return (a[sortKey] - b[sortKey]) * multiplier;
+    const aVal = a[sortKey as keyof CountryPnL] ?? 0;
+    const bVal = b[sortKey as keyof CountryPnL] ?? 0;
+    return ((aVal as number) - (bVal as number)) * multiplier;
   });
+
+  // Check if any country has ad data
+  const anyCountryHasAdData = data.some(c => c.hasAdData);
 
   if (isLoading) {
     return (
@@ -86,6 +98,9 @@ export function CountryTable({ data, isLoading = false }: CountryTableProps) {
     </Button>
   );
 
+  // Calculate column span for expanded rows
+  const colSpan = anyCountryHasAdData ? 16 : 13;
+
   return (
     <div className="rounded-md border overflow-x-auto">
       <Table>
@@ -114,12 +129,38 @@ export function CountryTable({ data, isLoading = false }: CountryTableProps) {
             <TableHead className="text-right">
               <SortButton column="gp2Margin" label="GP2 %" />
             </TableHead>
+            {anyCountryHasAdData && (
+              <>
+                <TableHead className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <SortButton column="adSpend" label="Ad Spend" />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Based on Meta ad delivery location (where ad was shown), not shipping destination.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </TableHead>
+                <TableHead className="text-right">
+                  <SortButton column="gp3" label="GP3" />
+                </TableHead>
+                <TableHead className="text-right">
+                  <SortButton column="gp3Margin" label="GP3 %" />
+                </TableHead>
+              </>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedData.map((row) => {
             const isExpanded = expandedRows.has(row.countryCode);
             const isProfit = row.gp2 >= 0;
+            const isGP3Profit = row.gp3 !== null && row.gp3 >= 0;
 
             return (
               <>
@@ -141,6 +182,11 @@ export function CountryTable({ data, isLoading = false }: CountryTableProps) {
                   <TableCell className="font-medium">
                     <span className="mr-2">{row.countryFlag}</span>
                     {row.countryName}
+                    {row.hasAdData && (
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        Ad Data
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(row.revenue)}
@@ -191,12 +237,49 @@ export function CountryTable({ data, isLoading = false }: CountryTableProps) {
                       {formatPercentage(row.gp2Margin)}
                     </Badge>
                   </TableCell>
+                  {anyCountryHasAdData && (
+                    <>
+                      <TableCell className="text-right text-muted-foreground">
+                        {row.adSpend !== null ? `(${formatCurrency(row.adSpend)})` : '-'}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          'text-right font-bold',
+                          row.gp3 === null
+                            ? 'text-muted-foreground'
+                            : isGP3Profit
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        )}
+                      >
+                        {row.gp3 !== null ? formatCurrency(row.gp3) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {row.gp3Margin !== null ? (
+                          <Badge
+                            variant={row.gp3Margin >= 30 ? 'default' : 'secondary'}
+                            className={cn(
+                              row.gp3Margin >= 30
+                                ? 'bg-green-100 text-green-700 hover:bg-green-100'
+                                : row.gp3Margin >= 15
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-red-100 text-red-700'
+                            )}
+                          >
+                            {formatPercentage(row.gp3Margin)}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    </>
+                  )}
                 </TableRow>
 
                 {/* Expanded Details Row */}
                 {isExpanded && (
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={13}>
+                    <TableCell colSpan={colSpan}>
                       <div className="p-4 space-y-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                           {/* Platform Revenue Breakdown */}
@@ -267,9 +350,49 @@ export function CountryTable({ data, isLoading = false }: CountryTableProps) {
                                   {formatPercentage(row.gp2Margin)}
                                 </span>
                               </div>
+                              {row.gp3Margin !== null && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">GP3 Margin</span>
+                                  <span
+                                    className={cn(
+                                      'font-medium',
+                                      row.gp3Margin >= 30 ? 'text-green-600' : row.gp3Margin >= 15 ? 'text-yellow-600' : 'text-red-600'
+                                    )}
+                                  >
+                                    {formatPercentage(row.gp3Margin)}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
+
+                        {/* Ad Spend Details (if available) */}
+                        {row.hasAdData && row.adSpend !== null && (
+                          <div className="pt-4 border-t">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="text-sm font-medium">Ad Spend Details</h4>
+                              <Badge variant="outline" className="text-xs">
+                                Based on ad delivery location
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Ad Spend</span>
+                                <span className="text-red-600">({formatCurrency(row.adSpend)})</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">GP3</span>
+                                <span className={cn(
+                                  'font-medium',
+                                  row.gp3 !== null && row.gp3 >= 0 ? 'text-green-600' : 'text-red-600'
+                                )}>
+                                  {row.gp3 !== null ? formatCurrency(row.gp3) : '-'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

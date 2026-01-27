@@ -65,12 +65,15 @@ interface GoogleTokenStatus {
   authUrl?: string;
 }
 
+type BrandFilterType = 'all' | 'DC' | 'BI';
+
 export default function AdSpendPage() {
   const [adSpends, setAdSpends] = useState<AdSpend[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [brandFilter, setBrandFilter] = useState<BrandFilterType>('all');
 
   // Meta sync state
   const [metaTokenStatus, setMetaTokenStatus] = useState<MetaTokenStatus | null>(null);
@@ -96,17 +99,27 @@ export default function AdSpendPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [{ data: spends }, { data: brandsData }] = await Promise.all([
-        supabase
-          .from('ad_spend')
-          .select('*')
-          .order('date', { ascending: false })
-          .limit(100),
-        supabase.from('brands').select('*'),
-      ]);
-
-      setAdSpends(spends || []);
+      // First fetch brands to use for filtering
+      const { data: brandsData } = await supabase.from('brands').select('*');
       setBrands(brandsData || []);
+
+      // Build ad spend query with optional brand filter
+      let query = supabase
+        .from('ad_spend')
+        .select('*')
+        .order('date', { ascending: false })
+        .limit(100);
+
+      // Apply brand filter if not 'all'
+      if (brandFilter !== 'all' && brandsData) {
+        const selectedBrand = brandsData.find((b) => b.code === brandFilter);
+        if (selectedBrand) {
+          query = query.eq('brand_id', selectedBrand.id);
+        }
+      }
+
+      const { data: spends } = await query;
+      setAdSpends(spends || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load ad spend data');
@@ -119,7 +132,7 @@ export default function AdSpendPage() {
     fetchData();
     checkMetaTokenStatus();
     checkGoogleTokenStatus();
-  }, []);
+  }, [brandFilter]);
 
   const checkMetaTokenStatus = async () => {
     try {
@@ -153,7 +166,7 @@ export default function AdSpendPage() {
         body: JSON.stringify({
           startDate,
           endDate,
-          brandCode: 'all',
+          brandCode: brandFilter,
         }),
       });
 
@@ -189,7 +202,7 @@ export default function AdSpendPage() {
         body: JSON.stringify({
           startDate,
           endDate,
-          brandCode: 'all',
+          brandCode: brandFilter,
         }),
       });
 
@@ -317,6 +330,18 @@ export default function AdSpendPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Brand Filter */}
+          <Select value={brandFilter} onValueChange={(v) => setBrandFilter(v as BrandFilterType)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Filter brand" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Brands</SelectItem>
+              <SelectItem value="DC">Display Champ</SelectItem>
+              <SelectItem value="BI">Bright Ivy</SelectItem>
+            </SelectContent>
+          </Select>
+
           {/* Sync Date Range Selector */}
           {(metaTokenStatus?.status === 'valid' || googleTokenStatus?.status === 'active') && (
             <Select value={syncDays} onValueChange={setSyncDays}>

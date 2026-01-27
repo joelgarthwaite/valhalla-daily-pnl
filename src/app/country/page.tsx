@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { ArrowLeft, RefreshCw, Download, Globe } from 'lucide-react';
 import Link from 'next/link';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -27,6 +27,7 @@ import {
   CountryTable,
   CountryRevenueChart,
 } from '@/components/country';
+import { useFilterParams } from '@/hooks/useFilterParams';
 import type { CountryPnL, CountrySummary } from '@/lib/pnl/country-calculations';
 import type { BrandFilter, DateRange } from '@/types';
 
@@ -38,67 +39,72 @@ interface CountryApiResponse {
     to: string;
   };
   brandFilter: string;
+  hasAdSpendData: boolean;
 }
 
-// Preset date ranges
-const presets = {
-  thisWeek: {
-    label: 'This Week',
-    getRange: () => {
-      const now = new Date();
-      const dayOfWeek = now.getDay();
-      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-      const monday = new Date(now.setDate(diff));
-      monday.setHours(0, 0, 0, 0);
-      return { from: monday, to: new Date() };
-    },
+// Preset date ranges - defined as functions to be called when needed
+const getPresetRange = {
+  thisWeek: () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const monday = new Date(now);
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0);
+    return { from: monday, to: new Date() };
   },
-  lastWeek: {
-    label: 'Last Week',
-    getRange: () => {
-      const now = new Date();
-      const dayOfWeek = now.getDay();
-      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1) - 7;
-      const monday = new Date(now);
-      monday.setDate(diff);
-      monday.setHours(0, 0, 0, 0);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      return { from: monday, to: sunday };
-    },
+  lastWeek: () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1) - 7;
+    const monday = new Date(now);
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return { from: monday, to: sunday };
   },
-  thisMonth: {
-    label: 'This Month',
-    getRange: () => {
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { from: startOfMonth, to: now };
-    },
+  thisMonth: () => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: startOfMonth, to: now };
   },
-  last30: {
-    label: 'Last 30 Days',
-    getRange: () => {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      return { from: subDays(now, 29), to: now };
-    },
+  last30: () => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const from = new Date(now);
+    from.setDate(from.getDate() - 29);
+    return { from, to: now };
   },
-  last90: {
-    label: 'Last 90 Days',
-    getRange: () => {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      return { from: subDays(now, 89), to: now };
-    },
+  last90: () => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const from = new Date(now);
+    from.setDate(from.getDate() - 89);
+    return { from, to: now };
   },
 };
 
-export default function CountryAnalysisPage() {
-  const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
-  const [dateRange, setDateRange] = useState<DateRange>(() => presets.last30.getRange());
+const presetLabels = {
+  thisWeek: 'This Week',
+  lastWeek: 'Last Week',
+  thisMonth: 'This Month',
+  last30: 'Last 30 Days',
+  last90: 'Last 90 Days',
+};
+
+function CountryAnalysisContent() {
+  const {
+    brandFilter,
+    dateRange,
+    setBrandFilter,
+    setDateRange,
+  } = useFilterParams();
+
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [countries, setCountries] = useState<CountryPnL[]>([]);
   const [summary, setSummary] = useState<CountrySummary | null>(null);
+  const [hasAdSpendData, setHasAdSpendData] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,6 +133,7 @@ export default function CountryAnalysisPage() {
 
       setCountries(data.countries);
       setSummary(data.summary);
+      setHasAdSpendData(data.hasAdSpendData);
     } catch (err) {
       console.error('Error fetching country data:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -139,8 +146,8 @@ export default function CountryAnalysisPage() {
     fetchData();
   }, [fetchData]);
 
-  const handlePresetClick = (presetKey: keyof typeof presets) => {
-    const range = presets[presetKey].getRange();
+  const handlePresetClick = (presetKey: keyof typeof getPresetRange) => {
+    const range = getPresetRange[presetKey]();
     setDateRange(range);
     setIsCalendarOpen(false);
   };
@@ -252,15 +259,15 @@ export default function CountryAnalysisPage() {
                       {/* Presets sidebar */}
                       <div className="border-r p-3 space-y-1">
                         <p className="text-xs font-medium text-muted-foreground mb-2">Quick Select</p>
-                        {Object.entries(presets).map(([key, preset]) => (
+                        {(Object.keys(getPresetRange) as (keyof typeof getPresetRange)[]).map((key) => (
                           <Button
                             key={key}
                             variant="ghost"
                             size="sm"
                             className="w-full justify-start text-xs h-7"
-                            onClick={() => handlePresetClick(key as keyof typeof presets)}
+                            onClick={() => handlePresetClick(key)}
                           >
-                            {preset.label}
+                            {presetLabels[key]}
                           </Button>
                         ))}
                       </div>
@@ -310,7 +317,7 @@ export default function CountryAnalysisPage() {
                     className="h-7 text-xs"
                     onClick={() => handlePresetClick(key)}
                   >
-                    {presets[key].label}
+                    {presetLabels[key]}
                   </Button>
                 ))}
               </div>
@@ -319,11 +326,21 @@ export default function CountryAnalysisPage() {
         </Card>
 
         {/* Info Banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-700">
-            <strong>Note:</strong> Country analysis shows P&L metrics up to GP2 (Gross Profit 2)
-            because ad spend cannot be attributed to specific countries. GP2 includes:
-            Revenue - COGS - Platform Fees - Pick & Pack - Logistics.
+        <div className={`border rounded-lg p-4 ${hasAdSpendData ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+          <p className={`text-sm ${hasAdSpendData ? 'text-green-700' : 'text-blue-700'}`}>
+            {hasAdSpendData ? (
+              <>
+                <strong>Ad Spend Data Available:</strong> This view includes GP3 metrics using Meta ad delivery
+                location data. Note: Ad delivery location (where the ad was shown) may differ from shipping
+                destination (where the order was delivered).
+              </>
+            ) : (
+              <>
+                <strong>Note:</strong> Country analysis shows P&L metrics up to GP2 (Gross Profit 2)
+                because ad spend cannot be attributed to specific countries. GP2 includes:
+                Revenue - COGS - Platform Fees - Pick & Pack - Logistics.
+              </>
+            )}
           </p>
         </div>
 
@@ -339,7 +356,7 @@ export default function CountryAnalysisPage() {
             <CardTitle>Country Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <CountryTable data={countries} isLoading={isLoading} />
+            <CountryTable data={countries} isLoading={isLoading} hasAdSpendData={hasAdSpendData} />
           </CardContent>
         </Card>
       </main>
@@ -353,5 +370,25 @@ export default function CountryAnalysisPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function CountryAnalysisLoading() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+        <p className="mt-2 text-muted-foreground">Loading country analysis...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function CountryAnalysisPage() {
+  return (
+    <Suspense fallback={<CountryAnalysisLoading />}>
+      <CountryAnalysisContent />
+    </Suspense>
   );
 }

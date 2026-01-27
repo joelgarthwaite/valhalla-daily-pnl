@@ -1,0 +1,215 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Create Supabase admin client to bypass RLS
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+interface OrdersQueryParams {
+  from?: string;
+  to?: string;
+  brand?: string;
+  platform?: string;
+  isB2B?: string;
+  limit?: string;
+  offset?: string;
+}
+
+/**
+ * GET /api/orders
+ * List orders with filters
+ */
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const params: OrdersQueryParams = {
+    from: searchParams.get('from') || undefined,
+    to: searchParams.get('to') || undefined,
+    brand: searchParams.get('brand') || undefined,
+    platform: searchParams.get('platform') || undefined,
+    isB2B: searchParams.get('isB2B') || undefined,
+    limit: searchParams.get('limit') || '50',
+    offset: searchParams.get('offset') || '0',
+  };
+
+  try {
+    // First get brands for mapping
+    const { data: brands } = await supabaseAdmin.from('brands').select('id, code, name');
+    const brandMap = new Map(brands?.map(b => [b.id, b]) || []);
+
+    // Build query
+    let query = supabaseAdmin
+      .from('orders')
+      .select('id, platform, platform_order_id, order_number, order_date, customer_name, customer_email, brand_id, subtotal, total, is_b2b, b2b_customer_name, status, fulfillment_status', { count: 'exact' })
+      .order('order_date', { ascending: false });
+
+    // Apply filters
+    if (params.from) {
+      query = query.gte('order_date', params.from);
+    }
+    if (params.to) {
+      query = query.lte('order_date', params.to);
+    }
+    if (params.brand && params.brand !== 'all') {
+      const brand = brands?.find(b => b.code === params.brand);
+      if (brand) {
+        query = query.eq('brand_id', brand.id);
+      }
+    }
+    if (params.platform && params.platform !== 'all') {
+      query = query.eq('platform', params.platform);
+    }
+    if (params.isB2B === 'true') {
+      query = query.eq('is_b2b', true);
+    } else if (params.isB2B === 'false') {
+      query = query.eq('is_b2b', false);
+    }
+
+    // Apply pagination
+    const limit = parseInt(params.limit || '50', 10);
+    const offset = parseInt(params.offset || '0', 10);
+    query = query.range(offset, offset + limit - 1);
+
+    const { data: orders, error, count } = await query;
+
+    if (error) {
+      console.error('Error fetching orders:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Enrich with brand info
+    const enrichedOrders = orders?.map(order => ({
+      ...order,
+      brand: brandMap.get(order.brand_id) || null,
+    }));
+
+    return NextResponse.json({
+      orders: enrichedOrders || [],
+      total: count || 0,
+      limit,
+      offset,
+      hasMore: (count || 0) > offset + limit,
+    });
+  } catch (error) {
+    console.error('Error in GET /api/orders:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+interface UpdateOrderBody {
+  id: string;
+  is_b2b?: boolean;
+  b2b_customer_name?: string | null;
+}
+
+/**
+ * PATCH /api/orders
+ * Update order B2B status
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const body: UpdateOrderBody = await request.json();
+
+    if (!body.id) {
+      return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
+    }
+
+    const updateData: Record<string, unknown> = {};
+
+    if (typeof body.is_b2b === 'boolean') {
+      updateData.is_b2b = body.is_b2b;
+      // Clear customer name if unmarking as B2B
+      if (!body.is_b2b) {
+        updateData.b2b_customer_name = null;
+      }
+    }
+
+    if (body.b2b_customer_name !== undefined) {
+      updateData.b2b_customer_name = body.b2b_customer_name;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No update data provided' }, { status: 400 });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('orders')
+      .update(updateData)
+      .eq('id', body.id)
+      .select('id, is_b2b, b2b_customer_name')
+      .single();
+
+    if (error) {
+      console.error('Error updating order:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      order: data,
+    });
+  } catch (error) {
+    console.error('Error in PATCH /api/orders:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+interface BulkUpdateBody {
+  orderIds: string[];
+  is_b2b: boolean;
+  b2b_customer_name?: string;
+}
+
+/**
+ * POST /api/orders/bulk-update
+ * Bulk update B2B status for multiple orders
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body: BulkUpdateBody = await request.json();
+
+    if (!body.orderIds || !Array.isArray(body.orderIds) || body.orderIds.length === 0) {
+      return NextResponse.json({ error: 'Order IDs array is required' }, { status: 400 });
+    }
+
+    const updateData: Record<string, unknown> = {
+      is_b2b: body.is_b2b,
+    };
+
+    if (body.is_b2b && body.b2b_customer_name) {
+      updateData.b2b_customer_name = body.b2b_customer_name;
+    } else if (!body.is_b2b) {
+      updateData.b2b_customer_name = null;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('orders')
+      .update(updateData)
+      .in('id', body.orderIds)
+      .select('id, is_b2b, b2b_customer_name');
+
+    if (error) {
+      console.error('Error bulk updating orders:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      updatedCount: data?.length || 0,
+      orders: data,
+    });
+  } catch (error) {
+    console.error('Error in POST /api/orders:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
