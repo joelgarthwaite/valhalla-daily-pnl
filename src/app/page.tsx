@@ -1,11 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, RefreshCw, Settings, BarChart3, ChevronDown, ChevronUp, HelpCircle, Globe, CloudDownload } from 'lucide-react';
+import { Download, RefreshCw, Settings, BarChart3, ChevronDown, ChevronUp, HelpCircle, Globe, CloudDownload, FileSpreadsheet, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   DashboardFilters,
   HeroKPIGrid,
@@ -21,6 +27,7 @@ import {
 import { usePnLData, getDefaultDateRange } from '@/hooks/usePnLData';
 import { generateWaterfallData } from '@/lib/pnl/calculations';
 import { aggregatePnLByPeriod } from '@/lib/pnl/aggregations';
+import { exportToExcel, exportToPDF } from '@/lib/utils/export';
 import type { BrandFilter, PeriodType, DateRange, DailyPnL } from '@/types';
 
 export default function DashboardPage() {
@@ -30,6 +37,7 @@ export default function DashboardPage() {
   const [showYoY, setShowYoY] = useState(false);
   const [showQuickSummary, setShowQuickSummary] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const {
     dailyData,
@@ -56,6 +64,43 @@ export default function DashboardPage() {
 
   // Get raw daily data for alert calculations
   const rawDailyData = dailyData as unknown as DailyPnL[];
+
+  // Get brand name for export
+  const getBrandName = () => {
+    switch (brandFilter) {
+      case 'DC':
+        return 'Display Champ';
+      case 'BI':
+        return 'Bright Ivy';
+      default:
+        return 'All Brands';
+    }
+  };
+
+  // Export handlers
+  const handleExportExcel = async () => {
+    if (!summary || aggregatedData.length === 0) return;
+    setIsExporting(true);
+    try {
+      await exportToExcel(aggregatedData, summary, dateRange, getBrandName());
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!summary || aggregatedData.length === 0) return;
+    setIsExporting(true);
+    try {
+      await exportToPDF(aggregatedData, summary, dateRange, getBrandName());
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -100,10 +145,24 @@ export default function DashboardPage() {
                   Country Analysis
                 </Button>
               </Link>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={isExporting || !summary}>
+                    <Download className={`h-4 w-4 mr-2 ${isExporting ? 'animate-pulse' : ''}`} />
+                    {isExporting ? 'Exporting...' : 'Export'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportExcel}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Export to Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDF}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Export to PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Link href="/help">
                 <Button variant="outline" size="sm">
                   <HelpCircle className="h-4 w-4 mr-2" />
