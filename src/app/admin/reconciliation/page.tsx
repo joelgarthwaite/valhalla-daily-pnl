@@ -54,10 +54,11 @@ export default function ReconciliationPage() {
       const yearStart = format(startOfYear(new Date(year, 0, 1)), 'yyyy-MM-dd');
       const yearEnd = format(endOfYear(new Date(year, 0, 1)), 'yyyy-MM-dd');
 
-      // Fetch orders for the year
+      // Fetch orders for the year (exclude manually excluded orders)
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('order_date, platform, subtotal')
+        .is('excluded_at', null)  // Only include non-excluded orders
         .gte('order_date', yearStart)
         .lte('order_date', yearEnd);
 

@@ -102,9 +102,11 @@ export async function GET(request: NextRequest) {
 
     // Fetch orders with shipping address for the date range
     // We need: platform, subtotal, shipping_address
+    // Exclude orders that have been manually excluded
     let ordersQuery = supabase
       .from('orders')
       .select('platform, subtotal, shipping_address')
+      .is('excluded_at', null)  // Only include non-excluded orders
       .gte('order_date', fromDate)
       .lte('order_date', toDate);
 
