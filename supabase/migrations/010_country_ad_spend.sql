@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS country_ad_spend (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   brand_id UUID NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
   date DATE NOT NULL,
-  country_code VARCHAR(2) NOT NULL,  -- ISO 3166-1 alpha-2 code
+  country_code VARCHAR(20) NOT NULL,  -- ISO 3166-1 alpha-2 code (or Meta region codes)
   platform VARCHAR(50) NOT NULL,     -- 'meta', 'google', etc.
   spend DECIMAL(12, 2) NOT NULL DEFAULT 0,
   impressions INTEGER DEFAULT 0,
