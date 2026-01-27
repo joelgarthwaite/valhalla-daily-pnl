@@ -263,7 +263,7 @@ export default function PromotionsPage() {
                 <div className="space-y-2">
                   <Label>Brand *</Label>
                   <Select
-                    value={formData.brand_id}
+                    value={formData.brand_id || undefined}
                     onValueChange={(v) => setFormData({ ...formData, brand_id: v })}
                   >
                     <SelectTrigger>
@@ -311,7 +311,7 @@ export default function PromotionsPage() {
                 <div className="space-y-2">
                   <Label>Type *</Label>
                   <Select
-                    value={formData.type}
+                    value={formData.type || undefined}
                     onValueChange={(v) => setFormData({ ...formData, type: v as PromotionType })}
                   >
                     <SelectTrigger>
