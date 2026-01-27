@@ -11,6 +11,7 @@ import {
   HeroKPIGrid,
   AlertBanner,
   PnLTable,
+  SyncProgressModal,
 } from '@/components/dashboard';
 import {
   RevenueTrendChart,
@@ -28,8 +29,7 @@ export default function DashboardPage() {
   const [periodType, setPeriodType] = useState<PeriodType>('daily');
   const [showYoY, setShowYoY] = useState(false);
   const [showQuickSummary, setShowQuickSummary] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   const {
     dailyData,
@@ -46,39 +46,6 @@ export default function DashboardPage() {
     periodType,
     showYoY,
   });
-
-  // Unified sync function - syncs all data sources and refreshes P&L
-  const handleSyncAll = async () => {
-    setIsSyncing(true);
-    setSyncStatus('Syncing...');
-
-    try {
-      const response = await fetch('/api/sync-all', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSyncStatus(`Done! (${data.duration})`);
-        // Refresh dashboard data after sync
-        await refetch();
-      } else {
-        const errorSteps = data.steps?.filter((s: { status: string }) => s.status === 'error') || [];
-        setSyncStatus(`Completed with ${errorSteps.length} error(s)`);
-      }
-
-      // Clear status after 3 seconds
-      setTimeout(() => setSyncStatus(null), 3000);
-    } catch (err) {
-      setSyncStatus('Sync failed');
-      setTimeout(() => setSyncStatus(null), 3000);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   // Generate waterfall data from summary
   const waterfallData = summary ? generateWaterfallData(summary) : [];
@@ -106,18 +73,17 @@ export default function DashboardPage() {
               <Button
                 variant="default"
                 size="sm"
-                onClick={handleSyncAll}
-                disabled={isSyncing}
+                onClick={() => setShowSyncModal(true)}
                 title="Pulls latest orders from Shopify & Etsy, syncs ad spend from Meta, and updates P&L calculations"
               >
-                <CloudDownload className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-pulse' : ''}`} />
-                {isSyncing ? 'Syncing...' : syncStatus || 'Sync & Update'}
+                <CloudDownload className="h-4 w-4 mr-2" />
+                Sync & Update
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => refetch()}
-                disabled={isLoading || isSyncing}
+                disabled={isLoading}
                 title="Reload dashboard data from database (no external sync)"
               >
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -259,6 +225,13 @@ export default function DashboardPage() {
           </p>
         </div>
       </footer>
+
+      {/* Sync Progress Modal */}
+      <SyncProgressModal
+        isOpen={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        onComplete={() => refetch()}
+      />
     </div>
   );
 }
