@@ -198,36 +198,54 @@ export async function GET() {
       throw new Error(`Failed to query country_ad_spend: ${error.message}`);
     }
 
-    // Get counts by brand
-    const { data: counts, error: countError } = await supabaseAdmin
+    // Get all records with spend for detailed breakdown
+    const { data: allRecords, error: recordsError } = await supabaseAdmin
       .from('country_ad_spend')
-      .select('brand_id, country_code')
+      .select('brand_id, country_code, spend')
       .limit(10000);
 
-    if (countError) {
-      throw new Error(`Failed to count records: ${countError.message}`);
+    if (recordsError) {
+      throw new Error(`Failed to fetch records: ${recordsError.message}`);
     }
 
     // Get brands
     const { data: brands } = await supabaseAdmin.from('brands').select('id, code');
     const brandMap = new Map(brands?.map(b => [b.id, b.code]));
 
-    // Calculate stats
-    const brandCounts: Record<string, { records: number; countries: Set<string> }> = {};
+    // Calculate stats with spend by country
+    const brandStats: Record<string, {
+      records: number;
+      countries: Set<string>;
+      spendByCountry: Record<string, number>;
+      totalSpend: number;
+    }> = {};
 
-    for (const row of (counts || [])) {
+    for (const row of (allRecords || [])) {
       const brandCode = brandMap.get(row.brand_id) || 'unknown';
-      if (!brandCounts[brandCode]) {
-        brandCounts[brandCode] = { records: 0, countries: new Set() };
+      if (!brandStats[brandCode]) {
+        brandStats[brandCode] = {
+          records: 0,
+          countries: new Set(),
+          spendByCountry: {},
+          totalSpend: 0,
+        };
       }
-      brandCounts[brandCode].records++;
-      brandCounts[brandCode].countries.add(row.country_code);
+      brandStats[brandCode].records++;
+      brandStats[brandCode].countries.add(row.country_code);
+      brandStats[brandCode].spendByCountry[row.country_code] =
+        (brandStats[brandCode].spendByCountry[row.country_code] || 0) + Number(row.spend);
+      brandStats[brandCode].totalSpend += Number(row.spend);
     }
 
-    const stats = Object.entries(brandCounts).map(([code, data]) => ({
+    const stats = Object.entries(brandStats).map(([code, data]) => ({
       brandCode: code,
       totalRecords: data.records,
       uniqueCountries: data.countries.size,
+      countryList: Array.from(data.countries).sort(),
+      spendByCountry: Object.entries(data.spendByCountry)
+        .sort((a, b) => b[1] - a[1])
+        .map(([country, spend]) => ({ country, spend: Math.round(spend * 100) / 100 })),
+      totalSpend: Math.round(data.totalSpend * 100) / 100,
     }));
 
     return NextResponse.json({
