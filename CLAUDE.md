@@ -47,6 +47,7 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - `supabase/migrations/002_pnl_schema.sql` - Core P&L tables
 - `supabase/migrations/003_enhanced_metrics.sql` - GP1/GP2/GP3, refunds, enhanced metrics
 - `supabase/migrations/004_add_user_roles_index.sql` - Index for faster RLS policy checks
+- `supabase/migrations/005_etsy_fees.sql` - Actual Etsy fees from Payment Ledger API
 
 ---
 
@@ -105,6 +106,27 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - Access tokens expire in 1 hour
 - **Auto-refresh is enabled** - sync code refreshes tokens automatically
 - Refresh tokens are long-lived (until user revokes app)
+
+### Etsy Fees (Actual vs Estimated)
+
+The system now captures **actual Etsy fees** from the Payment Account Ledger API:
+
+| Fee Type | Description | Typical Rate |
+|----------|-------------|--------------|
+| Transaction fees | On item sales | 6.5% |
+| Shipping transaction fees | On postage | 6.5% |
+| Processing fees | Payment processing | ~4% + £0.20 |
+| Regulatory operating fees | Platform fee | ~0.32% |
+| Offsite ads fees | When Etsy's external ads drive sale | 12-15% |
+| VAT on fees | VAT charged on seller fees | 20% of fees |
+| Listing fees | Per listing | £0.16 |
+
+**Current State:**
+- Actual fees are captured in `etsy_fees` table
+- P&L calculations still use estimated ~6.5% (for now)
+- Future: Switch to actual fees for precise GP2/GP3
+
+**API Endpoint:** `POST /api/etsy/fees` - Syncs fee data from Etsy ledger
 
 ---
 
@@ -463,9 +485,10 @@ The main dashboard has ONE primary button: **"Sync & Update"**
 This button (powered by `/api/sync-all`) does everything in one click:
 1. Syncs orders from Shopify (all connected stores)
 2. Syncs orders from Etsy (all connected stores)
-3. Syncs ad spend from Meta (all configured accounts)
-4. Refreshes P&L calculations
-5. Reloads dashboard data
+3. Syncs Etsy fees from Payment Ledger (actual fees, not estimates)
+4. Syncs ad spend from Meta (all configured accounts)
+5. Refreshes P&L calculations
+6. Reloads dashboard data
 
 **Button States:**
 - "Sync & Update" → Click to start
