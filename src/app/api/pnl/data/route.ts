@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { calculateOpexForPeriod, getOpexSummary } from '@/lib/pnl/opex';
+import type { OperatingExpense } from '@/types';
 
 // Server-side P&L data fetch that bypasses slow RLS
 export async function GET(request: NextRequest) {
@@ -72,7 +74,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all data in parallel
-    const [brandsResult, dailyPnlResult, adSpendResult, goalsResult] = await Promise.all([
+    const [brandsResult, dailyPnlResult, adSpendResult, goalsResult, opexResult] = await Promise.all([
       // Brands
       supabase.from('brands').select('*'),
 
@@ -120,17 +122,37 @@ export async function GET(request: NextRequest) {
 
         return brandId ? query.eq('brand_id', brandId).maybeSingle() : query.maybeSingle();
       })(),
+
+      // Operating expenses (OPEX)
+      supabase
+        .from('operating_expenses')
+        .select('*')
+        .eq('is_active', true),
     ]);
 
     if (brandsResult.error) throw brandsResult.error;
     if (dailyPnlResult.error) throw dailyPnlResult.error;
     if (adSpendResult.error) throw adSpendResult.error;
 
+    // Calculate OPEX for the period
+    const opexData = (opexResult.data || []) as OperatingExpense[];
+    const periodOpex = calculateOpexForPeriod(
+      opexData,
+      new Date(fromDate),
+      new Date(toDate),
+      brandId || undefined
+    );
+    const opexSummary = getOpexSummary(opexData, brandId || undefined);
+
     return NextResponse.json({
       brands: brandsResult.data || [],
       dailyPnl: dailyPnlResult.data || [],
       adSpend: adSpendResult.data || [],
       quarterlyGoal: goalsResult.data || null,
+      opex: {
+        periodTotal: periodOpex,
+        summary: opexSummary,
+      },
     });
   } catch (error) {
     console.error('Error fetching P&L data:', error);

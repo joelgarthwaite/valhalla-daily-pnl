@@ -13,6 +13,7 @@ import type {
   DateRange,
   BrandFilter,
   PeriodType,
+  OpexSummary,
 } from '@/types';
 import {
   calculatePnLSummaryWithComparison,
@@ -53,6 +54,7 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
   const [dailyData, setDailyData] = useState<DailyPnL[]>([]);
   const [adSpendData, setAdSpendData] = useState<AdSpend[]>([]);
   const [quarterlyGoal, setQuarterlyGoal] = useState<QuarterlyGoal | null>(null);
+  const [opexData, setOpexData] = useState<{ periodTotal: number; summary: OpexSummary } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +86,7 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
       setDailyData(data.dailyPnl || []);
       setAdSpendData(data.adSpend || []);
       setQuarterlyGoal(data.quarterlyGoal);
+      setOpexData(data.opex || null);
 
     } catch (err) {
       console.error('Error fetching P&L data:', err);
@@ -107,11 +110,13 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
     previousYearData = filterByDateRange(dailyData, yoyRange);
   }
 
-  // Calculate summary with comparison
+  // Calculate summary with comparison (including OPEX)
   const summary = dailyData.length > 0
     ? calculatePnLSummaryWithComparison(
         dailyData,
-        showYoY ? previousYearData : dailyData // Compare to self if no YoY
+        showYoY ? previousYearData : dailyData, // Compare to self if no YoY
+        opexData?.periodTotal || 0,
+        opexData?.summary.byCategory || {}
       )
     : null;
 

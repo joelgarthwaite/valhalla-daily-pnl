@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   Scale,
   RefreshCw,
+  Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,12 @@ const adminNavItems = [
     href: '/admin/b2b-revenue',
     icon: Building2,
     description: 'Record B2B sales and invoices',
+  },
+  {
+    label: 'Operating Expenses',
+    href: '/admin/opex',
+    icon: Wallet,
+    description: 'Staff, premises, software, overheads',
   },
   {
     label: 'Quarterly Goals',

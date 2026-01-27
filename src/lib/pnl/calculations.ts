@@ -432,8 +432,15 @@ export function calculateDailyPnL(input: DailyDataInput): Omit<DailyPnL, 'id' | 
 
 /**
  * Calculate P&L summary from daily data
+ * @param dailyData - Array of daily P&L records
+ * @param totalOpex - Optional total OPEX for the period
+ * @param opexByCategory - Optional breakdown of OPEX by category
  */
-export function calculatePnLSummary(dailyData: DailyPnL[]): PnLSummary {
+export function calculatePnLSummary(
+  dailyData: DailyPnL[],
+  totalOpex: number = 0,
+  opexByCategory: Record<string, number> = {}
+): PnLSummary {
   // Revenue Breakdown
   // totalRevenue = product revenue only (subtotals, excludes shipping/tax)
   // This ensures apples-to-apples comparison across Shopify and Etsy
@@ -493,6 +500,10 @@ export function calculatePnLSummary(dailyData: DailyPnL[]): PnLSummary {
   const mer = calculateMER(totalRevenue, totalAdSpend);
   const marketingCostRatio = calculateMarketingCostRatio(totalAdSpend, totalRevenue);
 
+  // Calculate True Net Profit (GP3 - OPEX)
+  const trueNetProfit = gp3 - totalOpex;
+  const trueNetMarginPct = calculateMarginPct(trueNetProfit, netRevenue || totalRevenue);
+
   return {
     // Revenue breakdown
     totalRevenue,      // Product revenue (subtotals only)
@@ -517,12 +528,18 @@ export function calculatePnLSummary(dailyData: DailyPnL[]): PnLSummary {
     gp1,
     gp2,
     gp3,
-    // Legacy/derived
+    // Operating Expenses (OPEX)
+    totalOpex,
+    opexByCategory,
+    // True Net Profit (GP3 - OPEX)
+    trueNetProfit,
+    trueNetMarginPct,
+    // Legacy/derived (netProfit now equals trueNetProfit for backwards compatibility)
     grossProfit,
     grossMarginPct: calculateMarginPct(grossProfit, netRevenue || totalRevenue),
     shippingMargin,
-    netProfit,
-    netMarginPct: calculateMarginPct(netProfit, netRevenue || totalRevenue),
+    netProfit: trueNetProfit,  // Updated to be true net profit
+    netMarginPct: trueNetMarginPct,
     // Orders
     totalOrders,
     grossAOV,
@@ -538,13 +555,19 @@ export function calculatePnLSummary(dailyData: DailyPnL[]): PnLSummary {
 
 /**
  * Calculate P&L summary with YoY or period comparison
+ * @param currentData - Current period daily P&L data
+ * @param previousData - Previous period daily P&L data (for comparison)
+ * @param totalOpex - Total OPEX for the current period
+ * @param opexByCategory - OPEX breakdown by category
  */
 export function calculatePnLSummaryWithComparison(
   currentData: DailyPnL[],
-  previousData: DailyPnL[]
+  previousData: DailyPnL[],
+  totalOpex: number = 0,
+  opexByCategory: Record<string, number> = {}
 ): PnLSummaryWithComparison {
-  const current = calculatePnLSummary(currentData);
-  const previous = calculatePnLSummary(previousData);
+  const current = calculatePnLSummary(currentData, totalOpex, opexByCategory);
+  const previous = calculatePnLSummary(previousData); // Previous period doesn't have OPEX comparison yet
 
   return {
     ...current,
@@ -571,12 +594,12 @@ export function calculatePnLSummaryWithComparison(
 
 /**
  * Generate waterfall chart data from P&L summary
- * Shows: Product Revenue → Refunds → Net Revenue → COGS → GP1 → Ops → GP2 → Ads → GP3
+ * Shows: Product Revenue → Refunds → Net Revenue → COGS → GP1 → Ops → GP2 → Ads → GP3 → OPEX → True Net
  * Note: Product Revenue = subtotals only (excludes shipping charged to customers)
  * Shipping margin is tracked separately and not included in this P&L flow
  */
 export function generateWaterfallData(summary: PnLSummary): WaterfallDataPoint[] {
-  return [
+  const data: WaterfallDataPoint[] = [
     { name: 'Product Revenue', value: summary.totalRevenue, isTotal: true },
     { name: 'Refunds', value: -summary.totalRefunds, isSubtraction: true },
     { name: 'Net Revenue', value: summary.netRevenue || (summary.totalRevenue - summary.totalRefunds), isTotal: true },
@@ -587,8 +610,18 @@ export function generateWaterfallData(summary: PnLSummary): WaterfallDataPoint[]
     { name: 'Logistics', value: -summary.logisticsCost, isSubtraction: true },
     { name: 'GP2', value: summary.gp2, isTotal: true },
     { name: 'Ad Spend', value: -summary.totalAdSpend, isSubtraction: true },
-    { name: 'GP3 (Profit)', value: summary.gp3, isTotal: true },
+    { name: 'GP3 (Contribution)', value: summary.gp3, isTotal: true },
   ];
+
+  // Add OPEX and True Net Profit if OPEX exists
+  if (summary.totalOpex > 0) {
+    data.push(
+      { name: 'OPEX', value: -summary.totalOpex, isSubtraction: true },
+      { name: 'True Net Profit', value: summary.trueNetProfit, isTotal: true }
+    );
+  }
+
+  return data;
 }
 
 // ============================================

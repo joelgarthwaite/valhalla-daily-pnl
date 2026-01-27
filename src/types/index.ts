@@ -350,14 +350,22 @@ export interface PnLSummary {
   // Gross Profit Tiers
   gp1: number; // Revenue - COGS
   gp2: number; // GP1 - Pick&Pack - Payment Fees - Logistics
-  gp3: number; // GP2 - Ad Spend (True Profit / Marketing Contribution)
+  gp3: number; // GP2 - Ad Spend (Contribution Margin after Ads)
 
-  // Margins (legacy)
+  // Operating Expenses (OPEX)
+  totalOpex: number;        // Total operating expenses for period
+  opexByCategory: Record<string, number>;  // Breakdown by category
+
+  // True Net Profit (GP3 - OPEX)
+  trueNetProfit: number;    // GP3 - OPEX = actual bottom line
+  trueNetMarginPct: number; // trueNetProfit / totalRevenue * 100
+
+  // Margins (legacy - kept for compatibility)
   grossProfit: number;
   grossMarginPct: number;
   shippingMargin: number;
-  netProfit: number;
-  netMarginPct: number;
+  netProfit: number;        // Now same as trueNetProfit
+  netMarginPct: number;     // Now same as trueNetMarginPct
 
   // Orders
   totalOrders: number;
@@ -624,3 +632,80 @@ export interface B2BImportEntry {
   subtotal: number;
   notes?: string;
 }
+
+// ============================================
+// Operating Expenses (OPEX) Types
+// ============================================
+
+export type OpexCategory =
+  | 'staff'           // Salaries, wages, NI, pensions, benefits
+  | 'premises'        // Rent, rates, utilities, building insurance
+  | 'software'        // Subscriptions (Shopify, tools, etc.)
+  | 'professional'    // Accountant, legal, consultants
+  | 'marketing_other' // Non-ad marketing (PR, events, sponsorships)
+  | 'insurance'       // Business insurance (not premises)
+  | 'equipment'       // Equipment, maintenance, repairs
+  | 'travel'          // Business travel, vehicle costs
+  | 'banking'         // Bank fees, interest (not payment processing)
+  | 'other';          // Miscellaneous overhead
+
+export type OpexFrequency = 'monthly' | 'quarterly' | 'annual' | 'one_time';
+
+export interface OperatingExpense {
+  id: string;
+  brand_id: string | null;  // NULL = company-wide expense
+  name: string;
+  description: string | null;
+  category: OpexCategory;
+  amount: number;
+  frequency: OpexFrequency;
+  start_date: string;
+  end_date: string | null;  // NULL = ongoing
+  expense_date: string | null;  // For one-time expenses
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OperatingExpenseFormData {
+  brand_id?: string;
+  name: string;
+  description?: string;
+  category: OpexCategory;
+  amount: number;
+  frequency: OpexFrequency;
+  start_date: string;
+  end_date?: string;
+  expense_date?: string;
+  is_active?: boolean;
+  notes?: string;
+}
+
+export interface OpexSummary {
+  totalMonthly: number;      // Total monthly equivalent of all active OPEX
+  totalAnnual: number;       // Total annualized OPEX
+  byCategory: Record<OpexCategory, number>;  // Monthly by category
+  dailyAllocation: number;   // Daily OPEX for P&L calculations
+}
+
+// Category display labels
+export const OPEX_CATEGORY_LABELS: Record<OpexCategory, string> = {
+  staff: 'Staff Costs',
+  premises: 'Premises',
+  software: 'Software & Subscriptions',
+  professional: 'Professional Services',
+  marketing_other: 'Other Marketing',
+  insurance: 'Insurance',
+  equipment: 'Equipment',
+  travel: 'Travel & Vehicles',
+  banking: 'Banking & Finance',
+  other: 'Other Overheads',
+};
+
+export const OPEX_FREQUENCY_LABELS: Record<OpexFrequency, string> = {
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  annual: 'Annual',
+  one_time: 'One-time',
+};
