@@ -42,12 +42,16 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - `user_roles` - Role-based access control
 - `daily_pnl` - Pre-aggregated P&L data for performance
 - `cost_config` - Configurable cost percentages (COGS, pick/pack, logistics)
+- `operating_expenses` - OPEX tracking (staff, premises, software, overheads)
+- `etsy_fees` - Actual Etsy fees from Payment Ledger API
 
 **Migrations:**
 - `supabase/migrations/002_pnl_schema.sql` - Core P&L tables
 - `supabase/migrations/003_enhanced_metrics.sql` - GP1/GP2/GP3, refunds, enhanced metrics
 - `supabase/migrations/004_add_user_roles_index.sql` - Index for faster RLS policy checks
-- `supabase/migrations/005_etsy_fees.sql` - Actual Etsy fees from Payment Ledger API
+- `supabase/migrations/005_etsy_fees.sql` - Actual Etsy fees from Payment Ledger
+- `supabase/migrations/006_fix_quarterly_goals_rls.sql` - RLS policy fixes
+- `supabase/migrations/007_operating_expenses.sql` - Operating expenses (OPEX) table
 
 ---
 
@@ -106,27 +110,6 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - Access tokens expire in 1 hour
 - **Auto-refresh is enabled** - sync code refreshes tokens automatically
 - Refresh tokens are long-lived (until user revokes app)
-
-### Etsy Fees (Actual vs Estimated)
-
-The system now captures **actual Etsy fees** from the Payment Account Ledger API:
-
-| Fee Type | Description | Typical Rate |
-|----------|-------------|--------------|
-| Transaction fees | On item sales | 6.5% |
-| Shipping transaction fees | On postage | 6.5% |
-| Processing fees | Payment processing | ~4% + £0.20 |
-| Regulatory operating fees | Platform fee | ~0.32% |
-| Offsite ads fees | When Etsy's external ads drive sale | 12-15% |
-| VAT on fees | VAT charged on seller fees | 20% of fees |
-| Listing fees | Per listing | £0.16 |
-
-**Current State:**
-- Actual fees are captured in `etsy_fees` table
-- P&L calculations still use estimated ~6.5% (for now)
-- Future: Switch to actual fees for precise GP2/GP3
-
-**API Endpoint:** `POST /api/etsy/fees` - Syncs fee data from Etsy ledger
 
 ---
 
@@ -252,7 +235,7 @@ Net Revenue = Product Revenue - Refunds
               (used for all margin calculations)
 ```
 
-### Profit Tiers (GP1 → GP2 → GP3)
+### Profit Tiers (GP1 → GP2 → GP3 → True Net)
 
 ```
 GP1 = Net Revenue - COGS
@@ -262,8 +245,37 @@ GP2 = GP1 - Pick&Pack - Payment Fees - Logistics
       (Operating profit after fulfillment costs)
 
 GP3 = GP2 - Ad Spend
-      (True Profit / Marketing Contribution - THE BOTTOM LINE)
+      (Contribution Margin after Ads)
+
+True Net Profit = GP3 - OPEX
+      (THE BOTTOM LINE - after all operating expenses)
 ```
+
+### Operating Expenses (OPEX)
+
+OPEX includes all overhead costs not captured in variable costs:
+
+| Category | Examples |
+|----------|----------|
+| Staff | Salaries, wages, NI, pensions, benefits |
+| Premises | Rent, rates, utilities, building insurance |
+| Software | Shopify subscription, design tools, accounting |
+| Professional | Accountant, legal, consultants |
+| Insurance | Business insurance (not premises) |
+| Equipment | Equipment, maintenance, repairs |
+| Travel | Business travel, vehicle costs |
+| Banking | Bank fees, interest (not payment processing) |
+| Marketing Other | Non-ad marketing (PR, events, sponsorships) |
+| Other | Miscellaneous overhead |
+
+**Manage OPEX:** Admin > Operating Expenses (`/admin/opex`)
+
+**OPEX Date Calculation:**
+- Each expense has a `start_date` and optional `end_date`
+- OPEX is only applied to P&L for dates where the expense overlaps
+- For recurring expenses (monthly/quarterly/annual), the daily amount is calculated and pro-rated
+- For historical P&L data, expenses must have `start_date` set to when they actually started
+- Example: A salary starting Jan 1, 2025 will show £0 OPEX for Dec 2024
 
 ### Key Metrics
 
@@ -307,6 +319,7 @@ valhalla-daily-pnl/
 │   │   │   ├── sync/page.tsx           # Order sync from Shopify/Etsy
 │   │   │   ├── ad-spend/page.tsx       # Ad spend with Meta/Google sync
 │   │   │   ├── b2b-revenue/page.tsx    # B2B revenue entry
+│   │   │   ├── opex/page.tsx           # Operating expenses (OPEX)
 │   │   │   ├── events/page.tsx         # Calendar events
 │   │   │   ├── goals/page.tsx          # Quarterly goals
 │   │   │   ├── promotions/page.tsx     # Promotions
@@ -485,24 +498,14 @@ Shopify/Etsy APIs → orders table → daily_pnl table → Dashboard
 
 ### Simplified Sync Workflow
 
-The main dashboard has ONE primary button: **"Sync & Update"**
+The sync page (`/admin/sync`) has ONE primary button: **"Sync & Update Dashboard"**
 
-This button (powered by `/api/sync-all`) does everything in one click:
-1. Syncs orders from Shopify (all connected stores)
-2. Syncs orders from Etsy (all connected stores)
-3. Syncs Etsy fees from Payment Ledger (actual fees, not estimates)
-4. Syncs ad spend from Meta (all configured accounts)
-5. Refreshes P&L calculations
-6. Reloads dashboard data
+This button automatically:
+1. Syncs orders from all connected platforms (Shopify, Etsy)
+2. Refreshes P&L calculations for the selected date range
+3. Shows progress: "Syncing..." → "Updating..." → "Done!"
 
-**Button States:**
-- "Sync & Update" → Click to start
-- "Syncing..." → In progress (with animation)
-- "Done! (Xs)" → Completed successfully
-
-There's also a small refresh icon button next to it for quickly reloading data from the database without syncing external sources.
-
-**Admin Sync Page** (`/admin/sync`) provides advanced options for individual platform syncs and custom date ranges.
+Advanced options (individual platform sync, P&L-only refresh) are available under a collapsed section.
 
 ### Performance Optimizations
 
@@ -552,28 +555,26 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/cr
 
 ## API Endpoints
 
-### Unified Sync (Main Dashboard Button)
-- `POST /api/sync-all` - **THE ONE BUTTON** - Syncs everything and refreshes P&L
-  - Syncs Shopify orders (last 7 days)
-  - Syncs Etsy orders (last 7 days)
-  - Syncs Meta ad spend (last 7 days)
-  - Refreshes P&L calculations
-  - Returns step-by-step status for each operation
-
 ### Cron / Scheduled Tasks
-- `GET /api/cron/daily-sync` - Automated daily sync (same as sync-all but auth required)
-  - Runs automatically at 5:00 AM and 6:00 PM UTC via Vercel Cron
+- `GET /api/cron/daily-sync` - Automated daily sync (Shopify, Etsy, Meta, P&L refresh)
+  - Runs automatically at 6:00 AM UTC via Vercel Cron
   - Manual trigger: `Authorization: Bearer $CRON_SECRET` header required
 
 ### P&L Data
 - `GET /api/pnl/data` - Fast P&L data fetch (bypasses RLS)
   - Query params: `from`, `to`, `brand`
+  - Includes OPEX calculations in response
 - `GET /api/pnl/country` - Country P&L breakdown (GP2 by shipping destination)
   - Query params: `from`, `to`, `brand`
   - Returns: countries array + summary statistics
 - `POST /api/pnl/refresh` - Recalculate daily P&L records
   - Body: `{ "days": 90 }` or `{ "startDate": "2025-01-01", "endDate": "2025-01-25" }`
   - Defaults to last 90 days if no params provided
+
+### Operating Expenses (OPEX)
+- `GET /api/opex` - Fetch OPEX data and calculate totals
+  - Query params: `from`, `to`, `brand`
+  - Returns: summary (monthly totals by category), periodTotal, expenseCount
 
 ### B2B Revenue
 - `GET /api/b2b/import` - Get import format documentation
