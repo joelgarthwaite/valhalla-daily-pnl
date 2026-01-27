@@ -465,11 +465,16 @@ export function calculatePnLSummary(
   // Costs
   const cogs = dailyData.reduce((sum, d) => sum + Number(d.cogs_estimated || 0), 0);
   const shippingCost = dailyData.reduce((sum, d) => sum + Number(d.shipping_cost || 0), 0);
-  const pickPackCost = dailyData.reduce((sum, d) => sum + Number(d.pick_pack_cost || 0), 0);
-  const logisticsCost = dailyData.reduce((sum, d) => sum + Number(d.logistics_cost || 0), 0);
   const totalAdSpend = dailyData.reduce((sum, d) => sum + Number(d.total_ad_spend || 0), 0);
   const platformFees = dailyData.reduce((sum, d) => sum + Number(d.total_platform_fees || 0), 0);
   const totalDiscounts = dailyData.reduce((sum, d) => sum + Number(d.total_discounts || 0), 0);
+
+  // Pick/Pack and Logistics costs - calculate from revenue if not in database
+  // This ensures correct GP2/GP3 even if daily_pnl hasn't been refreshed with new columns
+  const dbPickPackCost = dailyData.reduce((sum, d) => sum + Number(d.pick_pack_cost || 0), 0);
+  const dbLogisticsCost = dailyData.reduce((sum, d) => sum + Number(d.logistics_cost || 0), 0);
+  const pickPackCost = dbPickPackCost > 0 ? dbPickPackCost : calculatePickPackCost(netRevenue || totalRevenue);
+  const logisticsCost = dbLogisticsCost > 0 ? dbLogisticsCost : calculateLogisticsCost(netRevenue || totalRevenue);
 
   // Gross Profit Tiers - calculate fallbacks if DB columns don't exist
   const dbGp1 = dailyData.reduce((sum, d) => sum + Number(d.gp1 || 0), 0);
