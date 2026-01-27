@@ -106,10 +106,17 @@ export default function HubHomePage() {
         if (yesterdayRes.ok) {
           const data = await yesterdayRes.json();
           if (data.dailyPnl && data.dailyPnl.length > 0) {
-            const day = data.dailyPnl[0];
-            const revenue = day.total_revenue || 0;
-            const netProfit = day.true_net_profit ?? 0;
-            const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+            // Aggregate all brand data for the day
+            const totalRevenue = data.dailyPnl.reduce((sum: number, day: { total_revenue?: number }) => sum + (day.total_revenue || 0), 0);
+            const totalGp3 = data.dailyPnl.reduce((sum: number, day: { gp3?: number }) => sum + (day.gp3 || 0), 0);
+            const totalOrders = data.dailyPnl.reduce((sum: number, day: { total_orders?: number }) => sum + (day.total_orders || 0), 0);
+
+            // Calculate True Net Profit = GP3 - OPEX (OPEX is for the period)
+            const periodOpex = data.opex?.periodTotal || 0;
+            const netProfit = totalGp3 - periodOpex;
+            const netRevenue = data.dailyPnl.reduce((sum: number, day: { net_revenue?: number; total_revenue?: number }) =>
+              sum + (day.net_revenue || day.total_revenue || 0), 0);
+            const netMargin = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
 
             // Get comparison data
             let revenueChange = 0;
@@ -119,13 +126,16 @@ export default function HubHomePage() {
             if (dayBeforeRes.ok) {
               const prevData = await dayBeforeRes.json();
               if (prevData.dailyPnl && prevData.dailyPnl.length > 0) {
-                const prevDay = prevData.dailyPnl[0];
-                const prevRevenue = prevDay.total_revenue || 0;
-                const prevProfit = prevDay.true_net_profit ?? 0;
-                const prevMargin = prevRevenue > 0 ? (prevProfit / prevRevenue) * 100 : 0;
+                const prevRevenue = prevData.dailyPnl.reduce((sum: number, day: { total_revenue?: number }) => sum + (day.total_revenue || 0), 0);
+                const prevGp3 = prevData.dailyPnl.reduce((sum: number, day: { gp3?: number }) => sum + (day.gp3 || 0), 0);
+                const prevOpex = prevData.opex?.periodTotal || 0;
+                const prevProfit = prevGp3 - prevOpex;
+                const prevNetRevenue = prevData.dailyPnl.reduce((sum: number, day: { net_revenue?: number; total_revenue?: number }) =>
+                  sum + (day.net_revenue || day.total_revenue || 0), 0);
+                const prevMargin = prevNetRevenue > 0 ? (prevProfit / prevNetRevenue) * 100 : 0;
 
                 if (prevRevenue > 0) {
-                  revenueChange = ((revenue - prevRevenue) / prevRevenue) * 100;
+                  revenueChange = ((totalRevenue - prevRevenue) / prevRevenue) * 100;
                 }
                 if (prevProfit !== 0) {
                   profitChange = ((netProfit - prevProfit) / Math.abs(prevProfit)) * 100;
@@ -135,10 +145,10 @@ export default function HubHomePage() {
             }
 
             setPnlData({
-              revenue,
+              revenue: totalRevenue,
               netProfit,
               netMargin,
-              orders: day.order_count || 0,
+              orders: totalOrders,
               revenueChange,
               profitChange,
               marginChange,
@@ -150,15 +160,22 @@ export default function HubHomePage() {
         if (wtdRes.ok) {
           const data = await wtdRes.json();
           if (data.dailyPnl && data.dailyPnl.length > 0) {
+            // Aggregate all brand data for the WTD period
             const totals = data.dailyPnl.reduce(
-              (acc: { revenue: number; netProfit: number; orders: number }, day: { total_revenue?: number; true_net_profit?: number; order_count?: number }) => ({
+              (acc: { revenue: number; gp3: number; orders: number }, day: { total_revenue?: number; gp3?: number; total_orders?: number }) => ({
                 revenue: acc.revenue + (day.total_revenue || 0),
-                netProfit: acc.netProfit + (day.true_net_profit ?? 0),
-                orders: acc.orders + (day.order_count || 0),
+                gp3: acc.gp3 + (day.gp3 || 0),
+                orders: acc.orders + (day.total_orders || 0),
               }),
-              { revenue: 0, netProfit: 0, orders: 0 }
+              { revenue: 0, gp3: 0, orders: 0 }
             );
-            setWtdData(totals);
+            // True Net Profit = GP3 - OPEX (for the period)
+            const periodOpex = data.opex?.periodTotal || 0;
+            setWtdData({
+              revenue: totals.revenue,
+              netProfit: totals.gp3 - periodOpex,
+              orders: totals.orders,
+            });
           }
         }
 

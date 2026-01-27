@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
           id: shipment.id,
           tracking_number: shipment.tracking_number,
           shipping_date: shipDate,
-          service_type: serviceType || shipment.service_type,
+          service_type: serviceType || shipment.service_type || 'unknown',
           old_cost: shipment.shipping_cost,
           new_cost: Math.round(matchedCost.averageCostPerItem * 100) / 100,
           cost_source: `Royal Mail CSV: ${matchedCost.productCode} avg £${matchedCost.averageCostPerItem.toFixed(2)}/item${dateNote}`,
@@ -261,7 +261,7 @@ export async function POST(request: NextRequest) {
           tracking_number: shipment.tracking_number,
           date: shipDate,
           service_type: serviceType || shipment.service_type || '(unknown)',
-          inferred: serviceType && !shipment.service_type,
+          inferred: !!(serviceType && !shipment.service_type),
         });
       }
     }
