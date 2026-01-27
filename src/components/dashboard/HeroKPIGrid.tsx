@@ -24,10 +24,11 @@ import { formatCurrency, formatPercentage } from '@/lib/pnl/targets';
 
 // KPI Definitions for tooltips
 const KPI_DEFINITIONS: Record<string, string> = {
-  'GP3 (True Profit)': 'Your true profit after all costs including advertising. This is the bottom line.',
+  'True Net Profit': 'Your actual bottom line after ALL costs: COGS, operational costs, ad spend, AND operating expenses (staff, rent, software, etc.).',
+  'GP3 (Contribution)': 'Contribution margin after ads. GP3 = GP2 - Ad Spend. Does NOT include OPEX.',
   'Product Revenue': 'Sum of product subtotals across all platforms (excludes shipping). This is the primary P&L revenue metric.',
   'Net Revenue': 'Product revenue minus refunds. Used for margin calculations.',
-  'Net Margin': 'Net profit (GP3) as a percentage of net revenue. Target: >25%',
+  'Net Margin': 'True Net Profit as a percentage of net revenue. Includes OPEX. Target: >15%',
   'Quarterly Progress': 'Progress toward your quarterly revenue target.',
   'MER': 'Marketing Efficiency Ratio: Revenue generated per £1 of ad spend. Target: >3x',
   'Orders': 'Total order count across all platforms.',
@@ -35,8 +36,9 @@ const KPI_DEFINITIONS: Record<string, string> = {
 };
 
 // Threshold definitions for traffic light status
+// Note: Net Margin thresholds lowered since they now include OPEX
 const THRESHOLDS = {
-  netMargin: { green: 25, amber: 20 }, // >=25 green, 20-25 amber, <20 red
+  netMargin: { green: 15, amber: 10 }, // >=15 green, 10-15 amber, <10 red (includes OPEX)
   mer: { green: 3, amber: 2 }, // >=3 green, 2-3 amber, <2 red
   quarterlyProgress: { green: 90, amber: 75 }, // Based on expected pace
 };
@@ -245,14 +247,14 @@ export function HeroKPIGrid({
       {/* Row 1: Hero Metrics (4 cards) */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <HeroKPICard
-          title="GP3 (True Profit)"
-          value={summary ? formatCurrency(summary.gp3) : '£0'}
-          change={summary?.changes.gp3}
+          title="True Net Profit"
+          value={summary ? formatCurrency(summary.trueNetProfit) : '£0'}
+          change={summary?.changes.netProfit}
           changeLabel="vs last week"
           icon={<Target className="h-4 w-4 text-blue-600" />}
           isLoading={isLoading}
-          tooltip={KPI_DEFINITIONS['GP3 (True Profit)']}
-          status={getChangeStatus(summary?.changes.gp3)}
+          tooltip={KPI_DEFINITIONS['True Net Profit']}
+          status={getChangeStatus(summary?.changes.netProfit)}
           sparklineData={profitSparkline}
           size="large"
         />
