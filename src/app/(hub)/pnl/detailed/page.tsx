@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Download, RefreshCw, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,8 @@ import {
   WaterfallChart,
   ROASChart,
 } from '@/components/charts';
-import { usePnLData, getDefaultDateRange } from '@/hooks/usePnLData';
+import { usePnLData } from '@/hooks/usePnLData';
+import { useFilterParams } from '@/hooks/useFilterParams';
 import { generateWaterfallData } from '@/lib/pnl/calculations';
 import { aggregatePnLByPeriod } from '@/lib/pnl/aggregations';
 import { formatCurrency, formatPercentage } from '@/lib/pnl/targets';
@@ -277,11 +278,19 @@ function ProfitTierBreakdown({ summary, isLoading }: { summary: any; isLoading: 
   );
 }
 
-export default function DetailedAnalyticsPage() {
-  const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
-  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange());
-  const [periodType, setPeriodType] = useState<PeriodType>('daily');
-  const [showYoY, setShowYoY] = useState(false);
+function DetailedAnalyticsContent() {
+  const {
+    brandFilter,
+    dateRange,
+    periodType,
+    showYoY,
+    selectionMode,
+    setBrandFilter,
+    setDateRange,
+    setPeriodType,
+    setShowYoY,
+    setSelectionMode,
+  } = useFilterParams();
 
   const {
     dailyData,
@@ -352,6 +361,8 @@ export default function DetailedAnalyticsPage() {
         onPeriodTypeChange={setPeriodType}
         showYoY={showYoY}
         onShowYoYChange={setShowYoY}
+        selectionMode={selectionMode}
+        onSelectionModeChange={setSelectionMode}
       />
 
       {/* Section 1: All KPI Metrics */}
@@ -411,5 +422,25 @@ export default function DetailedAnalyticsPage() {
         <PnLTable data={aggregatedData} isLoading={isLoading} />
       </section>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function DetailedAnalyticsLoading() {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <div className="text-center">
+        <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+        <p className="mt-2 text-muted-foreground">Loading detailed analytics...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function DetailedAnalyticsPage() {
+  return (
+    <Suspense fallback={<DetailedAnalyticsLoading />}>
+      <DetailedAnalyticsContent />
+    </Suspense>
   );
 }

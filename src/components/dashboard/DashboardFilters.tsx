@@ -44,6 +44,8 @@ interface DashboardFiltersProps {
   onPeriodTypeChange: (period: PeriodType) => void;
   showYoY: boolean;
   onShowYoYChange: (show: boolean) => void;
+  selectionMode?: DateSelectionMode;
+  onSelectionModeChange?: (mode: DateSelectionMode) => void;
 }
 
 // Preset date ranges
@@ -155,9 +157,14 @@ export function DashboardFilters({
   onPeriodTypeChange,
   showYoY,
   onShowYoYChange,
+  selectionMode: selectionModeProp,
+  onSelectionModeChange,
 }: DashboardFiltersProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [selectionMode, setSelectionMode] = useState<DateSelectionMode>('range');
+  // Use prop if provided, otherwise fall back to local state (for backward compatibility)
+  const [localSelectionMode, setLocalSelectionMode] = useState<DateSelectionMode>(selectionModeProp || 'single');
+  const selectionMode = selectionModeProp ?? localSelectionMode;
+  const setSelectionMode = onSelectionModeChange ?? setLocalSelectionMode;
 
   // Week selection state derived from date range
   const weekSelection = useMemo((): WeekSelection => {

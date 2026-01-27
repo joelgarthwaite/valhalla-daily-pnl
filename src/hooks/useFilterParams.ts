@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format, parse, subDays, isValid } from 'date-fns';
 import type { BrandFilter, PeriodType, DateRange, DateSelectionMode } from '@/types';
@@ -22,49 +22,98 @@ interface UseFilterParamsReturn extends FilterState {
   setSelectionMode: (mode: DateSelectionMode) => void;
 }
 
-// Default values
+// localStorage key for persisting filter preferences
+const STORAGE_KEY = 'valhalla_pnl_filters';
+
+// Default values - "yesterday" as single date
 const getDefaultDateRange = (): DateRange => {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+  const yesterday = subDays(new Date(), 1);
+  yesterday.setHours(0, 0, 0, 0);
   return {
-    from: subDays(now, 29),
-    to: now,
+    from: yesterday,
+    to: yesterday,
   };
 };
 
 const DEFAULT_BRAND: BrandFilter = 'all';
 const DEFAULT_PERIOD: PeriodType = 'daily';
 const DEFAULT_YOY = false;
-const DEFAULT_MODE: DateSelectionMode = 'range';
+const DEFAULT_MODE: DateSelectionMode = 'single';
+
+// Get stored preferences from localStorage
+const getStoredPreferences = (): Partial<FilterState> | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    // Parse dates if they exist
+    if (parsed.dateRange) {
+      parsed.dateRange = {
+        from: new Date(parsed.dateRange.from),
+        to: new Date(parsed.dateRange.to),
+      };
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+// Save preferences to localStorage
+const savePreferences = (state: FilterState) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      brandFilter: state.brandFilter,
+      dateRange: {
+        from: state.dateRange.from.toISOString(),
+        to: state.dateRange.to.toISOString(),
+      },
+      periodType: state.periodType,
+      showYoY: state.showYoY,
+      selectionMode: state.selectionMode,
+    }));
+  } catch {
+    // Ignore storage errors
+  }
+};
 
 /**
- * Hook to persist filter state in URL query parameters.
- * Enables shareable/bookmarkable filtered views and persistence across navigation.
+ * Hook to persist filter state in URL query parameters and localStorage.
+ * - URL params take priority (for shareable links)
+ * - Falls back to localStorage (for user preferences)
+ * - Defaults to "yesterday" with single date mode
  *
  * URL Schema:
- * ?brand=DC&from=2025-01-01&to=2025-01-31&period=daily&yoy=false&mode=range
+ * ?brand=DC&from=2025-01-01&to=2025-01-31&period=daily&yoy=false&mode=single
  */
 export function useFilterParams(): UseFilterParamsReturn {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Parse current filter state from URL
+  // Parse current filter state from URL, falling back to localStorage, then defaults
   const filterState = useMemo((): FilterState => {
     const defaultRange = getDefaultDateRange();
+    const stored = getStoredPreferences();
 
-    // Parse brand
+    // Check if URL has any filter params
+    const hasUrlParams = searchParams.has('from') || searchParams.has('to') ||
+                         searchParams.has('brand') || searchParams.has('mode');
+
+    // Parse brand - URL > localStorage > default
     const brandParam = searchParams.get('brand');
     const brandFilter: BrandFilter =
       brandParam === 'DC' || brandParam === 'BI' || brandParam === 'all'
         ? brandParam
-        : DEFAULT_BRAND;
+        : (hasUrlParams ? DEFAULT_BRAND : (stored?.brandFilter ?? DEFAULT_BRAND));
 
-    // Parse dates
+    // Parse dates - URL > localStorage > default (yesterday)
     const fromParam = searchParams.get('from');
     const toParam = searchParams.get('to');
 
-    let fromDate = defaultRange.from;
-    let toDate = defaultRange.to;
+    let fromDate = hasUrlParams ? defaultRange.from : (stored?.dateRange?.from ?? defaultRange.from);
+    let toDate = hasUrlParams ? defaultRange.to : (stored?.dateRange?.to ?? defaultRange.to);
 
     if (fromParam) {
       const parsed = parse(fromParam, 'yyyy-MM-dd', new Date());
@@ -85,24 +134,26 @@ export function useFilterParams(): UseFilterParamsReturn {
       [fromDate, toDate] = [toDate, fromDate];
     }
 
-    // Parse period type
+    // Parse period type - URL > localStorage > default
     const periodParam = searchParams.get('period');
     const periodType: PeriodType =
       periodParam === 'daily' || periodParam === 'weekly' ||
       periodParam === 'monthly' || periodParam === 'quarterly' || periodParam === 'yearly'
         ? periodParam
-        : DEFAULT_PERIOD;
+        : (hasUrlParams ? DEFAULT_PERIOD : (stored?.periodType ?? DEFAULT_PERIOD));
 
-    // Parse YoY toggle
+    // Parse YoY toggle - URL > localStorage > default
     const yoyParam = searchParams.get('yoy');
-    const showYoY = yoyParam === 'true';
+    const showYoY = yoyParam !== null
+      ? yoyParam === 'true'
+      : (hasUrlParams ? DEFAULT_YOY : (stored?.showYoY ?? DEFAULT_YOY));
 
-    // Parse selection mode
+    // Parse selection mode - URL > localStorage > default (single)
     const modeParam = searchParams.get('mode');
     const selectionMode: DateSelectionMode =
       modeParam === 'single' || modeParam === 'range' || modeParam === 'week'
         ? modeParam
-        : DEFAULT_MODE;
+        : (hasUrlParams ? DEFAULT_MODE : (stored?.selectionMode ?? DEFAULT_MODE));
 
     return {
       brandFilter,
@@ -112,6 +163,11 @@ export function useFilterParams(): UseFilterParamsReturn {
       selectionMode,
     };
   }, [searchParams]);
+
+  // Save to localStorage whenever filter state changes
+  useEffect(() => {
+    savePreferences(filterState);
+  }, [filterState]);
 
   // Update URL with new filter values
   const updateFilters = useCallback((changes: Partial<FilterState>) => {

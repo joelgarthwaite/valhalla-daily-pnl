@@ -36,10 +36,12 @@ function PnLDashboardContent() {
     dateRange,
     periodType,
     showYoY,
+    selectionMode,
     setBrandFilter,
     setDateRange,
     setPeriodType,
     setShowYoY,
+    setSelectionMode,
   } = useFilterParams();
 
   const [showQuickSummary, setShowQuickSummary] = useState(false);
@@ -168,6 +170,8 @@ function PnLDashboardContent() {
         onPeriodTypeChange={setPeriodType}
         showYoY={showYoY}
         onShowYoYChange={setShowYoY}
+        selectionMode={selectionMode}
+        onSelectionModeChange={setSelectionMode}
       />
 
       {/* Hero KPIs (7 metrics) */}
