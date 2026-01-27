@@ -458,6 +458,9 @@ ETSY_BI_REFRESH_TOKEN=<oauth-refresh-token>
 
 # Cron Job
 CRON_SECRET=<random-secret-for-manual-trigger>
+
+# Email Notifications (Resend)
+RESEND_API_KEY=<resend-api-key>
 ```
 
 ---
@@ -521,12 +524,13 @@ Vercel cron jobs run twice daily at **5:00 AM** and **6:00 PM UTC** to automatic
 2. Syncs Etsy orders (last 7 days)
 3. Syncs Meta ad spend (last 7 days)
 4. Refreshes P&L calculations
+5. **Sends daily P&L summary email** (6pm sync only)
 
 **Schedule:**
-| Time (UTC) | Time (UK) |
-|------------|-----------|
-| 05:00 | 5:00 AM |
-| 18:00 | 6:00 PM |
+| Time (UTC) | Time (UK) | Email |
+|------------|-----------|-------|
+| 05:00 | 5:00 AM | No |
+| 18:00 | 6:00 PM | Yes |
 
 **Configuration:** `vercel.json`
 ```json
@@ -550,6 +554,36 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/cr
 ```
 
 **Environment Variable:** `CRON_SECRET` - Required for manual triggering (Vercel cron calls are authenticated automatically)
+
+### Daily P&L Summary Email
+
+At 6pm each day, an automated email is sent to key stakeholders with:
+
+**Email Contents:**
+- Profitability status (profitable or not)
+- True Net Profit amount and comparison vs yesterday
+- Key metrics: Revenue, Orders, Net Margin, MER
+- Profit waterfall: GP1 → GP2 → GP3 → OPEX → True Net Profit
+- Revenue breakdown by channel (Shopify, Etsy, B2B)
+- Ad performance: Spend, POAS, MER
+
+**Recipients:** joel@displaychamp.com, lee@displaychamp.com
+
+**Email Service:** [Resend](https://resend.com) - Modern email API with good free tier
+
+**Setup:**
+1. Create account at resend.com
+2. Add and verify your domain (displaychamp.com)
+3. Create API key
+4. Add `RESEND_API_KEY` to Vercel environment variables
+
+**Manual Trigger:**
+```bash
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/email/daily-summary
+
+# Test mode (doesn't send, just returns data)
+curl "https://pnl.displaychamp.com/api/email/daily-summary?test=true"
+```
 
 ---
 
@@ -575,6 +609,13 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/cr
 - `GET /api/opex` - Fetch OPEX data and calculate totals
   - Query params: `from`, `to`, `brand`
   - Returns: summary (monthly totals by category), periodTotal, expenseCount
+
+### Daily Summary Email
+- `POST /api/email/daily-summary` - Send daily P&L summary email
+  - Triggered automatically by 6pm cron job
+  - Query params: `date` (YYYY-MM-DD), `test` (if "true", logs only)
+  - Recipients: joel@displaychamp.com, lee@displaychamp.com
+  - Requires: `RESEND_API_KEY` environment variable
 
 ### B2B Revenue
 - `GET /api/b2b/import` - Get import format documentation

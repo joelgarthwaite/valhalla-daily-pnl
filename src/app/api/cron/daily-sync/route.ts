@@ -227,6 +227,45 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // Step 5: Send Daily Summary Email (only at 6pm sync, not morning sync)
+  const currentHour = new Date().getUTCHours();
+  const isEveningSync = currentHour >= 17; // 5pm UTC or later (6pm UK in winter, 5pm UK in summer)
+
+  if (isEveningSync) {
+    try {
+      const emailResponse = await fetch(
+        `${new URL(request.url).origin}/api/email/daily-summary`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${cronSecret}`,
+          },
+        }
+      );
+      const emailData = await emailResponse.json();
+
+      results.push({
+        step: 'Daily Summary Email',
+        success: emailResponse.ok,
+        message: emailResponse.ok ? emailData.message : emailData.error,
+        details: emailData.data,
+      });
+    } catch (error) {
+      results.push({
+        step: 'Daily Summary Email',
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  } else {
+    results.push({
+      step: 'Daily Summary Email',
+      success: true,
+      message: 'Skipped (only sent at evening sync)',
+    });
+  }
+
   const duration = Date.now() - startTime;
   const allSuccessful = results.every((r) => r.success);
 
