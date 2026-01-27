@@ -100,7 +100,7 @@ export default function AdSpendPage() {
     setIsLoading(true);
     try {
       // First fetch brands to use for filtering
-      const { data: brandsData } = await supabase.from('brands').select('*');
+      const { data: brandsData } = await supabase.from('brands').select('*') as { data: Brand[] | null };
       setBrands(brandsData || []);
 
       // Build ad spend query with optional brand filter
