@@ -8,8 +8,9 @@ import { fetchAllMetaAdSpend, verifyMetaToken } from '@/lib/meta/client';
  * This is the ONE endpoint to rule them all. It:
  * 1. Syncs orders from Shopify (all connected stores)
  * 2. Syncs orders from Etsy (all connected stores)
- * 3. Syncs ad spend from Meta (all configured accounts)
- * 4. Refreshes P&L calculations
+ * 3. Syncs Etsy fees from Payment Ledger (actual fees, not estimates)
+ * 4. Syncs ad spend from Meta (all configured accounts)
+ * 5. Refreshes P&L calculations
  *
  * Call this from the dashboard "Sync & Update" button.
  */
@@ -127,7 +128,42 @@ export async function POST(request: NextRequest) {
   }
 
   // ============================================
-  // STEP 3: Sync Meta Ad Spend
+  // STEP 3: Sync Etsy Fees (from Payment Ledger)
+  // ============================================
+  try {
+    const response = await fetch(`${baseUrl}/api/etsy/fees`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startDate, endDate, brandCode: 'all' }),
+    });
+    const data = await response.json();
+
+    if (response.ok) {
+      const totalDays = data.results?.reduce((sum: number, r: { daysProcessed?: number }) => sum + (r.daysProcessed || 0), 0) || 0;
+      const totalFees = data.results?.reduce((sum: number, r: { totalFees?: number }) => sum + (r.totalFees || 0), 0) || 0;
+      steps.push({
+        name: 'Etsy Fees',
+        status: 'success',
+        message: `Synced ${totalDays} days (£${totalFees.toFixed(2)} in fees)`,
+        recordsAffected: totalDays,
+      });
+    } else {
+      steps.push({
+        name: 'Etsy Fees',
+        status: 'error',
+        message: data.error || 'Sync failed',
+      });
+    }
+  } catch (error) {
+    steps.push({
+      name: 'Etsy Fees',
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+
+  // ============================================
+  // STEP 4: Sync Meta Ad Spend
   // ============================================
   const metaAccessToken = process.env.META_ACCESS_TOKEN;
   if (metaAccessToken) {
@@ -210,7 +246,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ============================================
-  // STEP 4: Refresh P&L Calculations
+  // STEP 5: Refresh P&L Calculations
   // ============================================
   try {
     const response = await fetch(`${baseUrl}/api/pnl/refresh`, {

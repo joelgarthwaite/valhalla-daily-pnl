@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Loader2, X, CloudDownload, ShoppingBag, Store, BarChart3, Calculator } from 'lucide-react';
+import { Check, Loader2, X, CloudDownload, ShoppingBag, Store, BarChart3, Calculator, Receipt } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,7 @@ interface SyncProgressModalProps {
 const SYNC_STEPS = [
   { id: 'shopify', label: 'Syncing Shopify orders', icon: ShoppingBag, funMessage: 'Fetching your latest sales...' },
   { id: 'etsy', label: 'Syncing Etsy orders', icon: Store, funMessage: 'Checking the handmade marketplace...' },
+  { id: 'etsy-fees', label: 'Syncing Etsy fees', icon: Receipt, funMessage: 'Tallying up the platform costs...' },
   { id: 'meta', label: 'Syncing Meta ad spend', icon: BarChart3, funMessage: 'Crunching those ad numbers...' },
   { id: 'pnl', label: 'Updating P&L calculations', icon: Calculator, funMessage: 'Calculating your profits...' },
 ];
@@ -138,8 +139,9 @@ export function SyncProgressModal({ isOpen, onClose, onComplete }: SyncProgressM
     const stepMap: Record<number, string> = {
       0: 'Shopify Orders',
       1: 'Etsy Orders',
-      2: 'Meta Ads',
-      3: 'P&L Calculations',
+      2: 'Etsy Fees',
+      3: 'Meta Ads',
+      4: 'P&L Calculations',
     };
 
     const resultStep = result.steps.find(s => s.name === stepMap[index]);
@@ -157,8 +159,9 @@ export function SyncProgressModal({ isOpen, onClose, onComplete }: SyncProgressM
     const stepMap: Record<number, string> = {
       0: 'Shopify Orders',
       1: 'Etsy Orders',
-      2: 'Meta Ads',
-      3: 'P&L Calculations',
+      2: 'Etsy Fees',
+      3: 'Meta Ads',
+      4: 'P&L Calculations',
     };
 
     const resultStep = result.steps.find(s => s.name === stepMap[index]);
