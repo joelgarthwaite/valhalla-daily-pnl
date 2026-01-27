@@ -56,10 +56,16 @@ const profitTiers: MetricDefinition[] = [
     target: '55-60% of Net Revenue',
   },
   {
-    metric: 'GP3 (True Profit)',
+    metric: 'GP3 (Contribution)',
     formula: 'GP2 - Ad Spend',
-    definition: 'Your bottom line - true profit after all costs including advertising. THE KEY METRIC.',
-    target: '>25% Net Margin',
+    definition: 'Contribution margin after advertising. Does NOT include operating expenses (OPEX).',
+    target: '>30% of Net Revenue',
+  },
+  {
+    metric: 'True Net Profit',
+    formula: 'GP3 - OPEX',
+    definition: 'Your actual bottom line after ALL costs including OPEX (staff, rent, software, etc.). THE KEY METRIC.',
+    target: '>15% Net Margin',
   },
 ];
 

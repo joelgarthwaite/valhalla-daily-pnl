@@ -161,7 +161,7 @@ export function WorkedExample() {
           {/* GP3 */}
           <div className="space-y-1">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              GP3 Calculation (True Profit)
+              GP3 Calculation (Contribution)
             </h3>
             {gp3Section.map((item, i) => (
               <CalculationLine key={i} item={item} />

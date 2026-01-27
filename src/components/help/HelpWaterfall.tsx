@@ -95,10 +95,24 @@ const waterfallData: WaterfallItem[] = [
     isSubtraction: true,
   },
   {
-    name: 'GP3 (True Profit)',
+    name: 'GP3 (Contribution)',
     value: 3691,
     formula: 'GP2 - Ad Spend',
-    description: 'Your bottom line - true profit',
+    description: 'Contribution margin after ads',
+    isTotal: true,
+  },
+  {
+    name: 'OPEX',
+    value: -500,
+    formula: 'Staff + Rent + Software + etc',
+    description: 'Operating expenses (overhead)',
+    isSubtraction: true,
+  },
+  {
+    name: 'True Net Profit',
+    value: 3191,
+    formula: 'GP3 - OPEX',
+    description: 'Your actual bottom line',
     isTotal: true,
   },
 ];

@@ -35,11 +35,11 @@ const KPI_DEFINITIONS: Record<string, string> = {
   'Net AOV': 'Net Average Order Value: Product revenue after discounts per order (excludes shipping)',
   'GP1': 'Gross Profit 1: Net Revenue minus Cost of Goods Sold (estimated 30%)',
   'GP2': 'Gross Profit 2: GP1 minus operational costs (pick/pack, payment fees, logistics)',
-  'GP3': 'Gross Profit 3: GP2 minus advertising spend - your true profit after all costs',
+  'GP3': 'Gross Profit 3: GP2 minus advertising spend - contribution margin after ads. Does NOT include OPEX.',
   'Gross Margin': 'Gross profit (GP1) as a percentage of net revenue',
-  'Net Margin': 'Net profit (GP3) as a percentage of net revenue',
+  'Net Margin': 'True Net Profit (GP3 - OPEX) as a percentage of net revenue. Includes all operating expenses. Target: >15%',
   'Gross Profit': 'Revenue minus Cost of Goods Sold (same as GP1)',
-  'Net Profit': 'Final profit after all costs including ads (same as GP3)',
+  'Net Profit': 'True Net Profit after all costs including OPEX (same as GP3 - OPEX)',
   'POAS': 'Profit on Ad Spend: Profit generated per unit of ad spend. 200% = £2 profit per £1 spent',
   'CoP': 'Cost of Profit: Total costs incurred per unit of profit generated',
   'MER': 'Marketing Efficiency Ratio: Total revenue generated per £1 of ad spend',
@@ -165,7 +165,7 @@ export function KPIGrid({ summary, isLoading = false }: KPIGridProps) {
         tooltip={KPI_DEFINITIONS['Gross Margin']}
       />
       <KPICard
-        title="GP3 (True Profit)"
+        title="GP3 (Contribution)"
         value={summary ? formatCurrency(summary.gp3) : '£0'}
         change={summary?.changes.gp3}
         icon={<Target className="h-4 w-4 text-primary" />}
@@ -232,7 +232,7 @@ export function ExtendedKPIGrid({ summary, isLoading = false }: KPIGridProps) {
           tooltip={KPI_DEFINITIONS['GP2']}
         />
         <KPICard
-          title="GP3 (True Profit)"
+          title="GP3 (Contribution)"
           value={summary ? formatCurrency(summary.gp3) : '£0'}
           change={summary?.changes.gp3}
           icon={<Target className="h-4 w-4 text-blue-600" />}

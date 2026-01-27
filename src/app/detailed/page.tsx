@@ -231,8 +231,15 @@ function ProfitTierBreakdown({ summary, isLoading }: { summary: any; isLoading: 
     {
       name: 'GP3',
       value: summary.gp3,
-      description: 'True Profit',
+      description: 'After Ads (Contribution)',
       deduction: summary.totalAdSpend,
+      highlight: false,
+    },
+    {
+      name: 'True Net Profit',
+      value: summary.trueNetProfit,
+      description: 'After OPEX (Bottom Line)',
+      deduction: summary.totalOpex || 0,
       highlight: true,
     },
   ];
