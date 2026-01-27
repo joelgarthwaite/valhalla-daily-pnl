@@ -107,8 +107,9 @@ export default function HubHomePage() {
           const data = await yesterdayRes.json();
           if (data.dailyPnl && data.dailyPnl.length > 0) {
             // Aggregate all brand data for the day
+            // Note: API returns net_profit (which is GP3 = GP2 - Ad Spend)
             const totalRevenue = data.dailyPnl.reduce((sum: number, day: { total_revenue?: number }) => sum + (day.total_revenue || 0), 0);
-            const totalGp3 = data.dailyPnl.reduce((sum: number, day: { gp3?: number }) => sum + (day.gp3 || 0), 0);
+            const totalGp3 = data.dailyPnl.reduce((sum: number, day: { net_profit?: number }) => sum + (day.net_profit || 0), 0);
             const totalOrders = data.dailyPnl.reduce((sum: number, day: { total_orders?: number }) => sum + (day.total_orders || 0), 0);
 
             // Calculate True Net Profit = GP3 - OPEX (OPEX is for the period)
@@ -127,7 +128,7 @@ export default function HubHomePage() {
               const prevData = await dayBeforeRes.json();
               if (prevData.dailyPnl && prevData.dailyPnl.length > 0) {
                 const prevRevenue = prevData.dailyPnl.reduce((sum: number, day: { total_revenue?: number }) => sum + (day.total_revenue || 0), 0);
-                const prevGp3 = prevData.dailyPnl.reduce((sum: number, day: { gp3?: number }) => sum + (day.gp3 || 0), 0);
+                const prevGp3 = prevData.dailyPnl.reduce((sum: number, day: { net_profit?: number }) => sum + (day.net_profit || 0), 0);
                 const prevOpex = prevData.opex?.periodTotal || 0;
                 const prevProfit = prevGp3 - prevOpex;
                 const prevNetRevenue = prevData.dailyPnl.reduce((sum: number, day: { net_revenue?: number; total_revenue?: number }) =>
@@ -161,10 +162,11 @@ export default function HubHomePage() {
           const data = await wtdRes.json();
           if (data.dailyPnl && data.dailyPnl.length > 0) {
             // Aggregate all brand data for the WTD period
+            // Note: API returns net_profit (which is GP3 = GP2 - Ad Spend)
             const totals = data.dailyPnl.reduce(
-              (acc: { revenue: number; gp3: number; orders: number }, day: { total_revenue?: number; gp3?: number; total_orders?: number }) => ({
+              (acc: { revenue: number; gp3: number; orders: number }, day: { total_revenue?: number; net_profit?: number; total_orders?: number }) => ({
                 revenue: acc.revenue + (day.total_revenue || 0),
-                gp3: acc.gp3 + (day.gp3 || 0),
+                gp3: acc.gp3 + (day.net_profit || 0),
                 orders: acc.orders + (day.total_orders || 0),
               }),
               { revenue: 0, gp3: 0, orders: 0 }
