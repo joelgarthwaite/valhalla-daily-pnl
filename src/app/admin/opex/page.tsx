@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
-import { Plus, Trash2, Edit2, Building2, Users, Monitor, Briefcase, Megaphone, Shield, Wrench, Car, Landmark, MoreHorizontal } from 'lucide-react';
+import { Plus, Trash2, Edit2, Copy, Building2, Users, Monitor, Briefcase, Megaphone, Shield, Wrench, Car, Landmark, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -261,6 +261,24 @@ export default function OpexPage() {
       notes: expense.notes || '',
     });
     setEditingId(expense.id);
+    setIsDialogOpen(true);
+  };
+
+  const handleDuplicate = (expense: OperatingExpense) => {
+    setFormData({
+      brand_id: expense.brand_id || '',
+      name: `${expense.name} (copy)`,
+      description: expense.description || '',
+      category: expense.category,
+      amount: expense.amount.toString(),
+      frequency: expense.frequency,
+      start_date: format(new Date(), 'yyyy-MM-dd'), // Reset to today
+      end_date: expense.end_date || '',
+      expense_date: expense.expense_date || '',
+      is_active: expense.is_active,
+      notes: expense.notes || '',
+    });
+    setEditingId(null); // Not editing, creating new
     setIsDialogOpen(true);
   };
 
@@ -696,13 +714,23 @@ export default function OpexPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleEdit(expense)}
+                            title="Edit"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => handleDuplicate(expense)}
+                            title="Duplicate"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleDelete(expense.id)}
+                            title="Delete"
                           >
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
