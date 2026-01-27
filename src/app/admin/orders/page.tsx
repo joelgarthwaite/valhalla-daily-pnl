@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { format, subDays, startOfWeek, startOfMonth, endOfWeek, subWeeks } from 'date-fns';
-import { RefreshCw, Building2, Check, X, ChevronLeft, ChevronRight, CalendarIcon, Globe } from 'lucide-react';
+import { RefreshCw, Building2, Check, X, ChevronLeft, ChevronRight, CalendarIcon, Globe, Ban, RotateCcw, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +57,8 @@ interface OrderWithBrand {
   b2b_customer_name: string | null;
   status: string | null;
   fulfillment_status: string | null;
+  excluded_at: string | null;
+  exclusion_reason: string | null;
   shipping_address: {
     country_code?: string;
   } | null;
@@ -93,6 +95,7 @@ type BrandFilter = 'all' | 'DC' | 'BI';
 type PlatformFilter = 'all' | 'shopify' | 'etsy';
 type B2BFilter = 'all' | 'b2b' | 'regular';
 type CountryFilter = string; // 'all' or ISO country code
+type ExcludedFilter = 'active' | 'excluded' | 'all';
 
 // Date preset helpers
 const getPresetDates = {
@@ -127,9 +130,15 @@ export default function OrdersPage() {
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [b2bFilter, setB2BFilter] = useState<B2BFilter>('all');
   const [countryFilter, setCountryFilter] = useState<CountryFilter>('all');
+  const [excludedFilter, setExcludedFilter] = useState<ExcludedFilter>('active');
   const [dateFrom, setDateFrom] = useState<Date>(() => subDays(new Date(), 30));
   const [dateTo, setDateTo] = useState<Date>(() => new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  // Exclude dialog
+  const [showExcludeDialog, setShowExcludeDialog] = useState(false);
+  const [excludeReason, setExcludeReason] = useState('');
+  const [pendingExcludeOrderId, setPendingExcludeOrderId] = useState<string | null>(null);
 
   // Quick date preset handler
   const applyDatePreset = (preset: keyof typeof getPresetDates) => {
@@ -173,6 +182,14 @@ export default function OrdersPage() {
         params.set('isB2B', 'false');
       }
 
+      // Handle excluded filter
+      if (excludedFilter === 'excluded') {
+        params.set('excludedOnly', 'true');
+      } else if (excludedFilter === 'all') {
+        params.set('includeExcluded', 'true');
+      }
+      // 'active' is the default (no params) - only non-excluded orders
+
       const response = await fetch(`/api/orders?${params}`);
       const data: OrdersResponse = await response.json();
 
@@ -191,7 +208,7 @@ export default function OrdersPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [brandFilter, platformFilter, b2bFilter, dateFrom, dateTo, offset]);
+  }, [brandFilter, platformFilter, b2bFilter, excludedFilter, countryFilter, dateFrom, dateTo, offset]);
 
   useEffect(() => {
     fetchOrders();
@@ -200,7 +217,7 @@ export default function OrdersPage() {
   // Reset offset when filters change
   useEffect(() => {
     setOffset(0);
-  }, [brandFilter, platformFilter, b2bFilter, dateFrom, dateTo]);
+  }, [brandFilter, platformFilter, b2bFilter, excludedFilter, countryFilter, dateFrom, dateTo]);
 
   const handleToggleB2B = async (order: OrderWithBrand) => {
     if (!order.is_b2b) {
@@ -252,6 +269,67 @@ export default function OrdersPage() {
     } catch (error) {
       console.error('Error updating order:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to update order');
+    }
+  };
+
+  const handleExcludeOrder = (order: OrderWithBrand) => {
+    setPendingExcludeOrderId(order.id);
+    setExcludeReason('Test order');
+    setShowExcludeDialog(true);
+  };
+
+  const handleConfirmExclude = async () => {
+    if (!pendingExcludeOrderId) return;
+
+    try {
+      const response = await fetch('/api/orders/exclude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: pendingExcludeOrderId,
+          reason: excludeReason || 'Manually excluded',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to exclude order');
+      }
+
+      toast.success(data.message || 'Order excluded');
+      setShowExcludeDialog(false);
+      setPendingExcludeOrderId(null);
+      setExcludeReason('');
+      fetchOrders();
+    } catch (error) {
+      console.error('Error excluding order:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to exclude order');
+    }
+  };
+
+  const handleRestoreOrder = async (order: OrderWithBrand) => {
+    try {
+      const response = await fetch('/api/orders/exclude', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: order.platform,
+          platformOrderId: order.platform_order_id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to restore order');
+      }
+
+      toast.success('Order restored - will be included in future syncs');
+      fetchOrders();
+    } catch (error) {
+      console.error('Error restoring order:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to restore order');
     }
   };
 
@@ -472,6 +550,23 @@ export default function OrdersPage() {
               </Select>
             </div>
 
+            {/* Excluded Filter */}
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium text-muted-foreground">
+                Status
+              </Label>
+              <Select value={excludedFilter} onValueChange={(v) => setExcludedFilter(v as ExcludedFilter)}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active Only</SelectItem>
+                  <SelectItem value="excluded">Excluded Only</SelectItem>
+                  <SelectItem value="all">All Orders</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="ml-auto text-sm text-muted-foreground">
               {total} orders found
             </div>
@@ -501,37 +596,53 @@ export default function OrdersPage() {
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead className="text-center">B2B</TableHead>
                 <TableHead>B2B Customer</TableHead>
+                <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                     <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />
                     Loading orders...
                   </TableCell>
                 </TableRow>
               ) : orders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                     No orders found for the selected filters.
                   </TableCell>
                 </TableRow>
               ) : (
                 orders.map((order) => (
-                  <TableRow key={order.id} className={order.is_b2b ? 'bg-amber-50/50' : ''}>
+                  <TableRow
+                    key={order.id}
+                    className={cn(
+                      order.is_b2b && 'bg-amber-50/50',
+                      order.excluded_at && 'bg-red-50/50 opacity-60'
+                    )}
+                  >
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.has(order.id)}
                         onCheckedChange={(checked: boolean | 'indeterminate') => handleSelectOrder(order.id, !!checked)}
                         aria-label={`Select order ${order.order_number}`}
+                        disabled={!!order.excluded_at}
                       />
                     </TableCell>
                     <TableCell className="font-medium">
                       {format(new Date(order.order_date), 'MMM d, yyyy')}
                     </TableCell>
                     <TableCell>
-                      {order.order_number || order.platform_order_id.slice(0, 10)}
+                      <div className="flex items-center gap-2">
+                        {order.order_number || order.platform_order_id.slice(0, 10)}
+                        {order.excluded_at && (
+                          <Badge variant="destructive" className="text-xs">
+                            <Ban className="h-3 w-3 mr-1" />
+                            Excluded
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="max-w-[150px] truncate">
                       {order.customer_name || order.customer_email || '-'}
@@ -556,25 +667,60 @@ export default function OrdersPage() {
                       {formatCurrency(order.subtotal)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button
-                        variant={order.is_b2b ? 'default' : 'outline'}
-                        size="sm"
-                        className={cn(
-                          'h-7 w-7 p-0',
-                          order.is_b2b && 'bg-amber-500 hover:bg-amber-600'
-                        )}
-                        onClick={() => handleToggleB2B(order)}
-                        title={order.is_b2b ? 'Click to remove B2B tag' : 'Click to mark as B2B'}
-                      >
-                        {order.is_b2b ? (
-                          <Check className="h-4 w-4" />
-                        ) : (
-                          <Building2 className="h-4 w-4" />
-                        )}
-                      </Button>
+                      {!order.excluded_at ? (
+                        <Button
+                          variant={order.is_b2b ? 'default' : 'outline'}
+                          size="sm"
+                          className={cn(
+                            'h-7 w-7 p-0',
+                            order.is_b2b && 'bg-amber-500 hover:bg-amber-600'
+                          )}
+                          onClick={() => handleToggleB2B(order)}
+                          title={order.is_b2b ? 'Click to remove B2B tag' : 'Click to mark as B2B'}
+                        >
+                          {order.is_b2b ? (
+                            <Check className="h-4 w-4" />
+                          ) : (
+                            <Building2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="max-w-[150px] truncate text-muted-foreground">
-                      {order.b2b_customer_name || '-'}
+                      {order.excluded_at ? (
+                        <span className="text-xs text-red-600" title={order.exclusion_reason || ''}>
+                          {order.exclusion_reason || 'Excluded'}
+                        </span>
+                      ) : (
+                        order.b2b_customer_name || '-'
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {order.excluded_at ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                          onClick={() => handleRestoreOrder(order)}
+                          title="Restore this order"
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" />
+                          Restore
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleExcludeOrder(order)}
+                          title="Exclude this order from P&L"
+                        >
+                          <Ban className="h-3 w-3 mr-1" />
+                          Exclude
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -660,6 +806,59 @@ export default function OrdersPage() {
             >
               <Check className="h-4 w-4 mr-2" />
               Mark as B2B
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Exclude Order Dialog */}
+      <Dialog open={showExcludeDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowExcludeDialog(false);
+          setPendingExcludeOrderId(null);
+          setExcludeReason('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-600">
+              <AlertTriangle className="h-5 w-5 inline mr-2" />
+              Exclude Order from P&L
+            </DialogTitle>
+            <DialogDescription>
+              This order will be permanently excluded from all P&L calculations. It will also be
+              skipped during future syncs, so it won&apos;t reappear.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+              <strong>Warning:</strong> Excluded orders are not deleted - they remain in the database
+              but are hidden from P&L reports. You can restore them later if needed.
+            </div>
+            <div>
+              <Label htmlFor="exclude-reason">Reason for exclusion</Label>
+              <Input
+                id="exclude-reason"
+                value={excludeReason}
+                onChange={(e) => setExcludeReason(e.target.value)}
+                placeholder="e.g., Test order, Duplicate, Internal order"
+                className="mt-2"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExcludeDialog(false)}>
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmExclude}
+              variant="destructive"
+            >
+              <Ban className="h-4 w-4 mr-2" />
+              Exclude Order
             </Button>
           </DialogFooter>
         </DialogContent>

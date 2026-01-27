@@ -16,6 +16,8 @@ interface OrdersQueryParams {
   country?: string;
   limit?: string;
   offset?: string;
+  includeExcluded?: string;
+  excludedOnly?: string;
 }
 
 /**
@@ -33,6 +35,8 @@ export async function GET(request: NextRequest) {
     country: searchParams.get('country') || undefined,
     limit: searchParams.get('limit') || '50',
     offset: searchParams.get('offset') || '0',
+    includeExcluded: searchParams.get('includeExcluded') || undefined,
+    excludedOnly: searchParams.get('excludedOnly') || undefined,
   };
 
   try {
@@ -43,8 +47,15 @@ export async function GET(request: NextRequest) {
     // Build query
     let query = supabaseAdmin
       .from('orders')
-      .select('id, platform, platform_order_id, order_number, order_date, customer_name, customer_email, brand_id, subtotal, total, is_b2b, b2b_customer_name, status, fulfillment_status, shipping_address', { count: 'exact' })
+      .select('id, platform, platform_order_id, order_number, order_date, customer_name, customer_email, brand_id, subtotal, total, is_b2b, b2b_customer_name, status, fulfillment_status, shipping_address, excluded_at, exclusion_reason', { count: 'exact' })
       .order('order_date', { ascending: false });
+
+    // Filter excluded orders (by default, hide excluded orders)
+    if (params.excludedOnly === 'true') {
+      query = query.not('excluded_at', 'is', null);
+    } else if (params.includeExcluded !== 'true') {
+      query = query.is('excluded_at', null);
+    }
 
     // Apply filters
     if (params.from) {

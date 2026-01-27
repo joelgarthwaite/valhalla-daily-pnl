@@ -75,10 +75,12 @@ export async function POST(request: NextRequest) {
       const logisticsRate = costConfig ? costConfig.logistics_pct / 100 : DEFAULT_LOGISTICS_RATE;
 
       // Fetch orders within date range (extract refunds from raw_data)
+      // Exclude orders that have been manually excluded
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select('order_date, platform, subtotal, shipping_charged, total, raw_data')
         .eq('brand_id', brand.id)
+        .is('excluded_at', null)  // Only include non-excluded orders
         .gte('order_date', fromDate)
         .lte('order_date', toDate + 'T23:59:59');
 

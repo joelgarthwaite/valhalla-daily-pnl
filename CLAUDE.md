@@ -46,6 +46,7 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - `etsy_fees` - Actual Etsy fees from Payment Ledger API
 - `xero_connections` - Xero OAuth tokens for bank balance fetching
 - `country_ad_spend` - Ad spend by country from Meta API (for GP3 in Country Analysis)
+- `excluded_orders` - Permanently excluded orders (prevents re-sync)
 
 **Migrations:**
 - `supabase/migrations/002_pnl_schema.sql` - Core P&L tables
@@ -57,6 +58,7 @@ A Lifetimely-style Daily P&L Dashboard for **Display Champ** and **Bright Ivy** 
 - `supabase/migrations/008_xero_integration.sql` - Xero integration for bank balances
 - `supabase/migrations/009_b2b_order_tagging.sql` - B2B tagging on orders (is_b2b, b2b_customer_name)
 - `supabase/migrations/010_country_ad_spend.sql` - Country-level ad spend from Meta API
+- `supabase/migrations/011_order_exclusions.sql` - Order exclusion system (excluded_at, excluded_orders table)
 
 ---
 
@@ -362,7 +364,7 @@ valhalla-daily-pnl/
 │   │   ├── admin/                      # Admin pages
 │   │   │   ├── sync/page.tsx           # Order sync from Shopify/Etsy
 │   │   │   ├── ad-spend/page.tsx       # Ad spend with Meta/Google sync + brand filter
-│   │   │   ├── orders/page.tsx         # Order list with B2B tagging
+│   │   │   ├── orders/page.tsx         # Order list with B2B tagging + exclusions
 │   │   │   ├── b2b-revenue/page.tsx    # B2B revenue entry
 │   │   │   ├── opex/page.tsx           # Operating expenses (OPEX)
 │   │   │   ├── xero/page.tsx           # Xero integration settings
@@ -395,6 +397,7 @@ valhalla-daily-pnl/
 │   │   │   │   └── balances/route.ts   # Fetch bank balances
 │   │   │   ├── orders/                 # Order management
 │   │   │   │   ├── route.ts            # List/update orders (B2B tagging)
+│   │   │   │   ├── exclude/route.ts    # Exclude/restore orders from P&L
 │   │   │   │   └── sync/route.ts       # Sync from all platforms
 │   │   └── layout.tsx                  # Root layout
 │   ├── components/
@@ -919,6 +922,60 @@ Returns:
 ### Data Sources
 - **Orders**: `orders` table using `shipping_address.country_code`
 - **Ad Spend**: `country_ad_spend` table (synced from Meta API)
+
+---
+
+## Order Exclusions
+
+### Purpose
+Permanently exclude test orders, duplicates, or internal orders from P&L calculations. Excluded orders are:
+1. Hidden from the orders list (by default)
+2. Excluded from P&L refresh calculations
+3. Skipped during future order syncs
+
+### How It Works
+- Orders can be excluded via the Orders admin page (`/admin/orders`)
+- Exclusions are stored in two places:
+  - `orders.excluded_at` - Timestamp when order was excluded
+  - `excluded_orders` table - Permanent record by `platform + platform_order_id`
+- The sync process checks `excluded_orders` table and skips matching platform_order_ids
+- Exclusions can be reversed via the "Restore" button
+
+### Location
+Admin > Orders (`/admin/orders`)
+
+### Features
+- **Status Filter**: Toggle between "Active Only", "Excluded Only", or "All Orders"
+- **Exclude Button**: Click to exclude an order with a reason
+- **Restore Button**: Click to restore an excluded order
+- **Reason Tracking**: Records why each order was excluded
+
+### API Endpoints
+- `POST /api/orders/exclude` - Exclude an order
+  ```json
+  { "orderId": "uuid", "reason": "Test order" }
+  ```
+- `DELETE /api/orders/exclude` - Restore an excluded order
+  ```json
+  { "platform": "shopify", "platformOrderId": "123456" }
+  ```
+- `GET /api/orders/exclude` - List all excluded orders
+
+### Database Schema
+```sql
+-- Added to orders table
+excluded_at TIMESTAMPTZ;
+exclusion_reason TEXT;
+
+-- Separate table for sync blocking
+excluded_orders (
+  platform VARCHAR(50),
+  platform_order_id TEXT,
+  exclusion_reason TEXT,
+  excluded_at TIMESTAMPTZ,
+  UNIQUE(platform, platform_order_id)
+);
+```
 
 ---
 

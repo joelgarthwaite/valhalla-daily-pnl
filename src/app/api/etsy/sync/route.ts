@@ -156,6 +156,7 @@ export async function POST(request: NextRequest) {
     const results: Array<{
       brand: string;
       recordsSynced: number;
+      skippedExcluded: number;
       errors: string[];
       dateRange: { start: string; end: string };
     }> = [];
@@ -197,6 +198,7 @@ export async function POST(request: NextRequest) {
             results.push({
               brand: store.brandName,
               recordsSynced: 0,
+              skippedExcluded: 0,
               errors,
               dateRange: { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] },
             });
@@ -234,6 +236,7 @@ export async function POST(request: NextRequest) {
               results.push({
                 brand: store.brandName,
                 recordsSynced: 0,
+                skippedExcluded: 0,
                 errors,
                 dateRange: { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] },
               });
@@ -244,6 +247,7 @@ export async function POST(request: NextRequest) {
             results.push({
               brand: store.brandName,
               recordsSynced: 0,
+              skippedExcluded: 0,
               errors,
               dateRange: { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] },
             });
@@ -260,9 +264,23 @@ export async function POST(request: NextRequest) {
           end
         );
 
+        // Get list of excluded order IDs for this platform
+        const { data: excludedOrders } = await supabase
+          .from('excluded_orders')
+          .select('platform_order_id')
+          .eq('platform', 'etsy');
+        const excludedOrderIds = new Set(excludedOrders?.map(e => e.platform_order_id) || []);
+        let skippedExcluded = 0;
+
         // Upsert orders to database
         for (const receipt of receipts) {
           const transformed = transformEtsyReceipt(receipt);
+
+          // Skip if this order is in the exclusion list
+          if (excludedOrderIds.has(transformed.platform_order_id)) {
+            skippedExcluded++;
+            continue;
+          }
 
           const { error: upsertError } = await supabase.from('orders').upsert(
             {
@@ -306,6 +324,7 @@ export async function POST(request: NextRequest) {
         results.push({
           brand: store.brandName,
           recordsSynced: syncedCount,
+          skippedExcluded,
           errors,
           dateRange: { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] },
         });
@@ -314,6 +333,7 @@ export async function POST(request: NextRequest) {
         results.push({
           brand: store.brandName,
           recordsSynced: syncedCount,
+          skippedExcluded: 0,
           errors,
           dateRange: { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] },
         });
