@@ -269,6 +269,7 @@ GP3 = GP2 - Ad Spend
 
 | Metric | Formula | Notes |
 |--------|---------|-------|
+| Net Margin | (True Net Profit / Net Revenue) × 100 | THE BOTTOM LINE %. Includes OPEX. Target: >15% |
 | Gross AOV | (Product Revenue + Shipping) / Orders | What customer pays per order |
 | Net AOV | (Product Revenue - Discounts) / Orders | Product value per order |
 | POAS | (GP3 / Ad Spend) × 100 | 200% = £2 profit per £1 ad spend |
@@ -360,7 +361,8 @@ valhalla-daily-pnl/
 │   ├── lib/
 │   │   ├── supabase/                   # Supabase client config
 │   │   ├── pnl/                        # P&L calculation engine
-│   │   │   ├── calculations.ts         # GP1/GP2/GP3, POAS, MER, AOV
+│   │   │   ├── calculations.ts         # GP1/GP2/GP3/True Net Profit, POAS, MER, AOV
+│   │   │   ├── opex.ts                 # OPEX calculations (daily allocation, period totals)
 │   │   │   ├── country-calculations.ts # Country P&L calculations (GP1/GP2)
 │   │   │   ├── aggregations.ts         # Time period rollups
 │   │   │   ├── targets.ts              # Target calculations
@@ -386,7 +388,10 @@ valhalla-daily-pnl/
 │   └── migrations/
 │       ├── 002_pnl_schema.sql          # Core P&L tables
 │       ├── 003_enhanced_metrics.sql    # Enhanced metrics columns
-│       └── 004_add_user_roles_index.sql # Index for faster RLS
+│       ├── 004_add_user_roles_index.sql # Index for faster RLS
+│       ├── 005_etsy_fees.sql           # Actual Etsy fees from Payment Ledger
+│       ├── 006_fix_quarterly_goals_rls.sql # RLS policy fixes
+│       └── 007_operating_expenses.sql  # Operating expenses (OPEX) table
 ├── .env.local                          # Environment variables (not committed)
 └── package.json
 ```
