@@ -928,10 +928,20 @@ Returns:
 ## Order Exclusions
 
 ### Purpose
-Permanently exclude test orders, duplicates, or internal orders from P&L calculations. Excluded orders are:
-1. Hidden from the orders list (by default)
-2. Excluded from P&L refresh calculations
-3. Skipped during future order syncs
+Permanently exclude test orders, duplicates, or internal orders from P&L calculations. Excluded orders are **100% removed from all calculations**.
+
+### What Gets Excluded
+Excluded orders are filtered out from:
+| Location | What it affects |
+|----------|-----------------|
+| `/api/pnl/refresh` | Main P&L calculations (daily_pnl table) |
+| `/api/pnl/country` | Country Analysis page |
+| `/api/orders` | Orders list API |
+| `/admin/reconciliation` | Reconciliation page |
+| `/api/shopify/sync` | Skipped during re-sync |
+| `/api/etsy/sync` | Skipped during re-sync |
+
+**Important:** After excluding an order, run "Sync & Update" to refresh P&L calculations and remove the order's revenue from totals.
 
 ### How It Works
 - Orders can be excluded via the Orders admin page (`/admin/orders`)
