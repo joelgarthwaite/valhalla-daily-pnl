@@ -83,6 +83,12 @@ const getPresetRange = {
     from.setDate(from.getDate() - 89);
     return { from, to: now };
   },
+  ytd: () => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    return { from: startOfYear, to: now };
+  },
 };
 
 const presetLabels = {
@@ -91,6 +97,7 @@ const presetLabels = {
   thisMonth: 'This Month',
   last30: 'Last 30 Days',
   last90: 'Last 90 Days',
+  ytd: 'Year to Date',
 };
 
 function CountryAnalysisContent() {
@@ -309,7 +316,7 @@ function CountryAnalysisContent() {
               {/* Quick preset buttons */}
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Quick:</span>
-                {(['thisWeek', 'lastWeek', 'thisMonth', 'last30'] as const).map((key) => (
+                {(['thisWeek', 'lastWeek', 'thisMonth', 'last30', 'ytd'] as const).map((key) => (
                   <Button
                     key={key}
                     variant="outline"

@@ -7,6 +7,7 @@ import {
   endOfWeek,
   startOfMonth,
   endOfMonth,
+  startOfYear,
   subDays,
   subWeeks,
   subMonths,
@@ -46,7 +47,7 @@ interface DashboardFiltersProps {
 }
 
 // Preset date ranges
-type PresetKey = 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'last30' | 'last90';
+type PresetKey = 'today' | 'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'last30' | 'last90' | 'ytd';
 
 interface Preset {
   label: string;
@@ -128,6 +129,17 @@ const presets: Record<PresetKey, Preset> = {
       now.setHours(0, 0, 0, 0);
       return {
         from: subDays(now, 89),
+        to: now,
+      };
+    },
+  },
+  ytd: {
+    label: 'Year to Date',
+    getRange: () => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      return {
+        from: startOfYear(now),
         to: now,
       };
     },
@@ -374,7 +386,7 @@ export function DashboardFilters({
       {selectionMode === 'range' && (
         <div className="flex flex-wrap gap-2 px-1">
           <span className="text-xs text-muted-foreground py-1">Quick:</span>
-          {(['thisWeek', 'lastWeek', 'thisMonth', 'last30'] as PresetKey[]).map((key) => (
+          {(['thisWeek', 'lastWeek', 'thisMonth', 'last30', 'ytd'] as PresetKey[]).map((key) => (
             <Button
               key={key}
               variant="outline"

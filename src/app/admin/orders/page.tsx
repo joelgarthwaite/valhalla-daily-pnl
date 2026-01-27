@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { format, subDays, startOfWeek, startOfMonth, endOfWeek, subWeeks } from 'date-fns';
+import { format, subDays, startOfWeek, startOfMonth, startOfYear, endOfWeek, subWeeks } from 'date-fns';
 import { RefreshCw, Building2, Check, X, ChevronLeft, ChevronRight, CalendarIcon, Globe, Ban, RotateCcw, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -120,6 +120,10 @@ const getPresetDates = {
     const now = new Date();
     const firstOfMonth = startOfMonth(now);
     return { from: firstOfMonth, to: now };
+  },
+  ytd: () => {
+    const now = new Date();
+    return { from: startOfYear(now), to: now };
   },
 };
 
@@ -540,6 +544,7 @@ export default function OrdersPage() {
                       <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-7" onClick={() => { applyDatePreset('lastWeek'); setIsCalendarOpen(false); }}>Last Week</Button>
                       <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-7" onClick={() => { applyDatePreset('thisMonth'); setIsCalendarOpen(false); }}>This Month</Button>
                       <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-7" onClick={() => { applyDatePreset('last30'); setIsCalendarOpen(false); }}>Last 30 Days</Button>
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-xs h-7" onClick={() => { applyDatePreset('ytd'); setIsCalendarOpen(false); }}>Year to Date</Button>
                     </div>
                     <Calendar
                       initialFocus
