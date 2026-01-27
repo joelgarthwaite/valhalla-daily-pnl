@@ -458,14 +458,23 @@ Shopify/Etsy APIs → orders table → daily_pnl table → Dashboard
 
 ### Simplified Sync Workflow
 
-The sync page (`/admin/sync`) has ONE primary button: **"Sync & Update Dashboard"**
+The main dashboard has ONE primary button: **"Sync & Update"**
 
-This button automatically:
-1. Syncs orders from all connected platforms (Shopify, Etsy)
-2. Refreshes P&L calculations for the selected date range
-3. Shows progress: "Syncing..." → "Updating..." → "Done!"
+This button (powered by `/api/sync-all`) does everything in one click:
+1. Syncs orders from Shopify (all connected stores)
+2. Syncs orders from Etsy (all connected stores)
+3. Syncs ad spend from Meta (all configured accounts)
+4. Refreshes P&L calculations
+5. Reloads dashboard data
 
-Advanced options (individual platform sync, P&L-only refresh) are available under a collapsed section.
+**Button States:**
+- "Sync & Update" → Click to start
+- "Syncing..." → In progress (with animation)
+- "Done! (Xs)" → Completed successfully
+
+There's also a small refresh icon button next to it for quickly reloading data from the database without syncing external sources.
+
+**Admin Sync Page** (`/admin/sync`) provides advanced options for individual platform syncs and custom date ranges.
 
 ### Performance Optimizations
 
@@ -515,9 +524,17 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/cr
 
 ## API Endpoints
 
+### Unified Sync (Main Dashboard Button)
+- `POST /api/sync-all` - **THE ONE BUTTON** - Syncs everything and refreshes P&L
+  - Syncs Shopify orders (last 7 days)
+  - Syncs Etsy orders (last 7 days)
+  - Syncs Meta ad spend (last 7 days)
+  - Refreshes P&L calculations
+  - Returns step-by-step status for each operation
+
 ### Cron / Scheduled Tasks
-- `GET /api/cron/daily-sync` - Automated daily sync (Shopify, Etsy, Meta, P&L refresh)
-  - Runs automatically at 6:00 AM UTC via Vercel Cron
+- `GET /api/cron/daily-sync` - Automated daily sync (same as sync-all but auth required)
+  - Runs automatically at 5:00 AM and 6:00 PM UTC via Vercel Cron
   - Manual trigger: `Authorization: Bearer $CRON_SECRET` header required
 
 ### P&L Data
