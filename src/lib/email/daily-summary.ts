@@ -3,7 +3,15 @@
 
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Resend client is initialized lazily to avoid build-time errors
+let resend: Resend | null = null;
+
+function getResendClient(): Resend {
+  if (!resend) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend;
+}
 
 export interface DailySummaryData {
   date: string;
@@ -306,7 +314,8 @@ export async function sendDailySummaryEmail(
   });
 
   try {
-    const { error } = await resend.emails.send({
+    const client = getResendClient();
+    const { error } = await client.emails.send({
       from: 'Valhalla P&L <pnl@displaychamp.com>',
       to: recipients,
       subject: `${statusEmoji} Daily P&L: ${formatCurrency(data.trueNetProfit)} profit (${formattedDate})`,
