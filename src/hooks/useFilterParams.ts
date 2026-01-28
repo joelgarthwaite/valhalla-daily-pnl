@@ -103,10 +103,16 @@ export function useFilterParams(): UseFilterParamsReturn {
 
     // Parse brand - URL > localStorage > default
     const brandParam = searchParams.get('brand');
-    const brandFilter: BrandFilter =
-      brandParam === 'DC' || brandParam === 'BI' || brandParam === 'all'
-        ? brandParam
-        : (hasUrlParams ? DEFAULT_BRAND : (stored?.brandFilter ?? DEFAULT_BRAND));
+    let brandFilter: BrandFilter;
+    if (brandParam === 'DC' || brandParam === 'BI' || brandParam === 'all') {
+      brandFilter = brandParam;
+    } else if (hasUrlParams) {
+      // URL has params but no valid brand - default to 'all'
+      brandFilter = DEFAULT_BRAND;
+    } else {
+      // No URL params - use stored preference or default
+      brandFilter = stored?.brandFilter ?? DEFAULT_BRAND;
+    }
 
     // Parse dates - URL > localStorage > default (yesterday)
     const fromParam = searchParams.get('from');
@@ -174,11 +180,8 @@ export function useFilterParams(): UseFilterParamsReturn {
     const params = new URLSearchParams(searchParams.toString());
 
     if (changes.brandFilter !== undefined) {
-      if (changes.brandFilter === DEFAULT_BRAND) {
-        params.delete('brand');
-      } else {
-        params.set('brand', changes.brandFilter);
-      }
+      // Always set brand param explicitly (including 'all') to avoid confusion
+      params.set('brand', changes.brandFilter);
     }
 
     if (changes.dateRange !== undefined) {
