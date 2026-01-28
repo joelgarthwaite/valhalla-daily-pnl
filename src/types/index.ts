@@ -859,3 +859,77 @@ export const UNMATCHED_STATUS_LABELS: Record<UnmatchedRecordStatus, string> = {
   voided: 'Voided/Wasted',
   resolved: 'Resolved',
 };
+
+// ============================================
+// Investor Metrics Types
+// ============================================
+
+export interface MonthlyInvestorMetrics {
+  month: string; // YYYY-MM
+  monthLabel: string; // "Jan 2025"
+  revenue: number;
+  orders: number;
+  uniqueCustomers: number;
+  newCustomers: number;
+  repeatCustomers: number;
+  cogs: number;
+  gp1: number;
+  gp2: number;
+  gp3: number;
+  trueNetProfit: number;
+  adSpend: number;
+  grossMarginPct: number;
+  netMarginPct: number;
+  avgOrderValue: number;
+  revenueGrowthMoM: number | null;
+  revenueGrowthYoY: number | null;
+}
+
+export interface CustomerCohort {
+  firstOrderMonth: string;
+  customersAcquired: number;
+  totalRevenue: number;
+  totalOrders: number;
+  avgOrdersPerCustomer: number;
+  avgRevenuePerCustomer: number;
+}
+
+export interface InvestorMetrics {
+  // Headline metrics
+  ttmRevenue: number;          // Trailing 12 months
+  ttmGP1: number;
+  ttmGP3: number;
+  ttmTrueNetProfit: number;
+  annualRunRate: number;       // Based on last 3 months
+  revenueGrowthYoY: number;
+
+  // Margins
+  grossMarginPct: number;      // GP1 / Revenue
+  contributionMarginPct: number; // GP3 / Revenue
+  netMarginPct: number;        // True Net Profit / Revenue
+
+  // Customer metrics
+  totalCustomers: number;
+  repeatPurchaseRate: number;
+  avgOrdersPerCustomer: number;
+  avgCustomerLifetimeValue: number;
+  customerAcquisitionCost: number;
+  ltvCacRatio: number;
+
+  // Efficiency
+  ttmAdSpend: number;
+  blendedCac: number;          // Ad spend / new customers
+  mer: number;                 // Marketing efficiency ratio
+  paybackPeriodMonths: number;
+
+  // Monthly data
+  monthlyMetrics: MonthlyInvestorMetrics[];
+
+  // Cohort data
+  cohorts: CustomerCohort[];
+
+  // Data quality
+  dataStartDate: string;
+  dataEndDate: string;
+  monthsOfData: number;
+}

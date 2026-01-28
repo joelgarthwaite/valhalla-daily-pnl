@@ -105,7 +105,6 @@ const navSections: NavSection[] = [
         href: '/finance/investor',
         icon: LineChart,
         description: 'M&A data room',
-        badge: 'Soon',
       },
     ],
   },
