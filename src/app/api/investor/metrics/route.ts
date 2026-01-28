@@ -37,20 +37,20 @@ interface CustomerCohort {
 }
 
 interface InvestorMetrics {
-  // Headline metrics
-  ttmRevenue: number;          // Trailing 12 months
+  // Headline metrics (ALWAYS TTM - industry standard)
+  ttmRevenue: number;
   ttmGP1: number;
   ttmGP3: number;
   ttmTrueNetProfit: number;
-  annualRunRate: number;       // Based on last 3 months
+  annualRunRate: number;
   revenueGrowthYoY: number;
 
-  // Margins
-  grossMarginPct: number;      // GP1 / Revenue
-  contributionMarginPct: number; // GP3 / Revenue
-  netMarginPct: number;        // True Net Profit / Revenue
+  // Margins (TTM)
+  grossMarginPct: number;
+  contributionMarginPct: number;
+  netMarginPct: number;
 
-  // Customer metrics
+  // Customer metrics (all time)
   totalCustomers: number;
   repeatPurchaseRate: number;
   avgOrdersPerCustomer: number;
@@ -58,23 +58,29 @@ interface InvestorMetrics {
   customerAcquisitionCost: number;
   ltvCacRatio: number;
 
-  // Efficiency
+  // Efficiency (TTM)
   ttmAdSpend: number;
-  blendedCac: number;          // Ad spend / new customers
-  mer: number;                 // Marketing efficiency ratio
+  blendedCac: number;
+  mer: number;
   paybackPeriodMonths: number;
 
-  // Monthly data
+  // Filtered data for charts/tables
   monthlyMetrics: MonthlyMetrics[];
-
-  // Cohort data
   cohorts: CustomerCohort[];
 
-  // Data quality
-  dataStartDate: string;
-  dataEndDate: string;
-  monthsOfData: number;
+  // Data range info
+  firstSaleDate: string;
+  lastSaleDate: string;
+  availableYears: number[];
+
+  // Current filter applied
+  filterPeriod: string;
+  filterStartDate: string;
+  filterEndDate: string;
+  monthsInFilter: number;
 }
+
+type PeriodFilter = 'all' | 'ttm' | 'ytd' | 'year';
 
 function getMonthLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split('-');
@@ -82,15 +88,42 @@ function getMonthLabel(yearMonth: string): string {
   return `${months[parseInt(month) - 1]} ${year}`;
 }
 
+function getDateRange(period: PeriodFilter, year?: number): { start: Date; end: Date } {
+  const now = new Date();
+  const end = now;
+  let start: Date;
+
+  switch (period) {
+    case 'ttm':
+      start = new Date(now);
+      start.setMonth(start.getMonth() - 12);
+      break;
+    case 'ytd':
+      start = new Date(now.getFullYear(), 0, 1);
+      break;
+    case 'year':
+      if (year) {
+        start = new Date(year, 0, 1);
+        return { start, end: new Date(year, 11, 31) };
+      }
+      start = new Date(2020, 0, 1); // Fallback to all
+      break;
+    case 'all':
+    default:
+      start = new Date(2020, 0, 1); // Far back date, will be overridden by actual first sale
+      break;
+  }
+
+  return { start, end };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const brand = searchParams.get('brand') || 'all';
-
-    // Get the date range - we need at least 24 months for YoY comparisons
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - 24);
+    const period = (searchParams.get('period') || 'all') as PeriodFilter;
+    const yearParam = searchParams.get('year');
+    const selectedYear = yearParam ? parseInt(yearParam) : undefined;
 
     // Build brand filter
     let brandFilter = '';
@@ -106,12 +139,57 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch all orders for customer analysis (include raw_data for email extraction)
+    // First, get the date range of all data to find first sale
+    let dateRangeQuery = supabase
+      .from('daily_pnl')
+      .select('date')
+      .order('date', { ascending: true })
+      .limit(1);
+
+    if (brandFilter) {
+      dateRangeQuery = dateRangeQuery.eq('brand_id', brandFilter);
+    }
+
+    const { data: firstDateData } = await dateRangeQuery;
+    const firstSaleDate = firstDateData?.[0]?.date || new Date().toISOString().split('T')[0];
+
+    // Get last sale date
+    let lastDateQuery = supabase
+      .from('daily_pnl')
+      .select('date')
+      .order('date', { ascending: false })
+      .limit(1);
+
+    if (brandFilter) {
+      lastDateQuery = lastDateQuery.eq('brand_id', brandFilter);
+    }
+
+    const { data: lastDateData } = await lastDateQuery;
+    const lastSaleDate = lastDateData?.[0]?.date || new Date().toISOString().split('T')[0];
+
+    // Calculate available years
+    const firstYear = parseInt(firstSaleDate.substring(0, 4));
+    const lastYear = parseInt(lastSaleDate.substring(0, 4));
+    const availableYears: number[] = [];
+    for (let y = lastYear; y >= firstYear; y--) {
+      availableYears.push(y);
+    }
+
+    // For TTM headline calculations, always fetch last 24 months
+    const ttmEnd = new Date();
+    const ttmStart = new Date();
+    ttmStart.setMonth(ttmStart.getMonth() - 24);
+
+    // For filtered display data
+    const filterRange = getDateRange(period, selectedYear);
+    const filterStart = period === 'all' ? new Date(firstSaleDate) : filterRange.start;
+    const filterEnd = filterRange.end;
+
+    // Fetch ALL orders for customer analysis (need full history for LTV calc)
     let ordersQuery = supabase
       .from('orders')
       .select('id, customer_email, customer_name, order_date, subtotal, brand_id, raw_data')
-      .gte('order_date', startDate.toISOString().split('T')[0])
-      .lte('order_date', endDate.toISOString().split('T')[0])
+      .gte('order_date', firstSaleDate)
       .is('excluded_at', null)
       .order('order_date', { ascending: true });
 
@@ -126,12 +204,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
     }
 
-    // Fetch daily P&L data for financial metrics
+    // Fetch ALL daily P&L data
     let pnlQuery = supabase
       .from('daily_pnl')
       .select('*')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .lte('date', endDate.toISOString().split('T')[0])
+      .gte('date', firstSaleDate)
       .order('date', { ascending: true });
 
     if (brandFilter) {
@@ -167,7 +244,7 @@ export async function GET(request: NextRequest) {
           case 'monthly': return total + amount;
           case 'quarterly': return total + (amount / 3);
           case 'annual': return total + (amount / 12);
-          case 'one_time': return total; // One-time not included in monthly
+          case 'one_time': return total;
           default: return total;
         }
       }, 0);
@@ -181,15 +258,12 @@ export async function GET(request: NextRequest) {
       customer_name?: string | null;
       raw_data?: Record<string, unknown> | null;
     }): string | null => {
-      // Try customer_email first
       if (order.customer_email) {
         return order.customer_email.toLowerCase();
       }
 
-      // Try to extract from raw_data (Shopify/Etsy structure)
       const rawData = order.raw_data;
       if (rawData) {
-        // Shopify: email field or customer.email
         if (typeof rawData.email === 'string') {
           return rawData.email.toLowerCase();
         }
@@ -197,13 +271,11 @@ export async function GET(request: NextRequest) {
         if (customer && typeof customer.email === 'string') {
           return customer.email.toLowerCase();
         }
-        // Etsy: buyer_email
         if (typeof rawData.buyer_email === 'string') {
           return rawData.buyer_email.toLowerCase();
         }
       }
 
-      // Fallback to customer_name if no email (less accurate but better than nothing)
       if (order.customer_name) {
         return `name:${order.customer_name.toLowerCase().replace(/\s+/g, '_')}`;
       }
@@ -211,7 +283,7 @@ export async function GET(request: NextRequest) {
       return null;
     };
 
-    // Build customer first order map
+    // Build customer maps (ALL TIME for LTV calculations)
     const customerFirstOrder: Record<string, { date: string; month: string }> = {};
     const customerOrders: Record<string, { count: number; totalRevenue: number }> = {};
 
@@ -232,7 +304,7 @@ export async function GET(request: NextRequest) {
       customerOrders[customerId].totalRevenue += order.subtotal || 0;
     });
 
-    // Aggregate P&L by month
+    // Aggregate P&L by month (ALL data)
     const monthlyPnL: Record<string, {
       revenue: number;
       orders: number;
@@ -268,16 +340,13 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate GP1/GP2/GP3 from revenue and cogs if database values are 0
-    // GP1 = Revenue - COGS (30% of revenue)
-    // GP2 = GP1 - Pick&Pack (5%) - Payment Fees (3%) - Logistics (3%) = GP1 - 11%
-    // GP3 = GP2 - Ad Spend
     Object.keys(monthlyPnL).forEach((month) => {
       const m = monthlyPnL[month];
       if (m.gp1 === 0 && m.revenue > 0) {
-        m.gp1 = m.revenue - m.cogs; // COGS already calculated at 30%
+        m.gp1 = m.revenue - m.cogs;
       }
       if (m.gp2 === 0 && m.gp1 > 0) {
-        const operationalCosts = m.revenue * 0.11; // 5% pick/pack + 3% fees + 3% logistics
+        const operationalCosts = m.revenue * 0.11;
         m.gp2 = m.gp1 - operationalCosts;
       }
       if (m.gp3 === 0 && m.gp2 > 0) {
@@ -300,7 +369,6 @@ export async function GET(request: NextRequest) {
       }
       monthlyCustomers[orderMonth].add(customerId);
 
-      // Check if this is a new customer (first order in this month)
       if (customerFirstOrder[customerId]?.month === orderMonth) {
         if (!monthlyNewCustomers[orderMonth]) {
           monthlyNewCustomers[orderMonth] = new Set();
@@ -309,26 +377,24 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Build monthly metrics array
-    const months = Object.keys(monthlyPnL).sort();
-    const monthlyMetrics: MonthlyMetrics[] = months.map((month, index) => {
+    // Build ALL monthly metrics
+    const allMonths = Object.keys(monthlyPnL).sort();
+    const allMonthlyMetrics: MonthlyMetrics[] = allMonths.map((month, index) => {
       const pnl = monthlyPnL[month];
       const uniqueCustomers = monthlyCustomers[month]?.size || 0;
       const newCustomers = monthlyNewCustomers[month]?.size || 0;
       const repeatCustomers = uniqueCustomers - newCustomers;
       const trueNetProfit = pnl.gp3 - monthlyOpex;
 
-      // Calculate MoM growth
       let revenueGrowthMoM: number | null = null;
       if (index > 0) {
-        const prevMonth = months[index - 1];
+        const prevMonth = allMonths[index - 1];
         const prevRevenue = monthlyPnL[prevMonth]?.revenue || 0;
         if (prevRevenue > 0) {
           revenueGrowthMoM = ((pnl.revenue - prevRevenue) / prevRevenue) * 100;
         }
       }
 
-      // Calculate YoY growth
       let revenueGrowthYoY: number | null = null;
       const [year, monthNum] = month.split('-');
       const lastYearMonth = `${parseInt(year) - 1}-${monthNum}`;
@@ -361,11 +427,19 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Get trailing 12 months data
-    const last12Months = monthlyMetrics.slice(-12);
-    const last3Months = monthlyMetrics.slice(-3);
+    // Filter monthly metrics based on period selection
+    const filterStartStr = filterStart.toISOString().substring(0, 7);
+    const filterEndStr = filterEnd.toISOString().substring(0, 7);
 
-    // Calculate TTM totals
+    const filteredMonthlyMetrics = allMonthlyMetrics.filter((m) => {
+      return m.month >= filterStartStr && m.month <= filterEndStr;
+    });
+
+    // Get TTM data (always last 12 months for headline metrics)
+    const last12Months = allMonthlyMetrics.slice(-12);
+    const last3Months = allMonthlyMetrics.slice(-3);
+
+    // Calculate TTM totals (ALWAYS for headline metrics)
     const ttmRevenue = last12Months.reduce((sum, m) => sum + m.revenue, 0);
     const ttmGP1 = last12Months.reduce((sum, m) => sum + m.gp1, 0);
     const ttmGP3 = last12Months.reduce((sum, m) => sum + m.gp3, 0);
@@ -377,14 +451,14 @@ export async function GET(request: NextRequest) {
     const last3Revenue = last3Months.reduce((sum, m) => sum + m.revenue, 0);
     const annualRunRate = (last3Revenue / 3) * 12;
 
-    // YoY revenue growth (compare last 12 months to prior 12 months)
-    const prior12Months = monthlyMetrics.slice(-24, -12);
+    // YoY revenue growth
+    const prior12Months = allMonthlyMetrics.slice(-24, -12);
     const prior12Revenue = prior12Months.reduce((sum, m) => sum + m.revenue, 0);
     const revenueGrowthYoY = prior12Revenue > 0
       ? ((ttmRevenue - prior12Revenue) / prior12Revenue) * 100
       : 0;
 
-    // Customer metrics
+    // Customer metrics (ALL TIME for accurate LTV)
     const totalCustomers = Object.keys(customerOrders).length;
     const customersWithRepeat = Object.values(customerOrders).filter(c => c.count > 1).length;
     const repeatPurchaseRate = totalCustomers > 0 ? (customersWithRepeat / totalCustomers) * 100 : 0;
@@ -393,36 +467,37 @@ export async function GET(request: NextRequest) {
     const totalRevenueFromCustomers = Object.values(customerOrders).reduce((sum, c) => sum + c.totalRevenue, 0);
     const avgCustomerLifetimeValue = totalCustomers > 0 ? totalRevenueFromCustomers / totalCustomers : 0;
 
-    // CAC calculation (last 12 months ad spend / new customers acquired)
+    // CAC calculation (TTM)
     const ttmNewCustomers = last12Months.reduce((sum, m) => sum + m.newCustomers, 0);
     const customerAcquisitionCost = ttmNewCustomers > 0 ? ttmAdSpend / ttmNewCustomers : 0;
     const ltvCacRatio = customerAcquisitionCost > 0 ? avgCustomerLifetimeValue / customerAcquisitionCost : 0;
 
-    // Marketing efficiency
+    // Marketing efficiency (TTM)
     const mer = ttmAdSpend > 0 ? ttmRevenue / ttmAdSpend : 0;
 
-    // Payback period (months to recover CAC)
-    // Monthly revenue per customer = LTV / avg customer lifespan in months
-    // Simplified: assume 12 month average lifespan
+    // Payback period
     const monthlyRevenuePerCustomer = avgCustomerLifetimeValue / 12;
     const grossMarginPct = ttmRevenue > 0 ? (ttmGP1 / ttmRevenue) * 100 : 0;
     const monthlyGPPerCustomer = monthlyRevenuePerCustomer * (grossMarginPct / 100);
     const paybackPeriodMonths = monthlyGPPerCustomer > 0 ? customerAcquisitionCost / monthlyGPPerCustomer : 0;
 
-    // Build cohort data
+    // Build filtered cohort data
     const cohortMap: Record<string, {
       customers: Set<string>;
       totalRevenue: number;
       totalOrders: number;
     }> = {};
 
-    Object.entries(customerFirstOrder).forEach(([email, { month }]) => {
-      if (!cohortMap[month]) {
-        cohortMap[month] = { customers: new Set(), totalRevenue: 0, totalOrders: 0 };
+    Object.entries(customerFirstOrder).forEach(([customerId, { month }]) => {
+      // Only include cohorts within filter range
+      if (month >= filterStartStr && month <= filterEndStr) {
+        if (!cohortMap[month]) {
+          cohortMap[month] = { customers: new Set(), totalRevenue: 0, totalOrders: 0 };
+        }
+        cohortMap[month].customers.add(customerId);
+        cohortMap[month].totalRevenue += customerOrders[customerId]?.totalRevenue || 0;
+        cohortMap[month].totalOrders += customerOrders[customerId]?.count || 0;
       }
-      cohortMap[month].customers.add(email);
-      cohortMap[month].totalRevenue += customerOrders[email]?.totalRevenue || 0;
-      cohortMap[month].totalOrders += customerOrders[email]?.count || 0;
     });
 
     const cohorts: CustomerCohort[] = Object.entries(cohortMap)
@@ -434,10 +509,10 @@ export async function GET(request: NextRequest) {
         avgOrdersPerCustomer: data.customers.size > 0 ? data.totalOrders / data.customers.size : 0,
         avgRevenuePerCustomer: data.customers.size > 0 ? data.totalRevenue / data.customers.size : 0,
       }))
-      .sort((a, b) => a.firstOrderMonth.localeCompare(b.firstOrderMonth))
-      .slice(-12); // Last 12 cohorts
+      .sort((a, b) => a.firstOrderMonth.localeCompare(b.firstOrderMonth));
 
     const metrics: InvestorMetrics = {
+      // Always TTM for headline metrics
       ttmRevenue,
       ttmGP1,
       ttmGP3,
@@ -449,6 +524,7 @@ export async function GET(request: NextRequest) {
       contributionMarginPct: ttmRevenue > 0 ? (ttmGP3 / ttmRevenue) * 100 : 0,
       netMarginPct: ttmRevenue > 0 ? (ttmTrueNetProfit / ttmRevenue) * 100 : 0,
 
+      // All-time customer metrics
       totalCustomers,
       repeatPurchaseRate,
       avgOrdersPerCustomer,
@@ -456,17 +532,26 @@ export async function GET(request: NextRequest) {
       customerAcquisitionCost,
       ltvCacRatio,
 
+      // TTM efficiency metrics
       ttmAdSpend,
       blendedCac: customerAcquisitionCost,
       mer,
       paybackPeriodMonths,
 
-      monthlyMetrics,
+      // Filtered data for display
+      monthlyMetrics: filteredMonthlyMetrics,
       cohorts,
 
-      dataStartDate: months[0] || '',
-      dataEndDate: months[months.length - 1] || '',
-      monthsOfData: months.length,
+      // Data info
+      firstSaleDate,
+      lastSaleDate,
+      availableYears,
+
+      // Current filter
+      filterPeriod: period === 'year' && selectedYear ? `${selectedYear}` : period,
+      filterStartDate: filterStartStr,
+      filterEndDate: filterEndStr,
+      monthsInFilter: filteredMonthlyMetrics.length,
     };
 
     return NextResponse.json(metrics);

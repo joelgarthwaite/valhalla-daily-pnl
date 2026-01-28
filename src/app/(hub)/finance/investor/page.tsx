@@ -13,6 +13,7 @@ import {
   ArrowDownRight,
   Info,
   Download,
+  Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -51,7 +52,66 @@ import {
   ComposedChart,
   Area,
 } from 'recharts';
-import type { InvestorMetrics, BrandFilter } from '@/types';
+import type { BrandFilter } from '@/types';
+
+type PeriodFilter = 'all' | 'ttm' | 'ytd' | 'year';
+
+interface InvestorMetricsData {
+  ttmRevenue: number;
+  ttmGP1: number;
+  ttmGP3: number;
+  ttmTrueNetProfit: number;
+  annualRunRate: number;
+  revenueGrowthYoY: number;
+  grossMarginPct: number;
+  contributionMarginPct: number;
+  netMarginPct: number;
+  totalCustomers: number;
+  repeatPurchaseRate: number;
+  avgOrdersPerCustomer: number;
+  avgCustomerLifetimeValue: number;
+  customerAcquisitionCost: number;
+  ltvCacRatio: number;
+  ttmAdSpend: number;
+  blendedCac: number;
+  mer: number;
+  paybackPeriodMonths: number;
+  monthlyMetrics: Array<{
+    month: string;
+    monthLabel: string;
+    revenue: number;
+    orders: number;
+    uniqueCustomers: number;
+    newCustomers: number;
+    repeatCustomers: number;
+    cogs: number;
+    gp1: number;
+    gp2: number;
+    gp3: number;
+    trueNetProfit: number;
+    adSpend: number;
+    grossMarginPct: number;
+    netMarginPct: number;
+    avgOrderValue: number;
+    revenueGrowthMoM: number | null;
+    revenueGrowthYoY: number | null;
+  }>;
+  cohorts: Array<{
+    firstOrderMonth: string;
+    customersAcquired: number;
+    totalRevenue: number;
+    totalOrders: number;
+    avgOrdersPerCustomer: number;
+    avgRevenuePerCustomer: number;
+  }>;
+  firstSaleDate: string;
+  lastSaleDate: string;
+  availableYears: number[];
+  filterPeriod: string;
+  filterStartDate: string;
+  filterEndDate: string;
+  monthsInFilter: number;
+}
 
 function formatCurrency(value: number, compact = false): string {
   if (compact && Math.abs(value) >= 1000000) {
@@ -151,21 +211,32 @@ function MetricCard({
 }
 
 function InvestorMetricsContent() {
-  const [metrics, setMetrics] = useState<InvestorMetrics | null>(null);
+  const [metrics, setMetrics] = useState<InvestorMetricsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   const fetchMetrics = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/investor/metrics?brand=${brandFilter}`);
+      let url = `/api/investor/metrics?brand=${brandFilter}&period=${periodFilter}`;
+      if (periodFilter === 'year' && selectedYear) {
+        url += `&year=${selectedYear}`;
+      }
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch metrics');
       }
       const data = await response.json();
       setMetrics(data);
+
+      // Set default year if not set and years are available
+      if (!selectedYear && data.availableYears?.length > 0) {
+        setSelectedYear(data.availableYears[0]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -175,7 +246,7 @@ function InvestorMetricsContent() {
 
   useEffect(() => {
     fetchMetrics();
-  }, [brandFilter]);
+  }, [brandFilter, periodFilter, selectedYear]);
 
   const handleExport = () => {
     if (!metrics) return;
@@ -243,9 +314,9 @@ function InvestorMetricsContent() {
     );
   }
 
-  // Prepare chart data
-  const chartData = metrics?.monthlyMetrics.slice(-12).map((m) => ({
-    month: m.monthLabel.replace(' 20', '\n'),
+  // Prepare chart data (use filtered data, max 24 months for readability)
+  const chartData = metrics?.monthlyMetrics.slice(-24).map((m) => ({
+    month: m.monthLabel.replace(' 20', "'"),
     revenue: m.revenue,
     gp3: m.gp3,
     trueNetProfit: m.trueNetProfit,
@@ -254,6 +325,23 @@ function InvestorMetricsContent() {
     newCustomers: m.newCustomers,
     repeatCustomers: m.repeatCustomers,
   })) || [];
+
+  // Get filter label for display
+  const getFilterLabel = () => {
+    if (!metrics) return '';
+    switch (periodFilter) {
+      case 'all':
+        return `All Time (${metrics.firstSaleDate} to ${metrics.lastSaleDate})`;
+      case 'ttm':
+        return 'Trailing 12 Months';
+      case 'ytd':
+        return `Year to Date (${new Date().getFullYear()})`;
+      case 'year':
+        return selectedYear?.toString() || '';
+      default:
+        return '';
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -266,11 +354,53 @@ function InvestorMetricsContent() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Period Filter Buttons */}
+          <div className="flex rounded-lg border bg-muted p-1">
+            {[
+              { value: 'all', label: 'All Time' },
+              { value: 'ttm', label: 'TTM' },
+              { value: 'ytd', label: 'YTD' },
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setPeriodFilter(option.value as PeriodFilter)}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                  periodFilter === option.value
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Year Selector */}
+          <Select
+            value={periodFilter === 'year' ? selectedYear?.toString() : ''}
+            onValueChange={(value) => {
+              setPeriodFilter('year');
+              setSelectedYear(parseInt(value));
+            }}
+          >
+            <SelectTrigger className="w-[100px]">
+              <SelectValue placeholder="Year" />
+            </SelectTrigger>
+            <SelectContent>
+              {metrics?.availableYears.map((year) => (
+                <SelectItem key={year} value={year.toString()}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Brand Filter */}
           <Select
             value={brandFilter}
             onValueChange={(value) => setBrandFilter(value as BrandFilter)}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Select brand" />
             </SelectTrigger>
             <SelectContent>
@@ -295,10 +425,13 @@ function InvestorMetricsContent() {
         </div>
       </div>
 
-      {/* Data Quality Banner */}
+      {/* Data Filter Banner */}
       {metrics && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-sm text-blue-700">
-          Data from {metrics.dataStartDate} to {metrics.dataEndDate} ({metrics.monthsOfData} months)
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-sm text-blue-700 flex items-center gap-2">
+          <Calendar className="h-4 w-4" />
+          <span>
+            <strong>{getFilterLabel()}</strong> — {metrics.filterStartDate} to {metrics.filterEndDate} ({metrics.monthsInFilter} months of data)
+          </span>
         </div>
       )}
 
