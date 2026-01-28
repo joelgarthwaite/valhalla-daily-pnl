@@ -742,13 +742,13 @@ function InvestorMetricsContent() {
                 <Bar
                   dataKey="newCustomers"
                   stackId="a"
-                  fill="hsl(var(--chart-1))"
+                  fill="#1f2937"
                   name="New Customers"
                 />
                 <Bar
                   dataKey="repeatCustomers"
                   stackId="a"
-                  fill="hsl(var(--chart-2))"
+                  fill="#d97706"
                   name="Repeat Customers"
                 />
               </BarChart>
