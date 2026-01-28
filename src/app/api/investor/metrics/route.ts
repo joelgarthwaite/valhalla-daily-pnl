@@ -106,10 +106,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch all orders for customer analysis
+    // Fetch all orders for customer analysis (include raw_data for email extraction)
     let ordersQuery = supabase
       .from('orders')
-      .select('id, customer_email, order_date, subtotal, brand_id')
+      .select('id, customer_email, customer_name, order_date, subtotal, brand_id, raw_data')
       .gte('order_date', startDate.toISOString().split('T')[0])
       .lte('order_date', endDate.toISOString().split('T')[0])
       .is('excluded_at', null)
@@ -175,25 +175,61 @@ export async function GET(request: NextRequest) {
 
     const monthlyOpex = calculateMonthlyOpex();
 
+    // Helper to extract customer identifier from order
+    const getCustomerIdentifier = (order: {
+      customer_email?: string | null;
+      customer_name?: string | null;
+      raw_data?: Record<string, unknown> | null;
+    }): string | null => {
+      // Try customer_email first
+      if (order.customer_email) {
+        return order.customer_email.toLowerCase();
+      }
+
+      // Try to extract from raw_data (Shopify/Etsy structure)
+      const rawData = order.raw_data;
+      if (rawData) {
+        // Shopify: email field or customer.email
+        if (typeof rawData.email === 'string') {
+          return rawData.email.toLowerCase();
+        }
+        const customer = rawData.customer as Record<string, unknown> | undefined;
+        if (customer && typeof customer.email === 'string') {
+          return customer.email.toLowerCase();
+        }
+        // Etsy: buyer_email
+        if (typeof rawData.buyer_email === 'string') {
+          return rawData.buyer_email.toLowerCase();
+        }
+      }
+
+      // Fallback to customer_name if no email (less accurate but better than nothing)
+      if (order.customer_name) {
+        return `name:${order.customer_name.toLowerCase().replace(/\s+/g, '_')}`;
+      }
+
+      return null;
+    };
+
     // Build customer first order map
     const customerFirstOrder: Record<string, { date: string; month: string }> = {};
     const customerOrders: Record<string, { count: number; totalRevenue: number }> = {};
 
     (orders || []).forEach((order) => {
-      const email = order.customer_email?.toLowerCase();
-      if (!email) return;
+      const customerId = getCustomerIdentifier(order);
+      if (!customerId) return;
 
       const orderMonth = order.order_date.substring(0, 7);
 
-      if (!customerFirstOrder[email] || order.order_date < customerFirstOrder[email].date) {
-        customerFirstOrder[email] = { date: order.order_date, month: orderMonth };
+      if (!customerFirstOrder[customerId] || order.order_date < customerFirstOrder[customerId].date) {
+        customerFirstOrder[customerId] = { date: order.order_date, month: orderMonth };
       }
 
-      if (!customerOrders[email]) {
-        customerOrders[email] = { count: 0, totalRevenue: 0 };
+      if (!customerOrders[customerId]) {
+        customerOrders[customerId] = { count: 0, totalRevenue: 0 };
       }
-      customerOrders[email].count++;
-      customerOrders[email].totalRevenue += order.subtotal || 0;
+      customerOrders[customerId].count++;
+      customerOrders[customerId].totalRevenue += order.subtotal || 0;
     });
 
     // Aggregate P&L by month
@@ -231,27 +267,45 @@ export async function GET(request: NextRequest) {
       monthlyPnL[month].adSpend += day.total_ad_spend || 0;
     });
 
+    // Calculate GP1/GP2/GP3 from revenue and cogs if database values are 0
+    // GP1 = Revenue - COGS (30% of revenue)
+    // GP2 = GP1 - Pick&Pack (5%) - Payment Fees (3%) - Logistics (3%) = GP1 - 11%
+    // GP3 = GP2 - Ad Spend
+    Object.keys(monthlyPnL).forEach((month) => {
+      const m = monthlyPnL[month];
+      if (m.gp1 === 0 && m.revenue > 0) {
+        m.gp1 = m.revenue - m.cogs; // COGS already calculated at 30%
+      }
+      if (m.gp2 === 0 && m.gp1 > 0) {
+        const operationalCosts = m.revenue * 0.11; // 5% pick/pack + 3% fees + 3% logistics
+        m.gp2 = m.gp1 - operationalCosts;
+      }
+      if (m.gp3 === 0 && m.gp2 > 0) {
+        m.gp3 = m.gp2 - m.adSpend;
+      }
+    });
+
     // Aggregate customers by month
     const monthlyCustomers: Record<string, Set<string>> = {};
     const monthlyNewCustomers: Record<string, Set<string>> = {};
 
     (orders || []).forEach((order) => {
-      const email = order.customer_email?.toLowerCase();
-      if (!email) return;
+      const customerId = getCustomerIdentifier(order);
+      if (!customerId) return;
 
       const orderMonth = order.order_date.substring(0, 7);
 
       if (!monthlyCustomers[orderMonth]) {
         monthlyCustomers[orderMonth] = new Set();
       }
-      monthlyCustomers[orderMonth].add(email);
+      monthlyCustomers[orderMonth].add(customerId);
 
       // Check if this is a new customer (first order in this month)
-      if (customerFirstOrder[email]?.month === orderMonth) {
+      if (customerFirstOrder[customerId]?.month === orderMonth) {
         if (!monthlyNewCustomers[orderMonth]) {
           monthlyNewCustomers[orderMonth] = new Set();
         }
-        monthlyNewCustomers[orderMonth].add(email);
+        monthlyNewCustomers[orderMonth].add(customerId);
       }
     });
 
