@@ -398,6 +398,26 @@ When syncing orders, verify:
 
 ---
 
+## VAT Treatment
+
+**All figures in the P&L are NET of VAT.**
+
+### Revenue (NET of VAT)
+- **Shopify**: `subtotal_price` excludes VAT
+- **Etsy**: `subtotal` excludes VAT
+- **B2B**: Recorded NET of VAT
+
+### Costs (NET of VAT)
+- **Ad Spend**: Meta/Google are B2B services, invoiced NET (VAT reclaimed)
+- **Platform Fees**: Calculated on NET revenue amounts
+- **Shipping Costs**: Carrier invoices are NET (VAT reclaimed)
+- **COGS/Pick&Pack/Logistics**: Calculated as % of NET revenue
+- **OPEX**: All operating expenses recorded NET of VAT
+
+VAT is treated as a pass-through: collected from customers and paid to HMRC. It does not appear in P&L calculations as it has no impact on profitability for VAT-registered businesses.
+
+---
+
 ## P&L Calculations
 
 ### Revenue Flow
