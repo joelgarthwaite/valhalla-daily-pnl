@@ -554,6 +554,8 @@ valhalla-daily-pnl/
 │   │   │   │   ├── route.ts            # List/update orders (B2B tagging)
 │   │   │   │   ├── exclude/route.ts    # Exclude/restore orders from P&L
 │   │   │   │   └── sync/route.ts       # Sync from all platforms
+│   │   │   └── investor/
+│   │   │       └── metrics/route.ts    # Investor metrics API (M&A data room)
 │   │   └── layout.tsx                  # Root layout
 │   ├── components/
 │   │   ├── ui/                         # shadcn/ui components
@@ -1145,6 +1147,78 @@ Returns:
 ### Data Sources
 - **Orders**: `orders` table using `shipping_address.country_code`
 - **Ad Spend**: `country_ad_spend` table (synced from Meta API)
+
+---
+
+## Investor Metrics
+
+### Purpose
+M&A data room dashboard with key metrics investors want during due diligence. Provides TTM (Trailing 12 Months) performance metrics and unit economics.
+
+### Location
+Finance > Investor Metrics (`/finance/investor`)
+
+### Time Period Filters
+| Filter | Description |
+|--------|-------------|
+| **All Time** | Data from first sale to present |
+| **TTM** | Trailing 12 months (last 12 months) |
+| **YTD** | Year to date (Jan 1 of current year to now) |
+| **Year** | Specific year selection dropdown |
+
+**Note:** Headline KPIs (TTM Revenue, Gross Margin, LTV:CAC, etc.) are ALWAYS calculated from TTM regardless of filter selection - this is the industry standard for M&A metrics. The filter only affects charts, tables, and cohort analysis.
+
+### Headline Metrics (Always TTM)
+| Metric | Definition |
+|--------|------------|
+| TTM Revenue | Total revenue over last 12 months |
+| Annual Run Rate | Annualized revenue based on last 3 months |
+| Gross Margin | GP1 / Revenue (target: >60%) |
+| Net Margin | True Net Profit / Revenue (target: >10%) |
+
+### Customer Metrics (All Time)
+| Metric | Definition |
+|--------|------------|
+| Total Customers | Unique customers who have ordered |
+| Repeat Rate | % of customers with 2+ orders |
+| LTV | Average lifetime value per customer |
+| CAC | Customer Acquisition Cost (Ad Spend / New Customers) |
+| LTV:CAC | Ratio of LTV to CAC (target: >3x) |
+
+### Marketing Efficiency (TTM)
+| Metric | Definition |
+|--------|------------|
+| TTM Ad Spend | Total marketing investment over 12 months |
+| MER | Marketing Efficiency Ratio (Revenue / Ad Spend) |
+| CAC Payback | Months to recover acquisition cost |
+
+### Charts & Tables
+- **Revenue & Profit Trend**: Monthly bar/line chart showing Revenue, GP3, True Net Profit
+- **Margin Trend**: Monthly line chart showing Gross Margin and Net Margin %
+- **Customer Acquisition**: Stacked bar chart showing New vs Repeat customers per month
+- **Monthly Performance Table**: Detailed breakdown with MoM/YoY growth, AOV, margins
+- **Cohort Analysis**: Customer behavior by acquisition month (orders/customer, revenue/customer)
+
+### Data Sources
+- Revenue/Orders: `daily_pnl` table (excludes excluded orders)
+- Customer data: `orders` table with customer email extraction
+- Ad Spend: `daily_pnl.total_ad_spend`
+- OPEX: `operating_expenses` table
+
+### API Endpoint
+```
+GET /api/investor/metrics?brand=all|DC|BI&period=all|ttm|ytd|year&year=2025
+```
+
+Returns:
+- Headline metrics (always TTM)
+- `monthlyMetrics[]` - Filtered monthly P&L data
+- `cohorts[]` - Customer cohort analysis
+- `availableYears` - Years with data for dropdown
+- `filterStartDate`, `filterEndDate`, `monthsInFilter` - Current filter info
+
+### Order Exclusions
+Excluded orders (test orders, etc.) are automatically filtered out from all investor metrics calculations via the `excluded_at IS NULL` filter.
 
 ---
 
