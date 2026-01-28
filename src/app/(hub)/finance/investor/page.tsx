@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import {
   RefreshCw,
   TrendingUp,
@@ -218,7 +218,11 @@ function InvestorMetricsContent() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
-  const fetchMetrics = async () => {
+  // Refs for debouncing and request cancellation
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const fetchMetrics = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -226,7 +230,7 @@ function InvestorMetricsContent() {
       if (periodFilter === 'year' && selectedYear) {
         url += `&year=${selectedYear}`;
       }
-      const response = await fetch(url);
+      const response = await fetch(url, { signal });
       if (!response.ok) {
         throw new Error('Failed to fetch metrics');
       }
@@ -238,15 +242,44 @@ function InvestorMetricsContent() {
         setSelectedYear(data.availableYears[0]);
       }
     } catch (err) {
+      // Ignore abort errors (these are expected when cancelling requests)
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [brandFilter, periodFilter, selectedYear]);
 
   useEffect(() => {
-    fetchMetrics();
-  }, [brandFilter, periodFilter, selectedYear]);
+    // Cancel any pending debounce timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Debounce the fetch by 300ms to prevent rapid fire requests
+    debounceTimeoutRef.current = setTimeout(() => {
+      // Create new abort controller for this request
+      abortControllerRef.current = new AbortController();
+      fetchMetrics(abortControllerRef.current.signal);
+    }, 300);
+
+    // Cleanup on unmount
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [brandFilter, periodFilter, selectedYear, fetchMetrics]);
 
   const handleExport = () => {
     if (!metrics) return;
@@ -355,7 +388,7 @@ function InvestorMetricsContent() {
         </div>
         <div className="flex items-center gap-3">
           {/* Period Filter Buttons */}
-          <div className="flex rounded-lg border bg-muted p-1">
+          <div className={`flex rounded-lg border bg-muted p-1 ${isLoading ? 'opacity-50' : ''}`}>
             {[
               { value: 'all', label: 'All Time' },
               { value: 'ttm', label: 'TTM' },
@@ -364,11 +397,12 @@ function InvestorMetricsContent() {
               <button
                 key={option.value}
                 onClick={() => setPeriodFilter(option.value as PeriodFilter)}
+                disabled={isLoading}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                   periodFilter === option.value
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                } ${isLoading ? 'cursor-not-allowed' : ''}`}
               >
                 {option.label}
               </button>
@@ -382,8 +416,9 @@ function InvestorMetricsContent() {
               setPeriodFilter('year');
               setSelectedYear(parseInt(value));
             }}
+            disabled={isLoading}
           >
-            <SelectTrigger className="w-[100px]">
+            <SelectTrigger className={`w-[100px] ${isLoading ? 'opacity-50' : ''}`}>
               <SelectValue placeholder="Year" />
             </SelectTrigger>
             <SelectContent>
@@ -399,8 +434,9 @@ function InvestorMetricsContent() {
           <Select
             value={brandFilter}
             onValueChange={(value) => setBrandFilter(value as BrandFilter)}
+            disabled={isLoading}
           >
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className={`w-[150px] ${isLoading ? 'opacity-50' : ''}`}>
               <SelectValue placeholder="Select brand" />
             </SelectTrigger>
             <SelectContent>
@@ -409,14 +445,24 @@ function InvestorMetricsContent() {
               <SelectItem value="BI">Bright Ivy</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={handleExport} disabled={!metrics}>
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={!metrics || isLoading}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchMetrics}
+            onClick={() => {
+              // Cancel any pending request and fetch immediately
+              if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+              }
+              if (debounceTimeoutRef.current) {
+                clearTimeout(debounceTimeoutRef.current);
+              }
+              abortControllerRef.current = new AbortController();
+              fetchMetrics(abortControllerRef.current.signal);
+            }}
             disabled={isLoading}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
