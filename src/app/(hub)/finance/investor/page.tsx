@@ -152,6 +152,7 @@ interface MetricCardProps {
   icon: React.ElementType;
   tooltip?: string;
   highlight?: 'positive' | 'negative' | 'neutral';
+  isLoading?: boolean;
 }
 
 function MetricCard({
@@ -163,6 +164,7 @@ function MetricCard({
   icon: Icon,
   tooltip,
   highlight = 'neutral',
+  isLoading = false,
 }: MetricCardProps) {
   const highlightColors = {
     positive: 'text-green-600',
@@ -188,22 +190,33 @@ function MetricCard({
             </TooltipProvider>
           )}
         </CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <Icon className={`h-4 w-4 text-muted-foreground ${isLoading ? 'animate-pulse' : ''}`} />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {subtitle && (
-          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
-        )}
-        {change !== undefined && change !== null && (
-          <div className={`flex items-center text-xs mt-2 ${highlightColors[highlight]}`}>
-            {change >= 0 ? (
-              <ArrowUpRight className="h-3 w-3 mr-1" />
-            ) : (
-              <ArrowDownRight className="h-3 w-3 mr-1" />
+        {isLoading ? (
+          <>
+            <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+            {subtitle && (
+              <div className="h-3 w-32 bg-muted animate-pulse rounded mt-2" />
             )}
-            {formatPercent(change)} {changeLabel}
-          </div>
+          </>
+        ) : (
+          <>
+            <div className="text-2xl font-bold">{value}</div>
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+            )}
+            {change !== undefined && change !== null && (
+              <div className={`flex items-center text-xs mt-2 ${highlightColors[highlight]}`}>
+                {change >= 0 ? (
+                  <ArrowUpRight className="h-3 w-3 mr-1" />
+                ) : (
+                  <ArrowDownRight className="h-3 w-3 mr-1" />
+                )}
+                {formatPercent(change)} {changeLabel}
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -492,6 +505,7 @@ function InvestorMetricsContent() {
           icon={DollarSign}
           tooltip="Total revenue over the last 12 months"
           highlight={metrics?.revenueGrowthYoY && metrics.revenueGrowthYoY > 0 ? 'positive' : 'negative'}
+          isLoading={isLoading}
         />
         <MetricCard
           title="Annual Run Rate"
@@ -499,6 +513,7 @@ function InvestorMetricsContent() {
           subtitle="Based on last 3 months"
           icon={TrendingUp}
           tooltip="Annualized revenue based on recent performance"
+          isLoading={isLoading}
         />
         <MetricCard
           title="Gross Margin"
@@ -507,6 +522,7 @@ function InvestorMetricsContent() {
           icon={Target}
           tooltip="Gross profit after COGS as % of revenue"
           highlight={metrics?.grossMarginPct && metrics.grossMarginPct > 60 ? 'positive' : 'neutral'}
+          isLoading={isLoading}
         />
         <MetricCard
           title="Net Margin"
@@ -515,6 +531,7 @@ function InvestorMetricsContent() {
           icon={Target}
           tooltip="True net profit after all costs including OPEX"
           highlight={metrics?.netMarginPct && metrics.netMarginPct > 10 ? 'positive' : metrics?.netMarginPct && metrics.netMarginPct < 0 ? 'negative' : 'neutral'}
+          isLoading={isLoading}
         />
       </div>
 
@@ -526,6 +543,7 @@ function InvestorMetricsContent() {
           subtitle="Unique customers"
           icon={Users}
           tooltip="Total unique customers who have ordered"
+          isLoading={isLoading}
         />
         <MetricCard
           title="Repeat Rate"
@@ -534,6 +552,7 @@ function InvestorMetricsContent() {
           icon={Repeat}
           tooltip="% of customers who have placed 2+ orders"
           highlight={metrics?.repeatPurchaseRate && metrics.repeatPurchaseRate > 30 ? 'positive' : 'neutral'}
+          isLoading={isLoading}
         />
         <MetricCard
           title="LTV"
@@ -541,6 +560,7 @@ function InvestorMetricsContent() {
           subtitle="Avg lifetime value"
           icon={DollarSign}
           tooltip="Average revenue per customer over their lifetime"
+          isLoading={isLoading}
         />
         <MetricCard
           title="CAC"
@@ -548,6 +568,7 @@ function InvestorMetricsContent() {
           subtitle="Acquisition cost"
           icon={DollarSign}
           tooltip="Ad spend divided by new customers acquired"
+          isLoading={isLoading}
         />
         <MetricCard
           title="LTV:CAC"
@@ -556,6 +577,7 @@ function InvestorMetricsContent() {
           icon={TrendingUp}
           tooltip="Target >3x for healthy unit economics"
           highlight={metrics?.ltvCacRatio && metrics.ltvCacRatio > 3 ? 'positive' : metrics?.ltvCacRatio && metrics.ltvCacRatio < 1 ? 'negative' : 'neutral'}
+          isLoading={isLoading}
         />
       </div>
 
@@ -566,6 +588,7 @@ function InvestorMetricsContent() {
           value={formatCurrency(metrics?.ttmAdSpend || 0, true)}
           subtitle="Total marketing investment"
           icon={DollarSign}
+          isLoading={isLoading}
         />
         <MetricCard
           title="MER"
@@ -574,6 +597,7 @@ function InvestorMetricsContent() {
           icon={TrendingUp}
           tooltip="Revenue / Ad Spend - higher is better"
           highlight={metrics?.mer && metrics.mer > 5 ? 'positive' : metrics?.mer && metrics.mer < 2 ? 'negative' : 'neutral'}
+          isLoading={isLoading}
         />
         <MetricCard
           title="CAC Payback"
@@ -582,6 +606,7 @@ function InvestorMetricsContent() {
           icon={Target}
           tooltip="Based on gross margin contribution"
           highlight={metrics?.paybackPeriodMonths && metrics.paybackPeriodMonths < 6 ? 'positive' : metrics?.paybackPeriodMonths && metrics.paybackPeriodMonths > 12 ? 'negative' : 'neutral'}
+          isLoading={isLoading}
         />
       </div>
 
