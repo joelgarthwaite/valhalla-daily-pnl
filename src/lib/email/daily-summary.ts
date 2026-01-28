@@ -15,6 +15,7 @@ function getResendClient(): Resend {
 
 export interface DailySummaryData {
   date: string;
+  isTodaySoFar?: boolean; // true = "today so far" (evening), false = "yesterday's full results" (morning)
   // Revenue
   totalRevenue: number;
   shopifyRevenue: number;
@@ -35,7 +36,7 @@ export interface DailySummaryData {
   totalAdSpend: number;
   mer: number;
   poas: number;
-  // Comparison (vs yesterday)
+  // Comparison (vs previous day)
   previousDay?: {
     totalRevenue: number;
     trueNetProfit: number;
@@ -69,6 +70,7 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
   const isProfitable = data.trueNetProfit > 0;
   const profitColor = getProfitColor(data.trueNetProfit);
   const statusEmoji = getStatusEmoji(isProfitable);
+  const isTodaySoFar = data.isTodaySoFar || false;
 
   // Calculate changes vs previous day
   const revenueChange = data.previousDay
@@ -88,20 +90,26 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
     year: 'numeric',
   });
 
+  // Different titles for morning (yesterday) vs evening (today so far)
+  const emailTitle = isTodaySoFar ? 'Today So Far' : 'Daily P&L Summary';
+  const subtitleText = isTodaySoFar
+    ? `${formattedDate} (as of 7pm)`
+    : formattedDate;
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Daily P&L Summary - ${data.date}</title>
+  <title>${emailTitle} - ${data.date}</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
 
   <!-- Header -->
-  <div style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-    <h1 style="margin: 0 0 10px 0; font-size: 24px;">Daily P&L Summary</h1>
-    <p style="margin: 0; opacity: 0.9; font-size: 16px;">${formattedDate}</p>
+  <div style="background: linear-gradient(135deg, ${isTodaySoFar ? '#7c3aed' : '#1e3a8a'} 0%, ${isTodaySoFar ? '#a78bfa' : '#3b82f6'} 100%); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="margin: 0 0 10px 0; font-size: 24px;">${emailTitle}</h1>
+    <p style="margin: 0; opacity: 0.9; font-size: 16px;">${subtitleText}</p>
   </div>
 
   <!-- Profitability Status -->
@@ -110,11 +118,13 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
       <span style="font-size: 32px;">${statusEmoji}</span>
       <div>
         <h2 style="margin: 0; color: ${profitColor}; font-size: 20px;">
-          ${isProfitable ? 'Profitable Day!' : 'Not Yet Profitable'}
+          ${isTodaySoFar
+            ? (isProfitable ? 'On Track for Profit!' : 'Not Profitable Yet')
+            : (isProfitable ? 'Profitable Day!' : 'Unprofitable Day')}
         </h2>
         <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">
-          True Net Profit: <strong style="color: ${profitColor}; font-size: 18px;">${formatCurrency(data.trueNetProfit)}</strong>
-          ${profitChange !== null ? `<span style="color: ${profitChange >= 0 ? '#22c55e' : '#ef4444'};">(${formatPercentage(profitChange)} vs yesterday)</span>` : ''}
+          True Net Profit${isTodaySoFar ? ' (so far)' : ''}: <strong style="color: ${profitColor}; font-size: 18px;">${formatCurrency(data.trueNetProfit)}</strong>
+          ${profitChange !== null ? `<span style="color: ${profitChange >= 0 ? '#22c55e' : '#ef4444'};">(${formatPercentage(profitChange)} vs ${isTodaySoFar ? 'yesterday' : 'day before'})</span>` : ''}
         </p>
       </div>
     </div>
@@ -240,7 +250,7 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
   <!-- Footer -->
   <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
     <p style="margin: 0;">Valhalla Daily P&L Dashboard</p>
-    <p style="margin: 5px 0 0 0;">Automated daily summary sent at 6:00 PM</p>
+    <p style="margin: 5px 0 0 0;">${isTodaySoFar ? 'Evening update sent at 7:00 PM' : 'Morning summary sent at 7:00 AM'}</p>
   </div>
 </body>
 </html>
@@ -249,6 +259,7 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
 
 export function generateDailySummaryText(data: DailySummaryData): string {
   const isProfitable = data.trueNetProfit > 0;
+  const isTodaySoFar = data.isTodaySoFar || false;
   const formattedDate = new Date(data.date).toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',
@@ -256,13 +267,18 @@ export function generateDailySummaryText(data: DailySummaryData): string {
     year: 'numeric',
   });
 
+  const title = isTodaySoFar ? 'TODAY SO FAR' : 'DAILY P&L SUMMARY';
+  const statusMessage = isTodaySoFar
+    ? (isProfitable ? '✅ ON TRACK FOR PROFIT!' : '⚠️ NOT PROFITABLE YET')
+    : (isProfitable ? '✅ PROFITABLE DAY!' : '⚠️ UNPROFITABLE DAY');
+
   return `
-DAILY P&L SUMMARY - ${formattedDate}
+${title} - ${formattedDate}${isTodaySoFar ? ' (as of 7pm)' : ''}
 ${'='.repeat(50)}
 
-${isProfitable ? '✅ PROFITABLE DAY!' : '⚠️ NOT YET PROFITABLE'}
+${statusMessage}
 
-True Net Profit: ${formatCurrency(data.trueNetProfit)}
+True Net Profit${isTodaySoFar ? ' (so far)' : ''}: ${formatCurrency(data.trueNetProfit)}
 Net Margin: ${data.netMarginPct.toFixed(1)}%
 
 KEY METRICS
@@ -307,18 +323,23 @@ export async function sendDailySummaryEmail(
   }
 
   const isProfitable = data.trueNetProfit > 0;
+  const isTodaySoFar = data.isTodaySoFar || false;
   const statusEmoji = isProfitable ? '✅' : '⚠️';
   const formattedDate = new Date(data.date).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
   });
 
+  // Different subject lines for morning (yesterday) vs evening (today so far)
+  const subjectPrefix = isTodaySoFar ? 'Today So Far' : 'Daily P&L';
+  const profitLabel = isTodaySoFar ? 'profit so far' : 'profit';
+
   try {
     const client = getResendClient();
     const { error } = await client.emails.send({
       from: 'Valhalla P&L <pnl@displaychamp.com>',
       to: recipients,
-      subject: `${statusEmoji} Daily P&L: ${formatCurrency(data.trueNetProfit)} profit (${formattedDate})`,
+      subject: `${statusEmoji} ${subjectPrefix}: ${formatCurrency(data.trueNetProfit)} ${profitLabel} (${formattedDate})`,
       html: generateDailySummaryHTML(data),
       text: generateDailySummaryText(data),
     });

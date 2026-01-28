@@ -5,7 +5,10 @@ import { fetchAllMetaAdSpend, verifyMetaToken } from '@/lib/meta/client';
 /**
  * Daily Cron Job - Syncs all data and refreshes P&L
  *
- * Runs automatically via Vercel Cron at configured time
+ * Runs automatically via Vercel Cron at configured times:
+ * - 7:00 AM UTC (type=morning): Full sync + Yesterday's P&L summary email
+ * - 7:00 PM UTC (type=evening): Full sync + Today's "so far" P&L email
+ *
  * Can also be triggered manually with the correct CRON_SECRET
  *
  * Order of operations:
@@ -14,7 +17,7 @@ import { fetchAllMetaAdSpend, verifyMetaToken } from '@/lib/meta/client';
  * 3. Sync ad spend from Meta (all brands)
  * 4. Sync country-level ad spend from Meta (for Country Analysis GP3)
  * 5. Refresh P&L calculations
- * 6. Send daily summary email (evening sync only)
+ * 6. Send P&L summary email (morning=yesterday, evening=today so far)
  */
 
 const BRAND_AD_ACCOUNTS: Record<string, string> = {
@@ -265,42 +268,35 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Step 6: Send Daily Summary Email (only at 6pm sync, not morning sync)
-  const currentHour = new Date().getUTCHours();
-  const isEveningSync = currentHour >= 17; // 5pm UTC or later (6pm UK in winter, 5pm UK in summer)
+  // Step 6: Send Daily Summary Email
+  // Determine sync type from query param or time of day
+  const syncType = request.nextUrl.searchParams.get('type') ||
+    (new Date().getUTCHours() < 12 ? 'morning' : 'evening');
 
-  if (isEveningSync) {
-    try {
-      const emailResponse = await fetch(
-        `${new URL(request.url).origin}/api/email/daily-summary`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${cronSecret}`,
-          },
-        }
-      );
-      const emailData = await emailResponse.json();
+  try {
+    const emailResponse = await fetch(
+      `${new URL(request.url).origin}/api/email/daily-summary?type=${syncType}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cronSecret}`,
+        },
+      }
+    );
+    const emailData = await emailResponse.json();
 
-      results.push({
-        step: 'Daily Summary Email',
-        success: emailResponse.ok,
-        message: emailResponse.ok ? emailData.message : emailData.error,
-        details: emailData.data,
-      });
-    } catch (error) {
-      results.push({
-        step: 'Daily Summary Email',
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
-    }
-  } else {
     results.push({
       step: 'Daily Summary Email',
-      success: true,
-      message: 'Skipped (only sent at evening sync)',
+      success: emailResponse.ok,
+      message: emailResponse.ok ? emailData.message : emailData.error,
+      details: { ...emailData.data, syncType },
+    });
+  } catch (error) {
+    results.push({
+      step: 'Daily Summary Email',
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 

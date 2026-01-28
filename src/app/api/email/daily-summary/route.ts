@@ -7,7 +7,7 @@ import { calculateOpexForPeriod, getOpexSummary } from '@/lib/pnl/opex';
 import type { OperatingExpense } from '@/types';
 
 // Recipients for the daily summary email
-const EMAIL_RECIPIENTS = [
+const DEFAULT_RECIPIENTS = [
   'joel@displaychamp.com',
   'lee@displaychamp.com',
 ];
@@ -17,11 +17,13 @@ const EMAIL_RECIPIENTS = [
  * Send daily P&L summary email
  *
  * Can be triggered by:
- * 1. Cron job at 6pm
- * 2. Manual trigger with Authorization header
+ * 1. Cron job at 7am (type=morning) - Yesterday's full results
+ * 2. Cron job at 7pm (type=evening) - Today's results so far
+ * 3. Manual trigger with Authorization header
  *
  * Query params:
- * - date: Optional date override (YYYY-MM-DD), defaults to today
+ * - type: "morning" (yesterday's results) or "evening" (today so far)
+ * - date: Optional date override (YYYY-MM-DD)
  * - test: If "true", only logs the email, doesn't send
  */
 export async function POST(request: NextRequest) {
@@ -36,11 +38,22 @@ export async function POST(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams;
   const dateParam = searchParams.get('date');
+  const syncType = searchParams.get('type') || 'morning'; // morning = yesterday, evening = today
   const isTest = searchParams.get('test') === 'true';
+  const toParam = searchParams.get('to'); // Optional: override recipients for testing
 
-  // Use provided date or today
-  const targetDate = dateParam || format(new Date(), 'yyyy-MM-dd');
+  // Use custom recipient if provided, otherwise default list
+  const recipients = toParam ? [toParam] : DEFAULT_RECIPIENTS;
+
+  // Determine target date based on sync type
+  // Morning sync (7am) = report on YESTERDAY (complete day)
+  // Evening sync (7pm) = report on TODAY (so far)
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+
+  const targetDate = dateParam || (syncType === 'morning' ? yesterday : today);
   const previousDate = format(subDays(new Date(targetDate), 1), 'yyyy-MM-dd');
+  const isTodaySoFar = syncType === 'evening' && !dateParam;
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -104,6 +117,7 @@ export async function POST(request: NextRequest) {
     // Prepare email data
     const emailData: DailySummaryData = {
       date: targetDate,
+      isTodaySoFar, // Flag for "today so far" vs "yesterday's full results"
       // Revenue
       totalRevenue: todaySummary.totalRevenue,
       shopifyRevenue: todaySummary.shopifyRevenue,
@@ -146,12 +160,12 @@ export async function POST(request: NextRequest) {
         success: true,
         message: 'Test mode - email not sent',
         data: emailData,
-        recipients: EMAIL_RECIPIENTS,
+        recipients: recipients,
       });
     }
 
     // Send the email
-    const result = await sendDailySummaryEmail(emailData, EMAIL_RECIPIENTS);
+    const result = await sendDailySummaryEmail(emailData, recipients);
 
     if (!result.success) {
       console.error('Failed to send daily summary email:', result.error);
@@ -163,7 +177,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Daily summary email sent to ${EMAIL_RECIPIENTS.join(', ')}`,
+      message: `Daily summary email sent to ${recipients.join(', ')}`,
       data: {
         date: targetDate,
         revenue: emailData.totalRevenue,

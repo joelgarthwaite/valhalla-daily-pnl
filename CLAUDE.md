@@ -720,31 +720,32 @@ Advanced options (individual platform sync, P&L-only refresh) are available unde
 
 ### Automatic Daily Sync (Cron Job)
 
-Vercel cron jobs run twice daily at **5:00 AM** and **6:00 PM UTC** to automatically sync all data:
+Vercel cron jobs run twice daily at **7:00 AM** and **7:00 PM UTC** to automatically sync all data:
 
 1. Syncs Shopify orders (last 7 days)
 2. Syncs Etsy orders (last 7 days)
 3. Syncs Meta ad spend (last 7 days)
-4. Refreshes P&L calculations
-5. **Sends daily P&L summary email** (6pm sync only)
+4. Syncs Meta country ad spend (last 7 days)
+5. Refreshes P&L calculations
+6. **Sends P&L summary email** (both syncs)
 
 **Schedule:**
-| Time (UTC) | Time (UK) | Email |
-|------------|-----------|-------|
-| 05:00 | 5:00 AM | No |
-| 18:00 | 6:00 PM | Yes |
+| Time (UTC) | Time (UK) | Email Content |
+|------------|-----------|---------------|
+| 07:00 | 7:00 AM | Yesterday's full results |
+| 19:00 | 7:00 PM | Today's results so far |
 
 **Configuration:** `vercel.json`
 ```json
 {
   "crons": [
     {
-      "path": "/api/cron/daily-sync",
-      "schedule": "0 5 * * *"
+      "path": "/api/cron/daily-sync?type=morning",
+      "schedule": "0 7 * * *"
     },
     {
-      "path": "/api/cron/daily-sync",
-      "schedule": "0 18 * * *"
+      "path": "/api/cron/daily-sync?type=evening",
+      "schedule": "0 19 * * *"
     }
   ]
 }
@@ -757,13 +758,18 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/cr
 
 **Environment Variable:** `CRON_SECRET` - Required for manual triggering (Vercel cron calls are authenticated automatically)
 
-### Daily P&L Summary Email
+### Daily P&L Summary Emails
 
-At 6pm each day, an automated email is sent to key stakeholders with:
+Two automated emails are sent daily to key stakeholders:
+
+| Time | Email Type | Content |
+|------|------------|---------|
+| 7:00 AM | **Daily P&L Summary** | Yesterday's complete results |
+| 7:00 PM | **Today So Far** | Current day's progress |
 
 **Email Contents:**
 - Profitability status (profitable or not)
-- True Net Profit amount and comparison vs yesterday
+- True Net Profit amount and comparison vs previous day
 - Key metrics: Revenue, Orders, Net Margin, MER
 - Profit waterfall: GP1 → GP2 → GP3 → OPEX → True Net Profit
 - Revenue breakdown by channel (Shopify, Etsy, B2B)
@@ -781,10 +787,14 @@ At 6pm each day, an automated email is sent to key stakeholders with:
 
 **Manual Trigger:**
 ```bash
-curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/email/daily-summary
+# Morning email (yesterday's results)
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" "https://pnl.displaychamp.com/api/email/daily-summary?type=morning"
+
+# Evening email (today so far)
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" "https://pnl.displaychamp.com/api/email/daily-summary?type=evening"
 
 # Test mode (doesn't send, just returns data)
-curl "https://pnl.displaychamp.com/api/email/daily-summary?test=true"
+curl "https://pnl.displaychamp.com/api/email/daily-summary?type=morning&test=true"
 ```
 
 ---
@@ -792,9 +802,11 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?test=true"
 ## API Endpoints
 
 ### Cron / Scheduled Tasks
-- `GET /api/cron/daily-sync` - Automated daily sync (Shopify, Etsy, Meta, Meta Country, P&L refresh)
-  - Runs automatically at 5:00 AM and 6:00 PM UTC via Vercel Cron
+- `GET /api/cron/daily-sync` - Automated daily sync (Shopify, Etsy, Meta, Meta Country, P&L refresh, Email)
+  - Runs automatically at 7:00 AM and 7:00 PM UTC via Vercel Cron
   - Syncs: Orders (Shopify/Etsy), Ad Spend (Meta), Country Ad Spend (Meta), P&L refresh
+  - Sends email: Morning = yesterday's results, Evening = today so far
+  - Query params: `type=morning|evening` (auto-detected if not provided)
   - Manual trigger: `Authorization: Bearer $CRON_SECRET` header required
 
 ### P&L Data
@@ -815,8 +827,11 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?test=true"
 
 ### Daily Summary Email
 - `POST /api/email/daily-summary` - Send daily P&L summary email
-  - Triggered automatically by 6pm cron job
-  - Query params: `date` (YYYY-MM-DD), `test` (if "true", logs only)
+  - Triggered automatically by 7am and 7pm cron jobs
+  - Query params:
+    - `type`: "morning" (yesterday's results) or "evening" (today so far)
+    - `date` (YYYY-MM-DD) - optional override
+    - `test` (if "true", logs only without sending)
   - Recipients: joel@displaychamp.com, lee@displaychamp.com
   - Requires: `RESEND_API_KEY` environment variable
 
