@@ -13,6 +13,19 @@ function getResendClient(): Resend {
   return resend;
 }
 
+export interface BrandSummary {
+  code: string;
+  name: string;
+  revenue: number;
+  shopifyRevenue: number;
+  etsyRevenue: number;
+  b2bRevenue: number;
+  orders: number;
+  gp3: number;
+  opex: number;
+  netProfit: number;
+}
+
 export interface DailySummaryData {
   date: string;
   isTodaySoFar?: boolean; // true = "today so far" (evening), false = "yesterday's full results" (morning)
@@ -36,6 +49,8 @@ export interface DailySummaryData {
   totalAdSpend: number;
   mer: number;
   poas: number;
+  // Brand breakdowns
+  brands?: Record<string, BrandSummary>;
   // Comparison (vs previous day)
   previousDay?: {
     totalRevenue: number;
@@ -191,8 +206,42 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
       </tr>
     </table>
 
-    <!-- Revenue by Channel -->
-    <h3 style="margin: 25px 0 15px 0; color: #374151; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">🛒 Revenue by Channel</h3>
+    <!-- Brand Performance -->
+    <h3 style="margin: 25px 0 15px 0; color: #374151; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">🏢 Performance by Brand</h3>
+    ${data.brands && Object.keys(data.brands).length > 0 ? `
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 15px;">
+      <thead>
+        <tr style="border-bottom: 2px solid #e5e7eb;">
+          <th style="padding: 8px 0; text-align: left; font-weight: 600; color: #374151;">Brand</th>
+          <th style="padding: 8px 0; text-align: right; font-weight: 600; color: #374151;">Revenue</th>
+          <th style="padding: 8px 0; text-align: right; font-weight: 600; color: #374151;">Net Profit</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${Object.values(data.brands).map(brand => `
+        <tr style="border-bottom: 1px solid #f3f4f6;">
+          <td style="padding: 10px 0;">
+            <div style="font-weight: 600; color: #111827;">${brand.name}</div>
+            <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
+              ${brand.shopifyRevenue > 0 ? `Shopify: ${formatCurrency(brand.shopifyRevenue)}` : ''}
+              ${brand.shopifyRevenue > 0 && (brand.etsyRevenue > 0 || brand.b2bRevenue > 0) ? ' · ' : ''}
+              ${brand.etsyRevenue > 0 ? `Etsy: ${formatCurrency(brand.etsyRevenue)}` : ''}
+              ${brand.etsyRevenue > 0 && brand.b2bRevenue > 0 ? ' · ' : ''}
+              ${brand.b2bRevenue > 0 ? `B2B: ${formatCurrency(brand.b2bRevenue)}` : ''}
+            </div>
+          </td>
+          <td style="padding: 10px 0; text-align: right; font-weight: 500;">${formatCurrency(brand.revenue)}</td>
+          <td style="padding: 10px 0; text-align: right; font-weight: 600; color: ${brand.netProfit >= 0 ? '#22c55e' : '#ef4444'};">${formatCurrency(brand.netProfit)}</td>
+        </tr>
+        `).join('')}
+        <tr style="background-color: #f9fafb;">
+          <td style="padding: 12px 0; font-weight: 700; color: #1e3a8a;">Valhalla Group</td>
+          <td style="padding: 12px 0; text-align: right; font-weight: 700; color: #1e3a8a;">${formatCurrency(data.totalRevenue)}</td>
+          <td style="padding: 12px 0; text-align: right; font-weight: 700; color: ${data.trueNetProfit >= 0 ? '#22c55e' : '#ef4444'};">${formatCurrency(data.trueNetProfit)}</td>
+        </tr>
+      </tbody>
+    </table>
+    ` : `
     <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
       <tr>
         <td style="padding: 8px 0;">
@@ -219,6 +268,7 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
         <td style="padding: 8px 0; text-align: right; color: #6b7280; width: 60px;">${data.totalRevenue > 0 ? ((data.b2bRevenue / data.totalRevenue) * 100).toFixed(0) : 0}%</td>
       </tr>
     </table>
+    `}
 
     <!-- Ad Performance -->
     ${data.totalAdSpend > 0 ? `
@@ -296,11 +346,21 @@ Revenue:        ${formatCurrency(data.totalRevenue)}
 - OPEX:         ${formatCurrency(data.totalOpex)}
 = Net Profit:   ${formatCurrency(data.trueNetProfit)}
 
-REVENUE BY CHANNEL
-------------------
-Shopify: ${formatCurrency(data.shopifyRevenue)}
+PERFORMANCE BY BRAND
+--------------------
+${data.brands && Object.keys(data.brands).length > 0
+  ? Object.values(data.brands).map(brand =>
+      `${brand.name}:
+  Revenue: ${formatCurrency(brand.revenue)} (Shopify: ${formatCurrency(brand.shopifyRevenue)}, Etsy: ${formatCurrency(brand.etsyRevenue)}, B2B: ${formatCurrency(brand.b2bRevenue)})
+  Net Profit: ${formatCurrency(brand.netProfit)}`
+    ).join('\n\n') + `
+
+VALHALLA GROUP TOTAL
+Revenue: ${formatCurrency(data.totalRevenue)}
+Net Profit: ${formatCurrency(data.trueNetProfit)}`
+  : `Shopify: ${formatCurrency(data.shopifyRevenue)}
 Etsy:    ${formatCurrency(data.etsyRevenue)}
-B2B:     ${formatCurrency(data.b2bRevenue)}
+B2B:     ${formatCurrency(data.b2bRevenue)}`}
 
 ${data.totalAdSpend > 0 ? `
 AD PERFORMANCE

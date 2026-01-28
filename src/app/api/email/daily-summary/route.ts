@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // Fetch today's and yesterday's P&L data
-    const [todayResult, yesterdayResult, opexResult] = await Promise.all([
+    // Fetch today's and yesterday's P&L data, plus brands
+    const [todayResult, yesterdayResult, opexResult, brandsResult] = await Promise.all([
       supabase
         .from('daily_pnl')
         .select('*')
@@ -82,6 +82,9 @@ export async function POST(request: NextRequest) {
         .from('operating_expenses')
         .select('*')
         .eq('is_active', true),
+      supabase
+        .from('brands')
+        .select('id, code, name'),
     ]);
 
     if (todayResult.error) throw todayResult.error;
@@ -89,6 +92,10 @@ export async function POST(request: NextRequest) {
     const todayData = todayResult.data || [];
     const yesterdayData = yesterdayResult.data || [];
     const opexData = (opexResult.data || []) as OperatingExpense[];
+    const brands = brandsResult.data || [];
+
+    // Create brand lookup
+    const brandMap = new Map(brands.map(b => [b.id, { code: b.code, name: b.name }]));
 
     // If no data for today, send a "no data" notification
     if (todayData.length === 0) {
@@ -108,11 +115,53 @@ export async function POST(request: NextRequest) {
     );
     const opexSummary = getOpexSummary(opexData);
 
-    // Calculate summaries
+    // Calculate overall summaries
     const todaySummary = calculatePnLSummary(todayData as never[], todayOpex, opexSummary.byCategory);
     const yesterdaySummary = yesterdayData.length > 0
       ? calculatePnLSummary(yesterdayData as never[])
       : null;
+
+    // Calculate per-brand summaries
+    // OPEX is split proportionally by revenue
+    const brandSummaries: Record<string, {
+      code: string;
+      name: string;
+      revenue: number;
+      shopifyRevenue: number;
+      etsyRevenue: number;
+      b2bRevenue: number;
+      orders: number;
+      gp3: number;
+      opex: number;
+      netProfit: number;
+    }> = {};
+
+    for (const brand of brands) {
+      const brandData = todayData.filter((d: { brand_id: string }) => d.brand_id === brand.id);
+      if (brandData.length === 0) continue;
+
+      const brandSummary = calculatePnLSummary(brandData as never[]);
+
+      // Allocate OPEX proportionally by revenue
+      const revenueShare = todaySummary.totalRevenue > 0
+        ? brandSummary.totalRevenue / todaySummary.totalRevenue
+        : 0;
+      const brandOpex = todayOpex * revenueShare;
+      const brandNetProfit = brandSummary.gp3 - brandOpex;
+
+      brandSummaries[brand.code] = {
+        code: brand.code,
+        name: brand.name,
+        revenue: brandSummary.totalRevenue,
+        shopifyRevenue: brandSummary.shopifyRevenue,
+        etsyRevenue: brandSummary.etsyRevenue,
+        b2bRevenue: brandSummary.b2bRevenue,
+        orders: brandSummary.totalOrders,
+        gp3: brandSummary.gp3,
+        opex: brandOpex,
+        netProfit: brandNetProfit,
+      };
+    }
 
     // Prepare email data
     const emailData: DailySummaryData = {
@@ -138,6 +187,8 @@ export async function POST(request: NextRequest) {
       totalAdSpend: todaySummary.totalAdSpend,
       mer: todaySummary.mer,
       poas: todaySummary.poas,
+      // Brand breakdowns
+      brands: brandSummaries,
       // Comparison
       previousDay: yesterdaySummary ? {
         totalRevenue: yesterdaySummary.totalRevenue,
