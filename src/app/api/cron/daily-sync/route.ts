@@ -44,9 +44,14 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  // Allow Vercel cron (no auth needed) or manual trigger with secret
-  const isVercelCron = request.headers.get('x-vercel-cron') === '1';
+  // Allow Vercel cron or manual trigger with secret
+  // Vercel cron sets 'x-vercel-cron' header (check existence, not specific value)
+  // Also check for CRON_SECRET in Authorization header (Vercel sends this if CRON_SECRET env var is set)
+  const vercelCronHeader = request.headers.get('x-vercel-cron');
+  const isVercelCron = vercelCronHeader !== null;
   const hasValidSecret = cronSecret && authHeader === `Bearer ${cronSecret}`;
+
+  console.log('[Cron Auth] x-vercel-cron header:', vercelCronHeader, '| Auth header present:', !!authHeader);
 
   if (!isVercelCron && !hasValidSecret) {
     return NextResponse.json(
