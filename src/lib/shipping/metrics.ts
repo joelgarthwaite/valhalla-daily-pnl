@@ -89,11 +89,13 @@ export function calculateShippingTrend(
 ): ShippingTrendData[] {
   const days = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
 
-  // Create a map of order_id -> shipment for quick lookup
-  const shipmentsByOrderId = new Map<string, Shipment>();
+  // Create a map of order_id -> ALL shipments for that order
+  const shipmentsByOrderId = new Map<string, Shipment[]>();
   allShipments.forEach((shipment) => {
     if (shipment.order_id) {
-      shipmentsByOrderId.set(shipment.order_id, shipment);
+      const existing = shipmentsByOrderId.get(shipment.order_id) || [];
+      existing.push(shipment);
+      shipmentsByOrderId.set(shipment.order_id, existing);
     }
   });
 
@@ -109,10 +111,11 @@ export function calculateShippingTrend(
       0
     );
 
-    // Match shipments by order_id (not by shipping_date)
+    // Sum ALL shipment costs for each order
     const shippingExpenditure = dayOrders.reduce((sum, order) => {
-      const shipment = shipmentsByOrderId.get(order.id);
-      return sum + (shipment ? Number(shipment.shipping_cost) : 0);
+      const orderShipments = shipmentsByOrderId.get(order.id) || [];
+      const orderCost = orderShipments.reduce((s, shipment) => s + Number(shipment.shipping_cost || 0), 0);
+      return sum + orderCost;
     }, 0);
 
     return {
@@ -161,10 +164,13 @@ export function mergeOrdersWithShipments(
   shipments: Shipment[],
   brands: Array<{ id: string; name: string; code: string }>
 ): ShippingOrderWithShipment[] {
-  const shipmentsByOrderId = new Map<string, Shipment>();
+  // Group ALL shipments by order_id (not just one)
+  const shipmentsByOrderId = new Map<string, Shipment[]>();
   shipments.forEach((shipment) => {
     if (shipment.order_id) {
-      shipmentsByOrderId.set(shipment.order_id, shipment);
+      const existing = shipmentsByOrderId.get(shipment.order_id) || [];
+      existing.push(shipment);
+      shipmentsByOrderId.set(shipment.order_id, existing);
     }
   });
 
@@ -173,11 +179,22 @@ export function mergeOrdersWithShipments(
     brandsById.set(brand.id, brand);
   });
 
-  return orders.map((order) => ({
-    ...order,
-    shipment: shipmentsByOrderId.get(order.id),
-    brand: brandsById.get(order.brand_id),
-  }));
+  return orders.map((order) => {
+    const orderShipments = shipmentsByOrderId.get(order.id) || [];
+    // Sum ALL shipment costs for this order
+    const totalShippingCost = orderShipments.reduce(
+      (sum, s) => sum + Number(s.shipping_cost || 0),
+      0
+    );
+
+    return {
+      ...order,
+      shipment: orderShipments[0], // Primary shipment for backward compatibility
+      shipments: orderShipments,
+      totalShippingCost,
+      brand: brandsById.get(order.brand_id),
+    };
+  });
 }
 
 export function filterByBrand<T extends { brand_id: string }>(
@@ -253,10 +270,13 @@ export function calculateCountryBreakdown(
   orders: ShippingOrder[],
   shipments: Shipment[]
 ): CountryBreakdownData[] {
-  const shipmentsByOrderId = new Map<string, Shipment>();
+  // Group ALL shipments by order_id
+  const shipmentsByOrderId = new Map<string, Shipment[]>();
   shipments.forEach((shipment) => {
     if (shipment.order_id) {
-      shipmentsByOrderId.set(shipment.order_id, shipment);
+      const existing = shipmentsByOrderId.get(shipment.order_id) || [];
+      existing.push(shipment);
+      shipmentsByOrderId.set(shipment.order_id, existing);
     }
   });
 
@@ -268,9 +288,10 @@ export function calculateCountryBreakdown(
 
   orders.forEach((order) => {
     const code = getCountryCode(order);
-    const shipment = shipmentsByOrderId.get(order.id);
+    const orderShipments = shipmentsByOrderId.get(order.id) || [];
     const shippingRevenue = Number(order.shipping_charged || 0);
-    const shippingCost = shipment ? Number(shipment.shipping_cost || 0) : 0;
+    // Sum ALL shipment costs for this order
+    const shippingCost = orderShipments.reduce((sum, s) => sum + Number(s.shipping_cost || 0), 0);
 
     const existing = countryMap.get(code);
     if (existing) {

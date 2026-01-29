@@ -135,12 +135,12 @@ export function ShippingOrdersTable({ orders, onShipmentUpdate }: ShippingOrders
           bVal = b.shipping_charged || 0;
           break;
         case 'shipping_cost':
-          aVal = a.shipment?.shipping_cost || 0;
-          bVal = b.shipment?.shipping_cost || 0;
+          aVal = a.totalShippingCost || 0;
+          bVal = b.totalShippingCost || 0;
           break;
         case 'margin':
-          aVal = (a.shipping_charged || 0) - (a.shipment?.shipping_cost || 0);
-          bVal = (b.shipping_charged || 0) - (b.shipment?.shipping_cost || 0);
+          aVal = (a.shipping_charged || 0) - (a.totalShippingCost || 0);
+          bVal = (b.shipping_charged || 0) - (b.totalShippingCost || 0);
           break;
         default:
           aVal = 0;
@@ -358,11 +358,15 @@ export function ShippingOrdersTable({ orders, onShipmentUpdate }: ShippingOrders
                 ) : (
                   filteredOrders.map((order) => {
                     const shippingCharged = order.shipping_charged || 0;
-                    const shippingCost = order.shipment?.shipping_cost || 0;
+                    const shippingCost = order.totalShippingCost || 0;
                     const margin = shippingCharged - shippingCost;
-                    const hasActualCost = order.shipment?.cost_confidence === 'actual';
-                    const isLocked = order.shipment?.cost_locked;
+                    // Check if any shipment has actual cost
+                    const hasActualCost = order.shipments?.some(s => s.cost_confidence === 'actual') || false;
+                    // Check if any shipment is locked
+                    const isLocked = order.shipments?.some(s => s.cost_locked) || false;
                     const countryCode = getCountryCode(order);
+                    // Show primary carrier (or multiple if more than one)
+                    const shipmentCount = order.shipments?.length || 0;
                     const carrier = order.shipment?.carrier;
 
                     return (
@@ -386,9 +390,16 @@ export function ShippingOrdersTable({ orders, onShipmentUpdate }: ShippingOrders
                         </TableCell>
                         <TableCell>
                           {carrier ? (
-                            <Badge variant="secondary" className="text-xs">
-                              {CARRIER_LABELS[carrier] || carrier}
-                            </Badge>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="secondary" className="text-xs">
+                                {CARRIER_LABELS[carrier] || carrier}
+                              </Badge>
+                              {shipmentCount > 1 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{shipmentCount - 1}
+                                </Badge>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-muted-foreground text-sm">-</span>
                           )}
@@ -402,10 +413,17 @@ export function ShippingOrdersTable({ orders, onShipmentUpdate }: ShippingOrders
                               <Lock className="h-3 w-3 text-blue-600" />
                             ) : hasActualCost ? (
                               <CheckCircle2 className="h-3 w-3 text-green-600" />
-                            ) : (
+                            ) : shipmentCount > 0 ? (
                               <Circle className="h-3 w-3 text-amber-500" />
+                            ) : (
+                              <Circle className="h-3 w-3 text-muted-foreground" />
                             )}
                             <span>{formatCurrency(shippingCost)}</span>
+                            {shipmentCount > 1 && (
+                              <span className="text-xs text-muted-foreground" title={`Sum of ${shipmentCount} shipments`}>
+                                ({shipmentCount})
+                              </span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className={`text-right font-medium ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>

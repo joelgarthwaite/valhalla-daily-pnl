@@ -76,7 +76,9 @@ export interface ShippingOrder {
 }
 
 export interface ShippingOrderWithShipment extends ShippingOrder {
-  shipment?: Shipment;
+  shipment?: Shipment;  // Primary/first shipment (for backward compatibility)
+  shipments?: Shipment[];  // All shipments for this order
+  totalShippingCost: number;  // Sum of all shipment costs
   brand?: { id: string; name: string; code: string };
 }
 
