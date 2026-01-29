@@ -435,26 +435,31 @@ export async function fetchInvoices(
   }
 
   // Note: Xero date filtering uses Date field with DateTime() wrapper
-  // Format: DateTime(YYYY,MM,DD) - commas not dashes, no leading zeros on month/day
+  // Format: DateTime(year, month, day) - with spaces after commas, no leading zeros
+  // Reference: https://developer.xero.com/documentation/api/accounting/requests-and-responses
   if (!skipDateFilter) {
     if (fromDate) {
       const [year, month, day] = fromDate.split('-');
-      whereParts.push(`Date>=DateTime(${year},${parseInt(month)},${parseInt(day)})`);
+      // Use spaces after commas as per Xero OData spec
+      whereParts.push(`Date >= DateTime(${year}, ${parseInt(month, 10)}, ${parseInt(day, 10)})`);
     }
 
     if (toDate) {
       const [year, month, day] = toDate.split('-');
-      whereParts.push(`Date<=DateTime(${year},${parseInt(month)},${parseInt(day)})`);
+      whereParts.push(`Date <= DateTime(${year}, ${parseInt(month, 10)}, ${parseInt(day, 10)})`);
     }
   }
 
-  const whereClause = encodeURIComponent(whereParts.join(' AND '));
+  const rawWhereClause = whereParts.join(' AND ');
+  const whereClause = encodeURIComponent(rawWhereClause);
 
   // Build URL with pagination
   const url = `${XERO_API_BASE}/Invoices?where=${whereClause}&order=Date DESC&page=${page}`;
 
-  console.log('Xero API URL:', url);
-  console.log('Where clause:', whereParts.join(' AND '));
+  console.log('Xero fetchInvoices called with:', { status, fromDate, toDate, skipDateFilter, page });
+  console.log('Xero where clause (raw):', rawWhereClause);
+  console.log('Xero where clause (encoded):', whereClause);
+  console.log('Xero full URL:', url);
 
   const response = await fetch(url, {
     headers: {
