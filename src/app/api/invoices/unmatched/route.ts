@@ -181,41 +181,84 @@ export async function PATCH(request: NextRequest) {
         .eq('carrier', unmatchedRecord.carrier)
         .single() as { data: { id: string } | null };
 
-      // Create the shipment
-      const { data: shipment, error: shipmentError } = await supabaseAdmin
+      // Check if a shipment already exists with this tracking number + carrier
+      const { data: existingShipment } = await supabaseAdmin
         .from('shipments')
-        .insert({
-          order_id: order.id,
-          brand_id: order.brand_id,
-          carrier: unmatchedRecord.carrier,
-          carrier_account_id: carrierAccount?.id || null,
-          tracking_number: unmatchedRecord.tracking_number,
-          service_type: unmatchedRecord.service_type,
-          direction: 'outbound',
-          weight_kg: unmatchedRecord.weight_kg,
-          shipping_cost: unmatchedRecord.shipping_cost,
-          shipping_date: unmatchedRecord.shipping_date,
-          status: 'delivered',
-          cost_updated_at: new Date().toISOString(),
-          raw_data: {
-            cost_type: unmatchedRecord.carrier === 'dhl' ? 'actual' : 'estimated',
-            matched_from_unmatched: true,
-            original_unmatched_id: id,
-          },
-        })
-        .select('id')
-        .single() as { data: { id: string } | null; error: Error | null };
+        .select('id, order_id')
+        .eq('tracking_number', unmatchedRecord.tracking_number)
+        .eq('carrier', unmatchedRecord.carrier)
+        .single() as { data: { id: string; order_id: string | null } | null };
 
-      if (shipmentError) {
-        console.error('Error creating shipment:', shipmentError);
-        return NextResponse.json(
-          { error: `Failed to create shipment: ${shipmentError.message || JSON.stringify(shipmentError)}` },
-          { status: 500 }
-        );
+      let shipmentId: string | null = null;
+
+      if (existingShipment) {
+        // Shipment exists - update it to link to this order and update cost
+        const { error: updateShipmentError } = await supabaseAdmin
+          .from('shipments')
+          .update({
+            order_id: order.id,
+            brand_id: order.brand_id,
+            shipping_cost: unmatchedRecord.shipping_cost,
+            weight_kg: unmatchedRecord.weight_kg || undefined,
+            service_type: unmatchedRecord.service_type || undefined,
+            cost_updated_at: new Date().toISOString(),
+            raw_data: {
+              cost_type: unmatchedRecord.carrier === 'dhl' ? 'actual' : 'estimated',
+              matched_from_unmatched: true,
+              original_unmatched_id: id,
+              previous_order_id: existingShipment.order_id,
+            },
+          })
+          .eq('id', existingShipment.id);
+
+        if (updateShipmentError) {
+          console.error('Error updating existing shipment:', updateShipmentError);
+          return NextResponse.json(
+            { error: `Failed to update shipment: ${updateShipmentError.message || JSON.stringify(updateShipmentError)}` },
+            { status: 500 }
+          );
+        }
+
+        shipmentId = existingShipment.id;
+      } else {
+        // No existing shipment - create a new one
+        const { data: newShipment, error: shipmentError } = await supabaseAdmin
+          .from('shipments')
+          .insert({
+            order_id: order.id,
+            brand_id: order.brand_id,
+            carrier: unmatchedRecord.carrier,
+            carrier_account_id: carrierAccount?.id || null,
+            tracking_number: unmatchedRecord.tracking_number,
+            service_type: unmatchedRecord.service_type,
+            direction: 'outbound',
+            weight_kg: unmatchedRecord.weight_kg,
+            shipping_cost: unmatchedRecord.shipping_cost,
+            shipping_date: unmatchedRecord.shipping_date,
+            status: 'delivered',
+            cost_updated_at: new Date().toISOString(),
+            raw_data: {
+              cost_type: unmatchedRecord.carrier === 'dhl' ? 'actual' : 'estimated',
+              matched_from_unmatched: true,
+              original_unmatched_id: id,
+            },
+          })
+          .select('id')
+          .single() as { data: { id: string } | null; error: Error | null };
+
+        if (shipmentError) {
+          console.error('Error creating shipment:', shipmentError);
+          return NextResponse.json(
+            { error: `Failed to create shipment: ${shipmentError.message || JSON.stringify(shipmentError)}` },
+            { status: 500 }
+          );
+        }
+
+        shipmentId = newShipment?.id || null;
       }
 
       updateData.matched_order_id = order.id;
-      updateData.matched_shipment_id = shipment?.id;
+      updateData.matched_shipment_id = shipmentId;
     }
 
     // Update the unmatched record
