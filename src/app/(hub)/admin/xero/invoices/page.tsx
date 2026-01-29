@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -176,6 +177,7 @@ export default function XeroInvoicesPage() {
     format(subDays(new Date(), 30), 'yyyy-MM-dd')
   );
   const [syncToDate, setSyncToDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [skipDateFilter, setSkipDateFilter] = useState(false);
 
   // Reconciliation states
   const [reconcileLoading, setReconcileLoading] = useState(false);
@@ -267,6 +269,7 @@ export default function XeroInvoicesPage() {
           fromDate: syncFromDate,
           toDate: syncToDate,
           status: syncStatus,
+          skipDateFilter,
         }),
       });
 
@@ -939,6 +942,20 @@ export default function XeroInvoicesPage() {
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="skipDateFilter"
+                checked={skipDateFilter}
+                onCheckedChange={(checked) => setSkipDateFilter(checked === true)}
+              />
+              <label
+                htmlFor="skipDateFilter"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Fetch ALL invoices (ignore date range)
+              </label>
             </div>
           </div>
 

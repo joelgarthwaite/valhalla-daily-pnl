@@ -386,6 +386,7 @@ export interface FetchInvoicesOptions {
   fromDate?: string;  // YYYY-MM-DD
   toDate?: string;    // YYYY-MM-DD
   page?: number;
+  skipDateFilter?: boolean;  // For debugging - fetch all invoices regardless of date
 }
 
 /**
@@ -419,7 +420,7 @@ export async function fetchInvoices(
   tenantId: string,
   options: FetchInvoicesOptions = {}
 ): Promise<XeroInvoice[]> {
-  const { status, fromDate, toDate, page = 1 } = options;
+  const { status, fromDate, toDate, page = 1, skipDateFilter = false } = options;
 
   // Build where clause - filter for sales invoices (ACCREC)
   const whereParts: string[] = ['Type=="ACCREC"'];
@@ -434,21 +435,26 @@ export async function fetchInvoices(
   }
 
   // Note: Xero date filtering uses Date field with DateTime() wrapper
-  // Format: DateTime(YYYY,MM,DD) - commas not dashes
-  if (fromDate) {
-    const [year, month, day] = fromDate.split('-');
-    whereParts.push(`Date>=DateTime(${year},${month},${day})`);
-  }
+  // Format: DateTime(YYYY,MM,DD) - commas not dashes, no leading zeros on month/day
+  if (!skipDateFilter) {
+    if (fromDate) {
+      const [year, month, day] = fromDate.split('-');
+      whereParts.push(`Date>=DateTime(${year},${parseInt(month)},${parseInt(day)})`);
+    }
 
-  if (toDate) {
-    const [year, month, day] = toDate.split('-');
-    whereParts.push(`Date<=DateTime(${year},${month},${day})`);
+    if (toDate) {
+      const [year, month, day] = toDate.split('-');
+      whereParts.push(`Date<=DateTime(${year},${parseInt(month)},${parseInt(day)})`);
+    }
   }
 
   const whereClause = encodeURIComponent(whereParts.join(' AND '));
 
   // Build URL with pagination
   const url = `${XERO_API_BASE}/Invoices?where=${whereClause}&order=Date DESC&page=${page}`;
+
+  console.log('Xero API URL:', url);
+  console.log('Where clause:', whereParts.join(' AND '));
 
   const response = await fetch(url, {
     headers: {
@@ -460,10 +466,12 @@ export async function fetchInvoices(
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error('Xero API error:', response.status, errorText);
     throw new Error(`Failed to fetch invoices: ${errorText}`);
   }
 
   const data = await response.json();
+  console.log('Xero API returned', data.Invoices?.length || 0, 'invoices');
   return data.Invoices || [];
 }
 

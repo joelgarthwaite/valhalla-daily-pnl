@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { brandCode, fromDate, toDate, status: invoiceStatus = 'PAID' } = body;
+    const { brandCode, fromDate, toDate, status: invoiceStatus = 'PAID', skipDateFilter = false } = body;
 
     if (!brandCode) {
       return NextResponse.json(
@@ -234,6 +234,7 @@ export async function POST(request: NextRequest) {
     console.log(`Fetching ${invoiceStatus} invoices from Xero for ${brand.name}`, {
       fromDate,
       toDate,
+      skipDateFilter,
       tenantId: connection.tenant_id,
     });
 
@@ -241,6 +242,7 @@ export async function POST(request: NextRequest) {
       status: invoiceStatus === 'ALL' ? undefined : invoiceStatus as 'PAID' | 'AUTHORISED',
       fromDate,
       toDate,
+      skipDateFilter,
     });
 
     console.log(`Received ${invoices.length} invoices from Xero`);
