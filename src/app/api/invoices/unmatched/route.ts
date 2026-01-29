@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import type { UnmatchedInvoiceRecord, UnmatchedRecordStatus } from '@/types';
+
+// Create admin client that bypasses RLS
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // GET - List unmatched records
 export async function GET(request: NextRequest) {
   try {
-    // Use service client to bypass RLS for admin operations
-    const supabase = await createServiceClient();
     const { searchParams } = new URL(request.url);
 
     const status = searchParams.get('status'); // pending, matched, voided, resolved, all
@@ -15,8 +18,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100');
     const offset = parseInt(searchParams.get('offset') || '0');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query = (supabase as any)
+    let query = supabaseAdmin
       .from('unmatched_invoice_records')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
@@ -41,8 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get counts by status
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: statusCounts } = await (supabase as any)
+    const { data: statusCounts } = await supabaseAdmin
       .from('unmatched_invoice_records')
       .select('status')
       .then(({ data: allRecords }: { data: { status: string }[] | null }) => {
@@ -96,8 +97,6 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const supabase = await createServiceClient();
-
     const updateData: Record<string, unknown> = {
       status,
       resolution_notes: resolution_notes || null,
@@ -107,8 +106,7 @@ export async function PATCH(request: NextRequest) {
     // If matching to an order, we need to create a shipment
     if (status === 'matched' && matched_order_id) {
       // Get the unmatched record details
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: unmatchedRecord, error: fetchError } = await (supabase as any)
+      const { data: unmatchedRecord, error: fetchError } = await supabaseAdmin
         .from('unmatched_invoice_records')
         .select('*')
         .eq('id', id)
@@ -125,8 +123,7 @@ export async function PATCH(request: NextRequest) {
       let order: { id: string; brand_id: string } | null = null;
 
       // First try exact UUID match
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: orderById } = await (supabase as any)
+      const { data: orderById } = await supabaseAdmin
         .from('orders')
         .select('id, brand_id')
         .eq('id', matched_order_id)
@@ -136,8 +133,7 @@ export async function PATCH(request: NextRequest) {
         order = orderById;
       } else {
         // Try order_number
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: orderByNumber } = await (supabase as any)
+        const { data: orderByNumber } = await supabaseAdmin
           .from('orders')
           .select('id, brand_id')
           .eq('order_number', matched_order_id)
@@ -147,8 +143,7 @@ export async function PATCH(request: NextRequest) {
           order = orderByNumber;
         } else {
           // Try platform_order_id
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data: orderByPlatformId } = await (supabase as any)
+          const { data: orderByPlatformId } = await supabaseAdmin
             .from('orders')
             .select('id, brand_id')
             .eq('platform_order_id', matched_order_id)
@@ -158,8 +153,7 @@ export async function PATCH(request: NextRequest) {
             order = orderByPlatformId;
           } else {
             // Try b2b_customer_name (partial match for B2B orders)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: orderByB2BName } = await (supabase as any)
+            const { data: orderByB2BName } = await supabaseAdmin
               .from('orders')
               .select('id, brand_id')
               .eq('platform', 'b2b')
@@ -181,16 +175,14 @@ export async function PATCH(request: NextRequest) {
       }
 
       // Get carrier account
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: carrierAccount } = await (supabase as any)
+      const { data: carrierAccount } = await supabaseAdmin
         .from('carrier_accounts')
         .select('id')
         .eq('carrier', unmatchedRecord.carrier)
         .single() as { data: { id: string } | null };
 
       // Create the shipment
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: shipment, error: shipmentError } = await (supabase as any)
+      const { data: shipment, error: shipmentError } = await supabaseAdmin
         .from('shipments')
         .insert({
           order_id: order.id,
@@ -227,8 +219,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Update the unmatched record
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabaseAdmin
       .from('unmatched_invoice_records')
       .update(updateData)
       .eq('id', id)
@@ -266,10 +257,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const supabase = await createServiceClient();
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
+    const { error } = await supabaseAdmin
       .from('unmatched_invoice_records')
       .delete()
       .eq('id', id);
