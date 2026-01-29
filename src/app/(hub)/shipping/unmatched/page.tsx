@@ -39,6 +39,9 @@ import {
   FileQuestion,
   Trash2,
   Copy,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import type { UnmatchedInvoiceRecord, UnmatchedRecordStatus } from '@/types';
 
@@ -109,6 +112,63 @@ export default function UnmatchedInvoicesPage() {
 
   // Dedupe state
   const [dedupeLoading, setDedupeLoading] = useState(false);
+
+  // Sorting state
+  type SortColumn = 'tracking_number' | 'carrier' | 'shipping_date' | 'shipping_cost' | 'invoice_number' | 'status';
+  const [sortColumn, setSortColumn] = useState<SortColumn>('shipping_date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const sortedRecords = [...records].sort((a, b) => {
+    let aVal: string | number | null = null;
+    let bVal: string | number | null = null;
+
+    switch (sortColumn) {
+      case 'tracking_number':
+        aVal = a.tracking_number;
+        bVal = b.tracking_number;
+        break;
+      case 'carrier':
+        aVal = a.carrier;
+        bVal = b.carrier;
+        break;
+      case 'shipping_date':
+        aVal = a.shipping_date ? new Date(a.shipping_date).getTime() : 0;
+        bVal = b.shipping_date ? new Date(b.shipping_date).getTime() : 0;
+        break;
+      case 'shipping_cost':
+        aVal = a.shipping_cost;
+        bVal = b.shipping_cost;
+        break;
+      case 'invoice_number':
+        aVal = a.invoice_number || a.file_name || '';
+        bVal = b.invoice_number || b.file_name || '';
+        break;
+      case 'status':
+        aVal = a.status;
+        bVal = b.status;
+        break;
+    }
+
+    if (aVal === null || aVal === undefined) aVal = '';
+    if (bVal === null || bVal === undefined) bVal = '';
+
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+
+    const aStr = String(aVal).toLowerCase();
+    const bStr = String(bVal).toLowerCase();
+    return sortDirection === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -432,18 +492,78 @@ export default function UnmatchedInvoicesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tracking Number</TableHead>
-                    <TableHead>Carrier</TableHead>
-                    <TableHead>Ship Date</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead>Invoice</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => handleSort('tracking_number')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Tracking Number
+                        {sortColumn === 'tracking_number' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => handleSort('carrier')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Carrier
+                        {sortColumn === 'carrier' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => handleSort('shipping_date')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Ship Date
+                        {sortColumn === 'shipping_date' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 select-none text-right"
+                      onClick={() => handleSort('shipping_cost')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Cost
+                        {sortColumn === 'shipping_cost' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => handleSort('invoice_number')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Invoice
+                        {sortColumn === 'invoice_number' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:bg-muted/50 select-none"
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Status
+                        {sortColumn === 'status' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                      </div>
+                    </TableHead>
                     <TableHead>Notes</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {records.map((record) => (
+                  {sortedRecords.map((record) => (
                     <TableRow key={record.id}>
                       <TableCell className="font-mono text-sm">
                         {record.tracking_number}
