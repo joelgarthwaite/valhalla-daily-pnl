@@ -14,7 +14,7 @@ For comprehensive technical documentation, see:
 
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete systems architecture, data flows, and consolidation roadmap
 - **[docs/API.md](docs/API.md)** - Full API endpoint reference with request/response examples
-- **[docs/diagrams/](docs/diagrams/)** - Mermaid diagrams for data flow, database schema, and P&L waterfall
+- **[docs/diagrams/](docs/diagrams/)** - Mermaid diagrams for data flow, shipping flow, database schema, and P&L waterfall
 
 ### Related Projects (Valhalla Hub)
 
@@ -712,6 +712,9 @@ valhalla-daily-pnl/
 │   │   │   ├── WorkedExample.tsx       # Step-by-step calculation
 │   │   │   ├── PlatformBreakdown.tsx   # Platform fees & sources
 │   │   │   ├── AdminFunctionsGuide.tsx # Admin capabilities guide
+│   │   │   ├── ShippingInvoicesGuide.tsx # Shipping analytics, invoice processing, unmatched records
+│   │   │   ├── XeroOrdersGuide.tsx     # Xero integration, order management
+│   │   │   ├── CountryAnalysisGuide.tsx # Country P&L breakdown guide
 │   │   │   └── index.ts                # Barrel export
 │   │   └── forms/                      # Form components
 │   ├── hooks/
