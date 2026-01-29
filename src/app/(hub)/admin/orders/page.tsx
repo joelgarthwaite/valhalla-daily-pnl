@@ -73,6 +73,10 @@ interface OrderWithBrand {
     code: string;
     name: string;
   } | null;
+  // Shipping data from shipments table
+  shipping_cost: number;
+  shipment_count: number;
+  carriers: string[];
 }
 
 // Common countries for filter
@@ -104,7 +108,7 @@ type CountryFilter = string; // 'all' or ISO country code
 type ExcludedFilter = 'active' | 'excluded' | 'all';
 
 // Sortable columns
-type SortColumn = 'order_date' | 'order_number' | 'customer_name' | 'country' | 'brand' | 'platform' | 'subtotal' | 'is_b2b';
+type SortColumn = 'order_date' | 'order_number' | 'customer_name' | 'country' | 'brand' | 'platform' | 'subtotal' | 'shipping_cost' | 'is_b2b';
 type SortDirection = 'asc' | 'desc';
 
 // Date preset helpers
@@ -570,7 +574,7 @@ export default function OrdersPage() {
     } else {
       // New column, default to descending for amounts/dates, ascending for text
       setSortColumn(column);
-      setSortDirection(column === 'subtotal' || column === 'order_date' ? 'desc' : 'asc');
+      setSortDirection(column === 'subtotal' || column === 'shipping_cost' || column === 'order_date' ? 'desc' : 'asc');
     }
   };
 
@@ -607,6 +611,10 @@ export default function OrdersPage() {
       case 'subtotal':
         aVal = a.subtotal;
         bVal = b.subtotal;
+        break;
+      case 'shipping_cost':
+        aVal = a.shipping_cost || 0;
+        bVal = b.shipping_cost || 0;
         break;
       case 'is_b2b':
         aVal = a.is_b2b ? 1 : 0;
@@ -875,6 +883,7 @@ export default function OrdersPage() {
                 <SortableHeader column="brand">Brand</SortableHeader>
                 <SortableHeader column="platform">Platform</SortableHeader>
                 <SortableHeader column="subtotal" className="text-right">Amount</SortableHeader>
+                <SortableHeader column="shipping_cost" className="text-right">Ship Cost</SortableHeader>
                 <SortableHeader column="is_b2b" className="text-center">B2B</SortableHeader>
                 <TableHead>B2B Customer</TableHead>
                 <TableHead className="text-center">Actions</TableHead>
@@ -883,14 +892,14 @@ export default function OrdersPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                     <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />
                     Loading orders...
                   </TableCell>
                 </TableRow>
               ) : sortedOrders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                     No orders found for the selected filters.
                   </TableCell>
                 </TableRow>
@@ -963,6 +972,20 @@ export default function OrdersPage() {
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {formatCurrency(order.subtotal)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {order.shipping_cost > 0 ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <span className={order.shipping_cost > 0 ? '' : 'text-muted-foreground'}>
+                            {formatCurrency(order.shipping_cost)}
+                          </span>
+                          {order.shipment_count > 1 && (
+                            <span className="text-xs text-muted-foreground">({order.shipment_count})</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       {!order.excluded_at ? (

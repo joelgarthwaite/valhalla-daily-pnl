@@ -114,11 +114,42 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Enrich with brand info
-    const enrichedOrders = orders?.map(order => ({
-      ...order,
-      brand: brandMap.get(order.brand_id) || null,
-    }));
+    // Fetch shipments for these orders to calculate total shipping costs
+    const orderIds = orders?.map(o => o.id) || [];
+    let shipmentsByOrderId = new Map<string, { totalCost: number; count: number; carriers: string[] }>();
+
+    if (orderIds.length > 0) {
+      const { data: shipments } = await supabaseAdmin
+        .from('shipments')
+        .select('order_id, shipping_cost, carrier')
+        .in('order_id', orderIds);
+
+      if (shipments) {
+        for (const shipment of shipments) {
+          if (shipment.order_id) {
+            const existing = shipmentsByOrderId.get(shipment.order_id) || { totalCost: 0, count: 0, carriers: [] };
+            existing.totalCost += Number(shipment.shipping_cost || 0);
+            existing.count += 1;
+            if (shipment.carrier && !existing.carriers.includes(shipment.carrier)) {
+              existing.carriers.push(shipment.carrier);
+            }
+            shipmentsByOrderId.set(shipment.order_id, existing);
+          }
+        }
+      }
+    }
+
+    // Enrich with brand info and shipping data
+    const enrichedOrders = orders?.map(order => {
+      const shippingData = shipmentsByOrderId.get(order.id);
+      return {
+        ...order,
+        brand: brandMap.get(order.brand_id) || null,
+        shipping_cost: shippingData?.totalCost || 0,
+        shipment_count: shippingData?.count || 0,
+        carriers: shippingData?.carriers || [],
+      };
+    });
 
     return NextResponse.json({
       orders: enrichedOrders || [],
