@@ -382,7 +382,7 @@ export interface XeroInvoice {
 }
 
 export interface FetchInvoicesOptions {
-  status?: 'PAID' | 'AUTHORISED' | 'DRAFT' | 'SUBMITTED' | 'VOIDED';
+  status?: 'PAID' | 'AUTHORISED' | 'DRAFT' | 'SUBMITTED' | 'VOIDED';  // undefined = all statuses except DELETED
   fromDate?: string;  // YYYY-MM-DD
   toDate?: string;    // YYYY-MM-DD
   page?: number;
@@ -419,13 +419,18 @@ export async function fetchInvoices(
   tenantId: string,
   options: FetchInvoicesOptions = {}
 ): Promise<XeroInvoice[]> {
-  const { status = 'PAID', fromDate, toDate, page = 1 } = options;
+  const { status, fromDate, toDate, page = 1 } = options;
 
   // Build where clause - filter for sales invoices (ACCREC)
   const whereParts: string[] = ['Type=="ACCREC"'];
 
+  // Only add status filter if explicitly provided (undefined = all statuses)
   if (status) {
     whereParts.push(`Status=="${status}"`);
+  } else {
+    // Exclude DELETED and VOIDED when fetching all
+    whereParts.push('Status!="DELETED"');
+    whereParts.push('Status!="VOIDED"');
   }
 
   // Note: Xero date filtering uses Date field with DateTime() wrapper

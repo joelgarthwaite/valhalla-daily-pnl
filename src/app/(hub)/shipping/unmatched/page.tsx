@@ -465,15 +465,15 @@ export default function UnmatchedInvoicesPage() {
 
             {actionType === 'match' && (
               <div className="space-y-2">
-                <Label htmlFor="orderId">Order ID</Label>
+                <Label htmlFor="orderId">Order ID or Reference</Label>
                 <Input
                   id="orderId"
-                  placeholder="Paste the order UUID here"
+                  placeholder="Order #, B2B customer name, or UUID"
                   value={orderId}
                   onChange={(e) => setOrderId(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Find the order ID from the Orders admin page
+                  Enter an order number (e.g. #3306), B2B customer name (e.g. &quot;Dubai DP World&quot;), or UUID
                 </p>
               </div>
             )}

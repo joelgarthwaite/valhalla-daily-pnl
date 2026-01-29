@@ -121,17 +121,61 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      // Get the order details
+      // Get the order details - search by ID, order_number, platform_order_id, or b2b_customer_name
+      let order: { id: string; brand_id: string } | null = null;
+
+      // First try exact UUID match
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: order, error: orderError } = await (supabase as any)
+      const { data: orderById } = await (supabase as any)
         .from('orders')
         .select('id, brand_id')
         .eq('id', matched_order_id)
-        .single() as { data: { id: string; brand_id: string } | null; error: Error | null };
+        .single() as { data: { id: string; brand_id: string } | null };
 
-      if (orderError || !order) {
+      if (orderById) {
+        order = orderById;
+      } else {
+        // Try order_number
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: orderByNumber } = await (supabase as any)
+          .from('orders')
+          .select('id, brand_id')
+          .eq('order_number', matched_order_id)
+          .single() as { data: { id: string; brand_id: string } | null };
+
+        if (orderByNumber) {
+          order = orderByNumber;
+        } else {
+          // Try platform_order_id
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: orderByPlatformId } = await (supabase as any)
+            .from('orders')
+            .select('id, brand_id')
+            .eq('platform_order_id', matched_order_id)
+            .single() as { data: { id: string; brand_id: string } | null };
+
+          if (orderByPlatformId) {
+            order = orderByPlatformId;
+          } else {
+            // Try b2b_customer_name (partial match for B2B orders)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: orderByB2BName } = await (supabase as any)
+              .from('orders')
+              .select('id, brand_id')
+              .eq('platform', 'b2b')
+              .ilike('b2b_customer_name', `%${matched_order_id}%`)
+              .single() as { data: { id: string; brand_id: string } | null };
+
+            if (orderByB2BName) {
+              order = orderByB2BName;
+            }
+          }
+        }
+      }
+
+      if (!order) {
         return NextResponse.json(
-          { error: 'Order not found' },
+          { error: 'Order not found. Try searching by order number, platform order ID, or B2B customer name.' },
           { status: 404 }
         );
       }

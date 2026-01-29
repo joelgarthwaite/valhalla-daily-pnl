@@ -129,12 +129,13 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/xero/invoices
  *
- * Sync PAID invoices from Xero into the database
+ * Sync invoices from Xero into the database
  *
  * Body:
  *   brandCode: 'DC' | 'BI' (required)
  *   fromDate?: string (YYYY-MM-DD)
  *   toDate?: string (YYYY-MM-DD)
+ *   status?: 'PAID' | 'AUTHORISED' | 'ALL' (default: 'PAID')
  */
 export async function POST(request: NextRequest) {
   const supabase = createClient(
@@ -154,11 +155,20 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { brandCode, fromDate, toDate } = body;
+    const { brandCode, fromDate, toDate, status: invoiceStatus = 'PAID' } = body;
 
     if (!brandCode) {
       return NextResponse.json(
         { error: 'brandCode is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status parameter
+    const validStatuses = ['PAID', 'AUTHORISED', 'ALL'];
+    if (!validStatuses.includes(invoiceStatus)) {
+      return NextResponse.json(
+        { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` },
         { status: 400 }
       );
     }
@@ -220,12 +230,20 @@ export async function POST(request: NextRequest) {
         .eq('id', connection.id);
     }
 
-    // Fetch PAID invoices from Xero
+    // Fetch invoices from Xero
+    console.log(`Fetching ${invoiceStatus} invoices from Xero for ${brand.name}`, {
+      fromDate,
+      toDate,
+      tenantId: connection.tenant_id,
+    });
+
     const invoices = await fetchInvoices(accessToken, connection.tenant_id, {
-      status: 'PAID',
+      status: invoiceStatus === 'ALL' ? undefined : invoiceStatus as 'PAID' | 'AUTHORISED',
       fromDate,
       toDate,
     });
+
+    console.log(`Received ${invoices.length} invoices from Xero`);
 
     // Transform and upsert invoices
     const syncedAt = new Date().toISOString();

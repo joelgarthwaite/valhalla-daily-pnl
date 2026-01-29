@@ -171,6 +171,7 @@ export default function XeroInvoicesPage() {
   // Sync dialog states
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [syncBrand, setSyncBrand] = useState('DC');
+  const [syncStatus, setSyncStatus] = useState<'PAID' | 'AUTHORISED' | 'ALL'>('ALL');
   const [syncFromDate, setSyncFromDate] = useState(
     format(subDays(new Date(), 30), 'yyyy-MM-dd')
   );
@@ -265,6 +266,7 @@ export default function XeroInvoicesPage() {
           brandCode: syncBrand,
           fromDate: syncFromDate,
           toDate: syncToDate,
+          status: syncStatus,
         }),
       });
 
@@ -872,22 +874,41 @@ export default function XeroInvoicesPage() {
           <DialogHeader>
             <DialogTitle>Sync Invoices from Xero</DialogTitle>
             <DialogDescription>
-              Fetch PAID invoices from Xero for the selected brand and date range
+              Fetch invoices from Xero for the selected brand and date range
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="syncBrand">Brand</Label>
-              <Select value={syncBrand} onValueChange={setSyncBrand}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DC">Display Champ</SelectItem>
-                  <SelectItem value="BI">Bright Ivy</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="syncBrand">Brand</Label>
+                <Select value={syncBrand} onValueChange={setSyncBrand}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DC">Display Champ</SelectItem>
+                    <SelectItem value="BI">Bright Ivy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="syncStatus">Invoice Status</Label>
+                <Select value={syncStatus} onValueChange={(v) => setSyncStatus(v as 'PAID' | 'AUTHORISED' | 'ALL')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All (Recommended)</SelectItem>
+                    <SelectItem value="PAID">Paid Only</SelectItem>
+                    <SelectItem value="AUTHORISED">Authorised Only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  AUTHORISED = sent to customer, PAID = payment received
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
