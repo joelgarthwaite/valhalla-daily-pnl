@@ -287,15 +287,93 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// POST - Deduplicate records
+// POST - Deduplicate or Auto-resolve records
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { action } = body;
 
+    if (action === 'auto-resolve') {
+      // Auto-resolve unmatched records that now have matching shipments linked to orders
+      const { data: pendingRecords, error: fetchError } = await supabaseAdmin
+        .from('unmatched_invoice_records')
+        .select('id, tracking_number, carrier, shipping_cost')
+        .eq('status', 'pending');
+
+      if (fetchError) {
+        return NextResponse.json({ error: 'Failed to fetch records' }, { status: 500 });
+      }
+
+      if (!pendingRecords || pendingRecords.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'No pending records to check',
+          resolved: 0,
+        });
+      }
+
+      // Get all tracking numbers
+      const trackingNumbers = pendingRecords.map(r => r.tracking_number);
+
+      // Find shipments that exist and are linked to orders
+      const { data: linkedShipments } = await supabaseAdmin
+        .from('shipments')
+        .select('id, tracking_number, carrier, order_id, shipping_cost')
+        .in('tracking_number', trackingNumbers)
+        .not('order_id', 'is', null);
+
+      // Create a map of tracking+carrier -> shipment
+      const shipmentMap = new Map<string, { id: string; order_id: string; shipping_cost: number }>();
+      for (const shipment of linkedShipments || []) {
+        const key = `${shipment.tracking_number}|${shipment.carrier}`;
+        shipmentMap.set(key, {
+          id: shipment.id,
+          order_id: shipment.order_id,
+          shipping_cost: shipment.shipping_cost,
+        });
+      }
+
+      // Resolve records that have matching linked shipments
+      let resolvedCount = 0;
+      const resolvedIds: string[] = [];
+
+      for (const record of pendingRecords) {
+        const key = `${record.tracking_number}|${record.carrier}`;
+        const shipment = shipmentMap.get(key);
+
+        if (shipment) {
+          resolvedIds.push(record.id);
+          resolvedCount++;
+        }
+      }
+
+      if (resolvedIds.length > 0) {
+        const { error: updateError } = await supabaseAdmin
+          .from('unmatched_invoice_records')
+          .update({
+            status: 'resolved',
+            resolution_notes: 'Auto-resolved: Shipment already exists and is linked to an order',
+            resolved_at: new Date().toISOString(),
+          })
+          .in('id', resolvedIds);
+
+        if (updateError) {
+          console.error('Error auto-resolving records:', updateError);
+          return NextResponse.json({ error: 'Failed to update records' }, { status: 500 });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Auto-resolved ${resolvedCount} records that had matching shipments`,
+        resolved: resolvedCount,
+        checked: pendingRecords.length,
+      });
+    }
+
     if (action !== 'dedupe') {
       return NextResponse.json(
-        { error: 'Unknown action. Supported: dedupe' },
+        { error: 'Unknown action. Supported: dedupe, auto-resolve' },
         { status: 400 }
       );
     }

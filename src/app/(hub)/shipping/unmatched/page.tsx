@@ -110,8 +110,9 @@ export default function UnmatchedInvoicesPage() {
   const [orderSearchLoading, setOrderSearchLoading] = useState(false);
   const [selectedOrderDisplay, setSelectedOrderDisplay] = useState<string | null>(null);
 
-  // Dedupe state
+  // Dedupe and Auto-resolve state
   const [dedupeLoading, setDedupeLoading] = useState(false);
+  const [autoResolveLoading, setAutoResolveLoading] = useState(false);
 
   // Sorting state
   type SortColumn = 'tracking_number' | 'carrier' | 'shipping_date' | 'shipping_cost' | 'invoice_number' | 'status';
@@ -200,6 +201,35 @@ export default function UnmatchedInvoicesPage() {
       alert('Failed to deduplicate records');
     } finally {
       setDedupeLoading(false);
+    }
+  };
+
+  const handleAutoResolve = async () => {
+    setAutoResolveLoading(true);
+    try {
+      const response = await fetch('/api/invoices/unmatched', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'auto-resolve' }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.resolved > 0) {
+          alert(`Auto-resolved ${data.resolved} records that already had matching shipments linked to orders.`);
+          fetchRecords();
+        } else {
+          alert('No records could be auto-resolved. All pending records need manual review.');
+        }
+      } else {
+        alert(data.error || 'Failed to auto-resolve');
+      }
+    } catch (error) {
+      console.error('Error auto-resolving:', error);
+      alert('Failed to auto-resolve records');
+    } finally {
+      setAutoResolveLoading(false);
     }
   };
 
@@ -463,6 +493,10 @@ export default function UnmatchedInvoicesPage() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleAutoResolve} disabled={autoResolveLoading || loading}>
+                <CheckCircle className={`h-4 w-4 mr-2 ${autoResolveLoading ? 'animate-pulse' : ''}`} />
+                Sync All
+              </Button>
               <Button variant="outline" size="sm" onClick={handleDedupe} disabled={dedupeLoading || loading}>
                 <Copy className={`h-4 w-4 mr-2 ${dedupeLoading ? 'animate-pulse' : ''}`} />
                 Dedupe
