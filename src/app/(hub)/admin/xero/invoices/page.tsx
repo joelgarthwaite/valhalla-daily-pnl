@@ -180,6 +180,7 @@ export default function XeroInvoicesPage() {
   const [unmatchedTrackings, setUnmatchedTrackings] = useState<UnmatchedTrackingRecord[]>([]);
   const [loadingTrackings, setLoadingTrackings] = useState(false);
   const [showTrackingPicker, setShowTrackingPicker] = useState(false);
+  const [trackingSearch, setTrackingSearch] = useState('');
 
   // Sync dialog states
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
@@ -377,6 +378,7 @@ export default function XeroInvoicesPage() {
     setNotes('');
     setShowTrackingPicker(false);
     setUnmatchedTrackings([]);
+    setTrackingSearch('');
   };
 
   const fetchUnmatchedTrackings = async () => {
@@ -1147,43 +1149,67 @@ export default function XeroInvoicesPage() {
 
                   {/* Unmatched Tracking Picker */}
                   {showTrackingPicker && (
-                    <div className="border rounded-md max-h-[200px] overflow-y-auto bg-muted/30">
-                      {loadingTrackings ? (
-                        <div className="p-4 text-center text-sm text-muted-foreground">
-                          Loading...
-                        </div>
-                      ) : unmatchedTrackings.length === 0 ? (
-                        <div className="p-4 text-center text-sm text-muted-foreground">
-                          No unmatched tracking numbers
-                        </div>
-                      ) : (
-                        <div className="divide-y">
-                          {unmatchedTrackings.map((tracking) => (
-                            <button
-                              key={tracking.id}
-                              type="button"
-                              className="w-full px-3 py-2 text-left hover:bg-muted transition-colors flex items-center justify-between gap-2"
-                              onClick={() => selectTracking(tracking)}
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="font-mono text-sm font-medium truncate">
-                                  {tracking.tracking_number}
-                                </div>
-                                <div className="text-xs text-muted-foreground flex items-center gap-2">
-                                  <span className="uppercase">{tracking.carrier}</span>
-                                  {tracking.shipping_date && (
-                                    <span>• {formatDate(tracking.shipping_date)}</span>
-                                  )}
-                                  <span>• {formatCurrency(tracking.shipping_cost)}</span>
-                                </div>
+                    <div className="border rounded-md bg-muted/30">
+                      {/* Search input */}
+                      <div className="p-2 border-b">
+                        <Input
+                          placeholder="Search tracking number..."
+                          value={trackingSearch}
+                          onChange={(e) => setTrackingSearch(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="max-h-[180px] overflow-y-auto">
+                        {loadingTrackings ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">
+                            Loading...
+                          </div>
+                        ) : unmatchedTrackings.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">
+                            No unmatched tracking numbers
+                          </div>
+                        ) : (
+                          (() => {
+                            const filtered = unmatchedTrackings.filter(t =>
+                              !trackingSearch ||
+                              t.tracking_number.toLowerCase().includes(trackingSearch.toLowerCase()) ||
+                              t.carrier.toLowerCase().includes(trackingSearch.toLowerCase())
+                            );
+                            return filtered.length === 0 ? (
+                              <div className="p-4 text-center text-sm text-muted-foreground">
+                                No matches for &quot;{trackingSearch}&quot;
                               </div>
-                              <Badge variant="outline" className="shrink-0 text-xs">
-                                Select
-                              </Badge>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                            ) : (
+                              <div className="divide-y">
+                                {filtered.map((tracking) => (
+                                  <button
+                                    key={tracking.id}
+                                    type="button"
+                                    className="w-full px-3 py-2 text-left hover:bg-muted transition-colors flex items-center justify-between gap-2"
+                                    onClick={() => selectTracking(tracking)}
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-mono text-sm font-medium truncate">
+                                        {tracking.tracking_number}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                        <span className="uppercase">{tracking.carrier}</span>
+                                        {tracking.shipping_date && (
+                                          <span>• {formatDate(tracking.shipping_date)}</span>
+                                        )}
+                                        <span>• {formatCurrency(tracking.shipping_cost)}</span>
+                                      </div>
+                                    </div>
+                                    <Badge variant="outline" className="shrink-0 text-xs">
+                                      Select
+                                    </Badge>
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()
+                        )}
+                      </div>
                     </div>
                   )}
 
