@@ -203,7 +203,7 @@ export async function PATCH(request: NextRequest) {
           weight_kg: unmatchedRecord.weight_kg,
           shipping_cost: unmatchedRecord.shipping_cost,
           shipping_date: unmatchedRecord.shipping_date,
-          status: 'from_invoice_reconciliation',
+          status: 'delivered',
           cost_updated_at: new Date().toISOString(),
           raw_data: {
             cost_type: unmatchedRecord.carrier === 'dhl' ? 'actual' : 'estimated',
@@ -217,12 +217,12 @@ export async function PATCH(request: NextRequest) {
       if (shipmentError) {
         console.error('Error creating shipment:', shipmentError);
         return NextResponse.json(
-          { error: 'Failed to create shipment' },
+          { error: `Failed to create shipment: ${shipmentError.message || JSON.stringify(shipmentError)}` },
           { status: 500 }
         );
       }
 
-      updateData.matched_order_id = matched_order_id;
+      updateData.matched_order_id = order.id;
       updateData.matched_shipment_id = shipment?.id;
     }
 
