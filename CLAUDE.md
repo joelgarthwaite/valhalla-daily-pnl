@@ -1437,6 +1437,19 @@ Shipping > Unmatched button (`/shipping/unmatched`)
 - **Records Table**: All unmatched invoice line items with details
 - **Actions**: Link to Order, Mark as Voided, Mark as Resolved, Delete
 - **Badge on Shipping Page**: Shows pending count for visibility
+- **Typeahead Order Search**: Link to Order dialog has typeahead search by customer name or order number
+
+### Link to Order Dialog
+
+The "Link to Order" action opens a dialog with typeahead search:
+
+| Feature | Description |
+|---------|-------------|
+| **Debounced Search** | 300ms delay, triggers after 2+ characters |
+| **Search Fields** | Order number, customer name, B2B customer name, email, address |
+| **Results Dropdown** | Shows order #, amount, customer, platform, date |
+| **Selection Display** | Green card showing selected order with "Change" button |
+| **Confirm Button** | Only enabled when an order is selected |
 
 ### API Endpoints
 - `GET /api/invoices/unmatched` - List unmatched records
