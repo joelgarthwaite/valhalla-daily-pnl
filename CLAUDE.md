@@ -619,6 +619,22 @@ This is NOT included in GP1/GP2/GP3 calculations.
 It's a separate line item for visibility.
 ```
 
+### Multiple Shipments Per Order
+
+Orders can have multiple shipments (e.g., split shipments, Royal Mail + DHL for different parts of an order). The system correctly aggregates:
+
+- **Total Shipping Cost** = Sum of all `shipments.shipping_cost` for the order
+- **P&L Calculations** - Uses aggregated shipping cost per order
+- **Shipping Page** - Shows total cost with indicator when multiple shipments exist
+- **UI Indicators**:
+  - Carrier column: Shows primary carrier with `+N` badge if multiple carriers
+  - Cost column: Shows `(N)` count when cost is summed from multiple shipments
+
+**Example:**
+| Order | Shipment 1 | Shipment 2 | Total Displayed |
+|-------|-----------|-----------|-----------------|
+| #3126 | £5.20 Royal Mail | £15.80 DHL | £21.00 (2) |
+
 ---
 
 ## Project Structure
