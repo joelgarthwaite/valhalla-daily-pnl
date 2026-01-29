@@ -20,6 +20,7 @@ import {
   Link2,
   Tag,
   FileText,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -116,6 +117,12 @@ const navSections: NavSection[] = [
         href: '/inventory/product-skus',
         icon: Tag,
         description: 'Master SKU catalog',
+      },
+      {
+        label: 'BOM Editor',
+        href: '/inventory/bom',
+        icon: Layers,
+        description: 'Product components',
       },
       {
         label: 'SKU Mapping',
