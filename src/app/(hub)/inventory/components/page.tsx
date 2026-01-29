@@ -99,7 +99,8 @@ export default function ComponentsPage() {
       const params = new URLSearchParams();
       if (filterBrand !== 'all') params.set('brand', filterBrand);
       if (filterCategory !== 'all') params.set('category', filterCategory);
-      if (filterActive !== 'all') params.set('active', filterActive);
+      // Always send the active filter - API defaults to 'true' if not sent
+      params.set('active', filterActive);
 
       const response = await fetch(`/api/inventory/components?${params}`);
       const data = await response.json();
@@ -614,13 +615,13 @@ export default function ComponentsPage() {
             </Select>
 
             <Select value={filterActive} onValueChange={setFilterActive}>
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Status" />
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Component Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="true">Active</SelectItem>
-                <SelectItem value="false">Inactive</SelectItem>
+                <SelectItem value="all">All Components</SelectItem>
+                <SelectItem value="true">Active Only</SelectItem>
+                <SelectItem value="false">Inactive Only</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -639,7 +640,7 @@ export default function ComponentsPage() {
                 <TableHead>Material</TableHead>
                 <TableHead className="text-center">On Hand</TableHead>
                 <TableHead className="text-center">Available</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Stock Status</TableHead>
                 <TableHead className="w-[100px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -671,7 +672,14 @@ export default function ComponentsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{component.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{component.name}</span>
+                          {!component.is_active && (
+                            <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                              Inactive
+                            </Badge>
+                          )}
+                        </div>
                         {component.variant && (
                           <div className="text-xs text-muted-foreground">{component.variant}</div>
                         )}

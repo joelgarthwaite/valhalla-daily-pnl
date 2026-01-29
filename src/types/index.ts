@@ -948,6 +948,50 @@ export interface ComponentCategory {
   created_at: string;
 }
 
+// Product SKU status
+export type ProductSkuStatus = 'active' | 'historic' | 'discontinued';
+
+// Product SKU - master table of canonical product SKUs
+export interface ProductSku {
+  id: string;
+  sku: string;
+  name: string;
+  brand_id: string | null;
+  status: ProductSkuStatus;
+  platforms: string[];  // e.g., ['shopify', 'etsy']
+  description: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  brand?: Brand;
+  bom_entries?: BomEntry[];
+}
+
+export interface ProductSkuFormData {
+  sku: string;
+  name: string;
+  brand_id?: string;
+  status?: ProductSkuStatus;
+  platforms?: string[];
+  description?: string;
+  notes?: string;
+}
+
+// SKU Mapping - maps old/legacy SKUs to current canonical SKUs
+export interface SkuMapping {
+  id: string;
+  old_sku: string;
+  current_sku: string;
+  brand_id: string | null;
+  platform: string | null;  // 'shopify' | 'etsy' | null (all platforms)
+  product_sku_id: string | null;  // FK to product_skus
+  notes: string | null;
+  created_at: string;
+  // Joined
+  product_sku?: ProductSku;
+}
+
 export interface Component {
   id: string;
   brand_id: string | null;

@@ -18,6 +18,7 @@ import {
   Package,
   Boxes,
   Link2,
+  Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -110,10 +111,16 @@ const navSections: NavSection[] = [
         description: 'Component management',
       },
       {
+        label: 'Product SKUs',
+        href: '/inventory/product-skus',
+        icon: Tag,
+        description: 'Master SKU catalog',
+      },
+      {
         label: 'SKU Mapping',
         href: '/inventory/sku-mapping',
         icon: Link2,
-        description: 'Product SKU mapping',
+        description: 'Legacy SKU mapping',
       },
     ],
   },

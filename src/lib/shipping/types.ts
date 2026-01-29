@@ -6,11 +6,13 @@ export type CostConfidence =
   | 'estimated_date_country'
   | 'estimated_country_only';
 
+export type CarrierType = 'dhl' | 'royalmail' | 'deutschepost';
+
 export interface Shipment {
   id: string;
   order_id: string | null;
   brand_id: string;
-  carrier: 'dhl' | 'royalmail';
+  carrier: CarrierType;
   carrier_account_id: string | null;
   tracking_number: string | null;
   service_type: string | null;
@@ -29,6 +31,7 @@ export interface Shipment {
   cost_confidence: CostConfidence | null;
   match_method: string | null;
   candidates_in_window: number | null;
+  cost_locked: boolean;
   created_at: string;
   updated_at: string;
 }

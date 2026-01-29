@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (record.action === 'update') {
-          // Update existing shipment
+          // Update existing shipment - but NOT if cost_locked is true (safety check)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error: updateError } = await (supabase as any)
             .from('shipments')
@@ -162,7 +162,8 @@ export async function POST(request: NextRequest) {
               },
             })
             .eq('tracking_number', record.tracking_number)
-            .eq('carrier', carrier) as { error: Error | null };
+            .eq('carrier', carrier)
+            .eq('cost_locked', false) as { error: Error | null }; // Safety: only update if not locked
 
           if (updateError) {
             results.push({
@@ -182,7 +183,7 @@ export async function POST(request: NextRequest) {
             updatedCount++;
           }
         } else if (record.action === 'add') {
-          // Add to existing shipment cost (for duties/taxes)
+          // Add to existing shipment cost (for duties/taxes) - but NOT if cost_locked is true (safety check)
           const newCost = (record.existing_cost || 0) + record.shipping_cost;
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -200,7 +201,8 @@ export async function POST(request: NextRequest) {
               },
             })
             .eq('tracking_number', record.tracking_number)
-            .eq('carrier', carrier) as { error: Error | null };
+            .eq('carrier', carrier)
+            .eq('cost_locked', false) as { error: Error | null }; // Safety: only update if not locked
 
           if (addError) {
             results.push({

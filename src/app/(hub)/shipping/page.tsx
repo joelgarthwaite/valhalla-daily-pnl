@@ -352,7 +352,7 @@ export default function ShippingDashboardPage() {
       </div>
 
       {/* Orders Table */}
-      <ShippingOrdersTable orders={tableOrders} />
+      <ShippingOrdersTable orders={tableOrders} onShipmentUpdate={handleRefresh} />
     </div>
   );
 }

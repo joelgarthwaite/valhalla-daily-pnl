@@ -16,6 +16,7 @@ interface ExistingShipment {
   tracking_number: string;
   shipping_cost: number;
   carrier: string;
+  cost_locked: boolean;
   raw_data: {
     cost_type?: 'actual' | 'estimated';
     [key: string]: unknown;
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
     // Query existing shipments by tracking numbers and carrier
     const { data: existingShipments, error: queryError } = await supabase
       .from('shipments')
-      .select('id, tracking_number, shipping_cost, carrier, raw_data')
+      .select('id, tracking_number, shipping_cost, carrier, cost_locked, raw_data')
       .in('tracking_number', trackingNumbers)
       .eq('carrier', carrier);
 
@@ -129,8 +130,17 @@ export async function POST(request: NextRequest) {
         const costDifference = invoice.shipping_cost - existing.shipping_cost;
         const isSameCost = Math.abs(costDifference) < 0.01;
 
+        // FIRST CHECK: Block updates to manually locked costs
+        if (existing.cost_locked) {
+          action = 'blocked';
+          reason = 'Cost is locked - manual override protected';
+          toBlock++;
+
+          if (!warnings.includes('Some records are blocked because they have manually locked costs')) {
+            warnings.push('Some records are blocked because they have manually locked costs');
+          }
         // STRICT PROTECTION: Block estimated costs from overwriting actual costs
-        if (existingCostType === 'actual' && uploadCostType === 'estimated') {
+        } else if (existingCostType === 'actual' && uploadCostType === 'estimated') {
           action = 'blocked';
           reason = 'Cannot overwrite verified actual cost with estimate';
           toBlock++;
