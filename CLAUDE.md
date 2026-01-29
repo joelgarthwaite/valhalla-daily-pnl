@@ -69,6 +69,18 @@ All projects share the same Supabase database and are planned for consolidation 
 - `excluded_orders` - Permanently excluded orders (prevents re-sync)
 - `sku_mapping` - SKU mappings for inventory forecasting (old_sku → current_sku)
 
+### Inventory Tables
+- `component_categories` - Categories lookup (cases, bases, accessories, packaging, display_accessories)
+- `components` - Component master data (SKU, name, material, category, safety_days)
+- `suppliers` - Supplier info (name, contact, lead_time, MOQ, payment_terms)
+- `component_suppliers` - Many-to-many with supplier-specific pricing
+- `bom` - Bill of Materials (product_sku → component_id + quantity)
+- `stock_levels` - Current inventory (on_hand, reserved, on_order, available)
+- `stock_transactions` - Audit trail of all stock movements
+- `purchase_orders` - PO header (status, dates, totals)
+- `purchase_order_items` - PO line items
+- `inventory_notification_prefs` - Per-user email settings
+
 **Migrations:**
 - `supabase/migrations/002_pnl_schema.sql` - Core P&L tables
 - `supabase/migrations/003_enhanced_metrics.sql` - GP1/GP2/GP3, refunds, enhanced metrics
@@ -83,6 +95,7 @@ All projects share the same Supabase database and are planned for consolidation 
 - `supabase/migrations/012_unmatched_invoices.sql` - Unmatched invoice records for reconciliation
 - `supabase/migrations/013_add_deutschepost_carrier.sql` - Deutsche Post carrier support
 - `supabase/migrations/014_sku_mapping.sql` - SKU mapping table for inventory forecasting
+- `supabase/migrations/015_inventory_schema.sql` - Full inventory management schema (Phase A)
 
 ---
 
@@ -1488,6 +1501,97 @@ CREATE INDEX idx_sku_mapping_current_sku ON sku_mapping(current_sku);
 | `src/app/api/inventory/sku-suggestions/route.ts` | AI-powered suggestions |
 | `src/lib/inventory/sku-utils.ts` | SKU parsing utilities (getBaseSku, isVariantSku, etc.) |
 | `supabase/migrations/014_sku_mapping.sql` | Database migration |
+
+---
+
+## Inventory Management (Phase A)
+
+### Overview
+
+A demand forecasting and inventory management system for tracking component stock levels, managing Bill of Materials (BOM), and triggering reorder alerts.
+
+### Current Features (Phase A)
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| **Components CRUD** | ✅ Complete | Create/edit/delete components with categories, materials, variants |
+| **Stock Dashboard** | ✅ Complete | View stock levels with status badges (OK, Warning, Critical, Out of Stock) |
+| **Stock Adjustments** | ✅ Complete | Manual stock count, add, and remove with audit trail |
+| **Basic Forecasting** | ✅ Complete | Status calculation based on available stock (velocity TBD with BOM) |
+
+### Future Phases
+
+| Phase | Features |
+|-------|----------|
+| **Phase B** | Suppliers CRUD, BOM editor, velocity calculation from orders |
+| **Phase C** | Purchase orders workflow, receiving stock |
+| **Phase D** | Email alerts for low stock, reorder notifications |
+
+### Navigation
+
+| Page | Path | Description |
+|------|------|-------------|
+| Stock Levels | `/inventory` | Main dashboard showing all component stock status |
+| Components | `/inventory/components` | CRUD for managing components |
+| SKU Mapping | `/inventory/sku-mapping` | Map old SKUs to current SKUs |
+
+### Stock Status Logic
+
+```
+days_remaining = available / daily_velocity
+
+if available <= 0:
+    status = OUT_OF_STOCK
+elif days_remaining <= lead_time + safety_days:
+    status = CRITICAL
+elif days_remaining <= lead_time + safety_days + 7:
+    status = WARNING
+else:
+    status = OK
+```
+
+### API Endpoints
+
+**Components:**
+- `GET /api/inventory/components` - List components with filtering
+- `POST /api/inventory/components` - Create new component
+- `GET /api/inventory/components/[id]` - Get single component
+- `PATCH /api/inventory/components/[id]` - Update component
+- `DELETE /api/inventory/components/[id]` - Delete component
+
+**Stock:**
+- `GET /api/inventory/stock` - List stock levels with status
+- `POST /api/inventory/stock/adjust` - Adjust stock (count, add, remove)
+- `GET /api/inventory/stock/adjust?component_id=uuid` - Transaction history
+
+### Database Tables
+
+```sql
+-- Core tables created in 015_inventory_schema.sql
+component_categories   -- cases, bases, accessories, packaging, display_accessories
+components            -- Component master data
+suppliers             -- Supplier info (future use)
+component_suppliers   -- Component-supplier relationships (future use)
+bom                   -- Bill of Materials (future use)
+stock_levels          -- Current inventory levels
+stock_transactions    -- Audit trail of movements
+purchase_orders       -- PO headers (future use)
+purchase_order_items  -- PO line items (future use)
+inventory_notification_prefs  -- User alert settings (future use)
+```
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `src/app/(hub)/inventory/page.tsx` | Stock levels dashboard |
+| `src/app/(hub)/inventory/components/page.tsx` | Components CRUD page |
+| `src/app/api/inventory/components/route.ts` | Components list/create API |
+| `src/app/api/inventory/components/[id]/route.ts` | Component get/update/delete API |
+| `src/app/api/inventory/stock/route.ts` | Stock levels API |
+| `src/app/api/inventory/stock/adjust/route.ts` | Stock adjustment API |
+| `src/lib/inventory/forecast.ts` | Velocity and status calculations |
+| `supabase/migrations/015_inventory_schema.sql` | Database migration |
 
 ---
 

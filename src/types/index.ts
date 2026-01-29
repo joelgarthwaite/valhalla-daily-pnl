@@ -933,3 +933,247 @@ export interface InvestorMetrics {
   dataEndDate: string;
   monthsOfData: number;
 }
+
+// ============================================
+// Inventory Management Types
+// ============================================
+
+export type ComponentCategoryName = 'cases' | 'bases' | 'accessories' | 'packaging' | 'display_accessories';
+
+export interface ComponentCategory {
+  id: string;
+  name: ComponentCategoryName;
+  description: string | null;
+  display_order: number;
+  created_at: string;
+}
+
+export interface Component {
+  id: string;
+  brand_id: string | null;
+  sku: string;
+  name: string;
+  description: string | null;
+  category_id: string | null;
+  material: string | null;
+  variant: string | null;
+  safety_stock_days: number;
+  min_order_qty: number;
+  lead_time_days: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  category?: ComponentCategory;
+  brand?: Brand;
+  stock?: StockLevel;
+}
+
+export interface ComponentFormData {
+  brand_id?: string;
+  sku: string;
+  name: string;
+  description?: string;
+  category_id?: string;
+  material?: string;
+  variant?: string;
+  safety_stock_days?: number;
+  min_order_qty?: number;
+  lead_time_days?: number;
+  is_active?: boolean;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  code: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  address: string | null;
+  country: string | null;
+  default_lead_time_days: number;
+  min_order_qty: number;
+  min_order_value: number | null;
+  payment_terms: string | null;
+  currency: string;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComponentSupplier {
+  id: string;
+  component_id: string;
+  supplier_id: string;
+  supplier_sku: string | null;
+  unit_cost: number | null;
+  lead_time_days: number | null;
+  min_order_qty: number | null;
+  priority: number;
+  is_preferred: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  supplier?: Supplier;
+}
+
+export interface BomEntry {
+  id: string;
+  product_sku: string;
+  brand_id: string | null;
+  component_id: string;
+  quantity: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  component?: Component;
+}
+
+export interface StockLevel {
+  id: string;
+  component_id: string;
+  on_hand: number;
+  reserved: number;
+  on_order: number;
+  available: number;  // Generated column
+  last_count_date: string | null;
+  last_movement_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type StockTransactionType =
+  | 'receive'
+  | 'ship'
+  | 'adjust'
+  | 'count'
+  | 'reserve'
+  | 'unreserve'
+  | 'transfer'
+  | 'return'
+  | 'scrap';
+
+export interface StockTransaction {
+  id: string;
+  component_id: string;
+  transaction_type: StockTransactionType;
+  quantity: number;
+  quantity_before: number | null;
+  quantity_after: number | null;
+  reference_type: string | null;
+  reference_id: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export type PurchaseOrderStatus =
+  | 'draft'
+  | 'pending'
+  | 'approved'
+  | 'sent'
+  | 'confirmed'
+  | 'partial'
+  | 'received'
+  | 'cancelled';
+
+export interface PurchaseOrder {
+  id: string;
+  supplier_id: string;
+  brand_id: string | null;
+  po_number: string;
+  status: PurchaseOrderStatus;
+  ordered_date: string | null;
+  expected_date: string | null;
+  received_date: string | null;
+  subtotal: number;
+  shipping_cost: number;
+  tax: number;
+  total: number;
+  currency: string;
+  shipping_address: string | null;
+  notes: string | null;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  supplier?: Supplier;
+  items?: PurchaseOrderItem[];
+}
+
+export interface PurchaseOrderItem {
+  id: string;
+  purchase_order_id: string;
+  component_id: string;
+  quantity_ordered: number;
+  quantity_received: number;
+  unit_price: number;
+  line_total: number;  // Generated column
+  is_complete: boolean;  // Generated column
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  component?: Component;
+}
+
+export interface InventoryNotificationPrefs {
+  id: string;
+  user_id: string;
+  low_stock_email: boolean;
+  reorder_email: boolean;
+  po_status_email: boolean;
+  critical_threshold_days: number;
+  warning_threshold_days: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Stock status for UI display
+export type StockStatus = 'ok' | 'warning' | 'critical' | 'out_of_stock';
+
+export interface StockStatusInfo {
+  status: StockStatus;
+  daysRemaining: number | null;
+  velocity: number;  // Units per day
+  reorderPoint: number;  // When to reorder
+}
+
+// Component with stock for dashboard
+export interface ComponentWithStock extends Component {
+  stock: StockLevel;
+  statusInfo: StockStatusInfo;
+}
+
+// Stock adjustment types
+export type StockAdjustmentType = 'count' | 'add' | 'remove';
+
+export interface StockAdjustmentRequest {
+  component_id: string;
+  adjustment_type: StockAdjustmentType;
+  quantity: number;
+  notes?: string;
+}
+
+// Category labels for display
+export const COMPONENT_CATEGORY_LABELS: Record<ComponentCategoryName, string> = {
+  cases: 'Cases',
+  bases: 'Bases',
+  accessories: 'Accessories',
+  packaging: 'Packaging',
+  display_accessories: 'Display Accessories',
+};
+
+// Stock status labels and colors
+export const STOCK_STATUS_CONFIG: Record<StockStatus, { label: string; color: string; bgColor: string }> = {
+  ok: { label: 'In Stock', color: 'text-green-700', bgColor: 'bg-green-100' },
+  warning: { label: 'Low Stock', color: 'text-amber-700', bgColor: 'bg-amber-100' },
+  critical: { label: 'Critical', color: 'text-red-700', bgColor: 'bg-red-100' },
+  out_of_stock: { label: 'Out of Stock', color: 'text-red-900', bgColor: 'bg-red-200' },
+};

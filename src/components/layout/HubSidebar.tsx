@@ -16,6 +16,8 @@ import {
   Users,
   Building,
   Package,
+  Boxes,
+  Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -96,10 +98,22 @@ const navSections: NavSection[] = [
     title: 'Inventory',
     items: [
       {
+        label: 'Stock Levels',
+        href: '/inventory',
+        icon: Package,
+        description: 'Current inventory status',
+      },
+      {
+        label: 'Components',
+        href: '/inventory/components',
+        icon: Boxes,
+        description: 'Component management',
+      },
+      {
         label: 'SKU Mapping',
         href: '/inventory/sku-mapping',
-        icon: Package,
-        description: 'Product SKU management',
+        icon: Link2,
+        description: 'Product SKU mapping',
       },
     ],
   },
