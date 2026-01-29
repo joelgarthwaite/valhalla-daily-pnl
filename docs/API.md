@@ -1,6 +1,7 @@
 # Valhalla Hub - API Reference
 
 > Complete reference for all API endpoints across the Valhalla Hub platform.
+> Last Updated: January 2026
 
 ---
 
@@ -9,13 +10,15 @@
 1. [Authentication](#authentication)
 2. [P&L Data Endpoints](#pnl-data-endpoints)
 3. [Order Sync Endpoints](#order-sync-endpoints)
-4. [Ad Spend Endpoints](#ad-spend-endpoints)
-5. [Operating Expenses](#operating-expenses)
-6. [B2B Revenue](#b2b-revenue)
-7. [Xero Integration](#xero-integration)
-8. [Cron Jobs](#cron-jobs)
-9. [Email Notifications](#email-notifications)
-10. [Error Handling](#error-handling)
+4. [Shipping & Shipments](#shipping--shipments)
+5. [Invoice Processing](#invoice-processing)
+6. [Ad Spend Endpoints](#ad-spend-endpoints)
+7. [Operating Expenses](#operating-expenses)
+8. [B2B Revenue](#b2b-revenue)
+9. [Xero Integration](#xero-integration)
+10. [Cron Jobs](#cron-jobs)
+11. [Email Notifications](#email-notifications)
+12. [Error Handling](#error-handling)
 
 ---
 
@@ -362,6 +365,397 @@ Restore an excluded order.
 
 ---
 
+## Shipping & Shipments
+
+### GET `/api/shipments`
+
+List shipments with optional filters.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `unlinked` | boolean | No | If 'true', only return shipments without an order_id |
+| `carrier` | string | No | Filter by carrier: 'dhl', 'royalmail', 'deutschepost' |
+| `search` | string | No | Search by tracking number |
+| `limit` | number | No | Max results (default: 100) |
+| `offset` | number | No | Pagination offset (default: 0) |
+
+**Example Request:**
+
+```bash
+# Get unlinked shipments (for B2B order matching)
+curl "https://pnl.displaychamp.com/api/shipments?unlinked=true&limit=50"
+
+# Search by tracking number
+curl "https://pnl.displaychamp.com/api/shipments?search=1234567890"
+```
+
+**Response:**
+
+```json
+{
+  "shipments": [
+    {
+      "id": "uuid",
+      "tracking_number": "1234567890",
+      "carrier": "dhl",
+      "shipping_cost": 15.80,
+      "service_type": "express",
+      "shipping_date": "2025-01-25",
+      "order_id": null,
+      "brand_id": "uuid"
+    }
+  ],
+  "total": 150,
+  "limit": 100,
+  "offset": 0
+}
+```
+
+---
+
+### GET `/api/shipping/data`
+
+Fetch shipping analytics data (orders with shipments).
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `from` | string | Yes | Start date (YYYY-MM-DD) |
+| `to` | string | Yes | End date (YYYY-MM-DD) |
+| `brand` | string | No | 'all', 'DC', or 'BI' |
+
+**Response:**
+
+```json
+{
+  "brands": [...],
+  "orders": [...],
+  "shipments": [...],
+  "meta": {
+    "ordersCount": 500,
+    "shipmentsCount": 520,
+    "shipmentsWithCost": 480,
+    "shipmentsWithOrderId": 490,
+    "dateRange": { "from": "...", "to": "..." }
+  }
+}
+```
+
+**Note:** Orders can have multiple shipments. The system aggregates ALL shipping costs per order for accurate P&L tracking.
+
+---
+
+### POST `/api/shipstation/sync`
+
+Sync shipments from ShipStation.
+
+**Request Body:**
+
+```json
+{
+  "startDate": "2025-01-01",
+  "endDate": "2025-01-31",
+  "carrierCode": "deutsche_post_cross_border",
+  "updateExisting": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `startDate` | string | No | Start date (defaults to 30 days ago) |
+| `endDate` | string | No | End date (defaults to today) |
+| `carrierCode` | string | No | Filter by ShipStation carrier code |
+| `updateExisting` | boolean | No | Update existing shipments (default: true) |
+
+**ShipStation Carrier Mapping:**
+
+| ShipStation Code | Database Carrier |
+|-----------------|------------------|
+| `royal_mail` | `royalmail` |
+| `dhl_express_uk` | `dhl` |
+| `deutsche_post_cross_border` | `deutschepost` |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Synced 570 shipments (3 created, 466 updated)",
+  "results": {
+    "matched": 570,
+    "created": 3,
+    "updated": 466,
+    "notFound": 3,
+    "errors": 0,
+    "carrierStats": {
+      "royalmail": 466,
+      "deutschepost": 103,
+      "dhl": 4
+    }
+  }
+}
+```
+
+---
+
+## Invoice Processing
+
+### POST `/api/invoices/analyze`
+
+Analyze a carrier invoice CSV before processing.
+
+**Request Body:**
+
+```json
+{
+  "csvContent": "Track and Trace Code,Total Price...",
+  "carrier": "dhl"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "analysis": {
+    "totalRecords": 150,
+    "totalCost": 2345.67,
+    "carrier": "dhl",
+    "dateRange": { "from": "2025-01-01", "to": "2025-01-15" },
+    "records": [
+      {
+        "tracking_number": "1234567890",
+        "shipping_cost": 15.80,
+        "weight_kg": 0.5,
+        "service_type": "express",
+        "shipping_date": "2025-01-05"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### POST `/api/invoices/process`
+
+Process analyzed invoice records and create/update shipments.
+
+**Request Body:**
+
+```json
+{
+  "records": [...],
+  "carrier": "dhl",
+  "invoiceNumber": "INV-2025-001",
+  "fileName": "dhl-invoice-jan.csv"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "summary": {
+    "matched": 120,
+    "created": 15,
+    "updated": 105,
+    "unmatched": 15
+  },
+  "unmatchedRecords": [
+    {
+      "tracking_number": "9999999999",
+      "shipping_cost": 25.00,
+      "reason": "No matching order found"
+    }
+  ]
+}
+```
+
+---
+
+### POST `/api/invoices/royalmail`
+
+Process Royal Mail invoice CSV and allocate costs by date/service averages.
+
+**Request Body:**
+
+```json
+{
+  "csvContent": "...",
+  "dryRun": false,
+  "startDate": "2025-01-01",
+  "endDate": "2025-01-31",
+  "applyAverageToOld": true,
+  "minDaysForAverage": 14
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `csvContent` | string | Royal Mail CSV file content |
+| `dryRun` | boolean | Preview without applying (default: false) |
+| `applyAverageToOld` | boolean | Apply service averages to old unmatched (default: false) |
+| `minDaysForAverage` | number | Min age for average fallback (default: 14 days) |
+
+**Royal Mail Product Code Mapping:**
+
+| CSV Code | Service Type | Description |
+|----------|--------------|-------------|
+| TPS | rm_tracked_48 | Tracked 48 (UK) |
+| TPM | rm_tracked_24 | Tracked 24 (UK) |
+| SD1 | special_delivery_1pm | Special Delivery by 1pm |
+| MPR | intl_tracked_ddp | International Tracked DDP |
+| MP7 | intl_tracked_packet | International NPC Tracked Packet |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "shipments": {
+    "matched": 250,
+    "unmatched": 45
+  },
+  "serviceTypeAverages": {
+    "rm_tracked_48": 3.25,
+    "rm_tracked_24": 4.50,
+    "intl_tracked_ddp": 8.75
+  },
+  "averageUpdates": {
+    "applied": 30,
+    "skipped": 15
+  }
+}
+```
+
+---
+
+### GET `/api/invoices/unmatched`
+
+List unmatched invoice records for reconciliation.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `status` | string | 'pending', 'matched', 'voided', 'resolved', 'all' |
+| `carrier` | string | 'dhl', 'royalmail' |
+| `limit` | number | Max results (default: 100) |
+| `offset` | number | Pagination offset |
+
+**Response:**
+
+```json
+{
+  "records": [
+    {
+      "id": "uuid",
+      "tracking_number": "1234567890",
+      "carrier": "dhl",
+      "shipping_cost": 15.80,
+      "service_type": "express",
+      "shipping_date": "2025-01-05",
+      "invoice_number": "INV-001",
+      "status": "pending",
+      "resolution_notes": null,
+      "matched_order_id": null,
+      "created_at": "2025-01-10T10:00:00Z"
+    }
+  ],
+  "total": 45,
+  "statusCounts": {
+    "pending": 30,
+    "matched": 10,
+    "voided": 3,
+    "resolved": 2,
+    "total": 45
+  }
+}
+```
+
+---
+
+### PATCH `/api/invoices/unmatched`
+
+Update an unmatched record status (match, void, resolve).
+
+**Request Body:**
+
+```json
+{
+  "id": "uuid",
+  "status": "matched",
+  "matched_order_id": "order-uuid",
+  "resolution_notes": "Matched to B2B order #3126"
+}
+```
+
+**Status Values:**
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Needs review |
+| `matched` | Linked to order (creates shipment) |
+| `voided` | Wasted label / cancelled |
+| `resolved` | Investigated and closed |
+
+**When Matching:**
+- If shipment already exists for tracking+carrier: Updates existing shipment
+- If no shipment exists: Creates new shipment linked to order
+- Supports multiple shipments per order (split shipments)
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "record": { ... }
+}
+```
+
+---
+
+### POST `/api/invoices/unmatched`
+
+Batch operations on unmatched records.
+
+**Actions:**
+
+**Deduplicate:**
+```json
+{
+  "action": "dedupe"
+}
+```
+Removes duplicate records (same tracking + invoice + cost).
+
+**Auto-Resolve:**
+```json
+{
+  "action": "auto-resolve"
+}
+```
+Auto-resolves records where shipment already exists and is linked to an order.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Auto-resolved 15 records that had matching shipments",
+  "resolved": 15,
+  "checked": 100
+}
+```
+
+---
+
 ## Ad Spend Endpoints
 
 ### POST `/api/meta/sync`
@@ -643,6 +1037,144 @@ Fetch current bank balances from Xero.
     "totalCredit": -2500.00,
     "netPosition": 12734.56
   }
+}
+```
+
+---
+
+### GET `/api/xero/invoices`
+
+List synced Xero invoices.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `status` | string | 'pending', 'approved', 'ignored' |
+| `brand` | string | 'all', 'DC', 'BI' |
+
+**Response:**
+
+```json
+{
+  "invoices": [
+    {
+      "id": "uuid",
+      "xero_invoice_id": "xero-guid",
+      "invoice_number": "INV-0001",
+      "contact_name": "B2B Customer Ltd",
+      "total": 500.00,
+      "date": "2025-01-15",
+      "approval_status": "pending",
+      "matched_order_id": null,
+      "line_items": [...]
+    }
+  ],
+  "total": 25
+}
+```
+
+---
+
+### POST `/api/xero/invoices`
+
+Sync PAID invoices from Xero.
+
+**Request Body:**
+
+```json
+{
+  "brandCode": "DC",
+  "fromDate": "2025-01-01",
+  "toDate": "2025-01-31",
+  "status": "ALL",
+  "skipDateFilter": false
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | string | 'PAID', 'AUTHORISED', 'ALL' (default: 'ALL') |
+| `skipDateFilter` | boolean | Fetch all invoices ignoring dates |
+
+---
+
+### PATCH `/api/xero/invoices/[id]`
+
+Approve or ignore a Xero invoice.
+
+**Approve (creates B2B order):**
+```json
+{
+  "action": "approve",
+  "tracking_number": "1234567890",
+  "notes": "Optional notes"
+}
+```
+
+**Ignore:**
+```json
+{
+  "action": "ignore",
+  "notes": "Not a product sale"
+}
+```
+
+---
+
+### GET `/api/xero/invoices/reconcile`
+
+Get unreconciled B2B orders with match suggestions.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `brand` | string | 'all', 'DC', 'BI' |
+| `minConfidence` | number | Minimum match score 0-100 (default: 40) |
+
+**Match Scoring:**
+
+| Factor | Max Points | Criteria |
+|--------|------------|----------|
+| Amount | 60 | Exact=60, within 1%=50, within 5%=30 |
+| Date | 25 | Same day=25, within 3 days=20, within 7 days=15 |
+| Customer | 15 | Exact=15, partial=10, word overlap=5 |
+
+**Response:**
+
+```json
+{
+  "orders": [
+    {
+      "id": "uuid",
+      "order_number": "B2B-001",
+      "subtotal": 500.00,
+      "customer_name": "B2B Customer",
+      "suggestions": [
+        {
+          "invoice": { ... },
+          "confidence": 85,
+          "reasons": ["Amount exact match", "Date within 3 days"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### POST `/api/xero/invoices/reconcile`
+
+Link a B2B order to a Xero invoice.
+
+**Request Body:**
+
+```json
+{
+  "orderId": "order-uuid",
+  "invoiceId": "invoice-uuid"
 }
 ```
 

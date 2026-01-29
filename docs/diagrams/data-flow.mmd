@@ -8,7 +8,8 @@ flowchart TB
         META["Meta Marketing API<br/>act_892968716290721 (DC)<br/>act_3210136152487456 (BI)"]
         GOOGLE["Google Ads API<br/>281-641-2476 (DC)<br/>⏳ Pending Approval"]
         XERO["Xero API<br/>Bank Balances<br/>Monzo, Amex"]
-        CARRIER["Carrier Invoices<br/>DHL (actual)<br/>Royal Mail (estimated)"]
+        CARRIER["Carrier Invoices<br/>DHL CSV (actual)<br/>Royal Mail CSV (estimated)"]
+        SHIPSTATION["ShipStation<br/>Tracking Numbers<br/>Order Links"]
     end
 
     subgraph Sync["Sync Layer (API Routes)"]
@@ -17,14 +18,18 @@ flowchart TB
         META_SYNC["/api/meta/sync<br/>GET /insights<br/>+ country breakdown"]
         GOOGLE_SYNC["/api/google/sync<br/>GAQL queries"]
         XERO_SYNC["/api/xero/balances<br/>GET /Accounts"]
-        INVOICE_UPLOAD["/api/invoices/process<br/>CSV/Excel/PDF parser"]
+        XERO_INV["/api/xero/invoices<br/>B2B Invoice Sync"]
+        INVOICE_UPLOAD["/api/invoices/process<br/>DHL CSV processing"]
+        RM_UPLOAD["/api/invoices/royalmail<br/>RM date/service average"]
+        SS_SYNC["/api/shipstation/sync<br/>Tracking → Order link"]
     end
 
     subgraph DB["Supabase Database (pbfaoshmaogrsgatfojs)"]
         ORDERS[("orders<br/>subtotal, shipping_charged<br/>tax, refund_amount<br/>shipping_address")]
         AD_SPEND[("ad_spend<br/>date, platform, spend<br/>revenue_attributed")]
         COUNTRY_AD[("country_ad_spend<br/>date, country_code<br/>platform, spend")]
-        SHIPMENTS[("shipments<br/>tracking_number<br/>shipping_cost<br/>cost_type")]
+        SHIPMENTS[("shipments<br/>order_id (FK)<br/>tracking_number<br/>shipping_cost<br/>carrier")]
+        UNMATCHED[("unmatched_invoice_records<br/>tracking_number<br/>status: pending|matched")]
         B2B[("b2b_revenue<br/>date, customer<br/>subtotal")]
         OPEX[("operating_expenses<br/>category, amount<br/>frequency, dates")]
     end
@@ -52,7 +57,10 @@ flowchart TB
     META --> META_SYNC
     GOOGLE -.-> GOOGLE_SYNC
     XERO --> XERO_SYNC
+    XERO --> XERO_INV
     CARRIER --> INVOICE_UPLOAD
+    CARRIER --> RM_UPLOAD
+    SHIPSTATION --> SS_SYNC
 
     SHOP_SYNC --> ORDERS
     ETSY_SYNC --> ORDERS
@@ -60,6 +68,11 @@ flowchart TB
     META_SYNC --> COUNTRY_AD
     GOOGLE_SYNC -.-> AD_SPEND
     INVOICE_UPLOAD --> SHIPMENTS
+    INVOICE_UPLOAD --> UNMATCHED
+    RM_UPLOAD --> SHIPMENTS
+    SS_SYNC --> SHIPMENTS
+    XERO_INV --> ORDERS
+    SHIPMENTS --> REFRESH
 
     ORDERS --> REFRESH
     AD_SPEND --> REFRESH
@@ -90,9 +103,9 @@ flowchart TB
     classDef api fill:#f3e5f5,stroke:#4a148c
     classDef ui fill:#e8eaf6,stroke:#1a237e
 
-    class SHOPIFY,ETSY,META,GOOGLE,XERO,CARRIER external
-    class SHOP_SYNC,ETSY_SYNC,META_SYNC,GOOGLE_SYNC,XERO_SYNC,INVOICE_UPLOAD sync
-    class ORDERS,AD_SPEND,COUNTRY_AD,SHIPMENTS,B2B,OPEX db
+    class SHOPIFY,ETSY,META,GOOGLE,XERO,CARRIER,SHIPSTATION external
+    class SHOP_SYNC,ETSY_SYNC,META_SYNC,GOOGLE_SYNC,XERO_SYNC,XERO_INV,INVOICE_UPLOAD,RM_UPLOAD,SS_SYNC sync
+    class ORDERS,AD_SPEND,COUNTRY_AD,SHIPMENTS,UNMATCHED,B2B,OPEX db
     class REFRESH,DAILY_PNL calc
     class PNL_DATA,PNL_COUNTRY,OPEX_API api
     class DASHBOARD,COUNTRY_PAGE,ADMIN ui

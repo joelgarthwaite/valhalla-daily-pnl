@@ -10,3 +10,6 @@ export {
 export { WorkedExample } from './WorkedExample';
 export { PlatformBreakdown } from './PlatformBreakdown';
 export { AdminFunctionsGuide } from './AdminFunctionsGuide';
+export { ShippingInvoicesGuide } from './ShippingInvoicesGuide';
+export { XeroIntegrationGuide, OrderManagementGuide } from './XeroOrdersGuide';
+export { CountryAnalysisGuide } from './CountryAnalysisGuide';

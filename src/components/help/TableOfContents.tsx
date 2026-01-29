@@ -21,6 +21,12 @@ const sections: TOCSection[] = [
   { id: 'margin-metrics', title: 'Margin Metrics', level: 1 },
   { id: 'worked-example', title: 'Worked Calculation', level: 1 },
   { id: 'platforms', title: 'Platform Breakdown', level: 1 },
+  { id: 'shipping-analytics', title: 'Shipping Analytics', level: 1 },
+  { id: 'invoice-processing', title: 'Invoice Processing', level: 1 },
+  { id: 'unmatched-records', title: 'Unmatched Records', level: 1 },
+  { id: 'xero-integration', title: 'Xero Integration', level: 1 },
+  { id: 'order-management', title: 'Order Management', level: 1 },
+  { id: 'country-analysis', title: 'Country Analysis', level: 1 },
   { id: 'admin-functions', title: 'Admin Functions', level: 1 },
   { id: 'glossary', title: 'Glossary', level: 1 },
 ];

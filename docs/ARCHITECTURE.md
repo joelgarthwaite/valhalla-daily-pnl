@@ -785,6 +785,134 @@ Per-brand configurable via `cost_config` table:
 - Profit waterfall
 - Channel breakdown
 
+### 7.7 ShipStation Integration
+
+**Status:** Active
+**Purpose:** Sync shipment tracking numbers and link to orders
+
+**Authentication:**
+- API Key + Secret (Basic Auth)
+- Stored in `SHIPSTATION_API_KEY` and `SHIPSTATION_API_SECRET` env vars
+
+**Carrier Mapping:**
+
+| ShipStation Carrier | Database Carrier |
+|--------------------|------------------|
+| `royal_mail` | `royalmail` |
+| `dhl_express_uk` | `dhl` |
+| `deutsche_post_cross_border` | `deutschepost` |
+
+**Sync Process:**
+1. Fetch shipments by date range from ShipStation API
+2. Match to orders using `orderNumber` → Shopify order ID
+3. Create/update `shipments` table records
+4. Link shipments to orders via `order_id`
+
+**Key Fields:**
+
+| ShipStation Field | Database Column |
+|-------------------|-----------------|
+| `orderNumber` | → lookup `orders.order_number` |
+| `trackingNumber` | `tracking_number` |
+| `carrierCode` | → map to `carrier` |
+| `shipDate` | `shipping_date` |
+| `weight.value` | `weight_kg` |
+
+---
+
+## 7.8 Invoice Processing System
+
+### Overview
+
+Carrier invoices (DHL, Royal Mail) are processed to allocate actual shipping costs to orders:
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                   INVOICE PROCESSING FLOW                           │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│   ┌─────────────┐    ┌──────────────┐    ┌───────────────┐       │
+│   │ DHL Invoice │    │ Royal Mail   │    │ ShipStation   │       │
+│   │ (CSV)       │    │ Invoice (CSV)│    │ (API)         │       │
+│   └──────┬──────┘    └──────┬───────┘    └───────┬───────┘       │
+│          │                  │                    │                │
+│          ▼                  ▼                    ▼                │
+│   ┌─────────────┐    ┌──────────────┐    ┌───────────────┐       │
+│   │ /api/       │    │ /api/        │    │ /api/         │       │
+│   │ invoices/   │    │ invoices/    │    │ shipstation/  │       │
+│   │ analyze     │    │ royalmail    │    │ sync          │       │
+│   └──────┬──────┘    └──────┬───────┘    └───────┬───────┘       │
+│          │                  │                    │                │
+│          └──────────────────┼────────────────────┘                │
+│                             │                                      │
+│                             ▼                                      │
+│                    ┌────────────────┐                             │
+│                    │   shipments    │  ← order_id (may be null)   │
+│                    │   table        │                             │
+│                    └───────┬────────┘                             │
+│                            │                                       │
+│            ┌───────────────┼───────────────┐                      │
+│            │ Matched       │ Unmatched     │                      │
+│            ▼               ▼               │                      │
+│     ┌─────────────┐  ┌─────────────────┐  │                      │
+│     │ Linked to   │  │ unmatched_      │  │                      │
+│     │ orders      │  │ invoice_records │  │                      │
+│     │ (P&L calc)  │  │ (for review)    │  │                      │
+│     └─────────────┘  └─────────────────┘  │                      │
+│                                            │                      │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+### DHL Invoice Processing
+
+1. **Upload CSV** → `/api/invoices/analyze`
+2. **Review** analysis (records, costs, tracking numbers)
+3. **Process** → `/api/invoices/process`
+4. Creates/updates shipments with `cost_confidence: 'actual'`
+5. Unmatched records go to `unmatched_invoice_records` table
+
+### Royal Mail Invoice Processing
+
+Royal Mail invoices contain **aggregated costs** by date/product, not individual tracking numbers:
+
+1. **Upload CSV** → `/api/invoices/royalmail`
+2. Parse daily costs by product code (TPS, TPM, MPR, etc.)
+3. Match shipments by `shipping_date` + `service_type`
+4. Apply average cost per item for that date/product
+5. Old unmatched shipments (>14 days) can use service-type averages
+
+### Unmatched Records Workflow
+
+```
+[Invoice Upload] → [Unmatched if no order found] → [Manual Review]
+                                                          │
+                    ┌─────────────────────────────────────┼──────────┐
+                    │                                     │          │
+                    ▼                                     ▼          ▼
+              [Match to Order]                    [Mark Voided]  [Resolve]
+              (creates shipment)                  (wasted label) (with notes)
+```
+
+### Multiple Shipments Per Order
+
+Orders can have **multiple shipments** (e.g., split shipments, different carriers):
+
+```
+Order #3126 (B2B Order to Golf Pro Shop)
+├── Shipment 1: Royal Mail - £5.20 (Part A)
+├── Shipment 2: DHL Express - £15.80 (Part B)
+└── Total Shipping Cost: £21.00
+
+P&L Calculation:
+- Sums ALL shipments.shipping_cost for each order
+- Displays total with count indicator: "£21.00 (2)"
+```
+
+**Technical Implementation:**
+- `shipments.order_id` → FK to orders (many-to-one)
+- P&L calculations group by `order_id` and sum `shipping_cost`
+- UI shows `totalShippingCost` field with `shipment_count`
+
 ---
 
 ## 8. Authentication & Authorization

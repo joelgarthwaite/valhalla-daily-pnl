@@ -1,0 +1,92 @@
+%% Valhalla Hub - Shipping & Invoice Processing Flow
+%% Render with: https://mermaid.live or VS Code Mermaid extension
+
+flowchart TB
+    subgraph Sources["Data Sources"]
+        SHIPSTATION["ShipStation API<br/>Tracking Numbers<br/>Order References"]
+        DHL_CSV["DHL Invoice CSV<br/>Actual Costs<br/>Per Tracking Number"]
+        RM_CSV["Royal Mail CSV<br/>Aggregated Costs<br/>By Date/Product"]
+        B2B_MANUAL["Manual Entry<br/>B2B Orders<br/>Xero Invoices"]
+    end
+
+    subgraph SyncAPI["Sync & Processing APIs"]
+        SS_SYNC["/api/shipstation/sync<br/>Match by orderNumber<br/>Create shipments"]
+        INV_ANALYZE["/api/invoices/analyze<br/>Parse DHL CSV<br/>Preview costs"]
+        INV_PROCESS["/api/invoices/process<br/>Create/Update shipments<br/>Track unmatched"]
+        RM_PROCESS["/api/invoices/royalmail<br/>Date/Service matching<br/>Average allocation"]
+        XERO_INV["/api/xero/invoices<br/>B2B Order Creation<br/>Invoice Reconciliation"]
+    end
+
+    subgraph Database["Supabase Tables"]
+        ORDERS[("orders<br/>platform_order_id<br/>order_number<br/>b2b_customer_name")]
+        SHIPMENTS[("shipments<br/>order_id (FK)<br/>tracking_number<br/>shipping_cost<br/>carrier")]
+        UNMATCHED[("unmatched_invoice_records<br/>tracking_number<br/>status: pending|matched|voided")]
+        XERO_INV_TABLE[("xero_invoices<br/>approval_status<br/>matched_order_id")]
+    end
+
+    subgraph Matching["Order Matching Logic"]
+        MATCH_ORDER{"Match to Order?<br/>by tracking_number<br/>by order_number<br/>by platform_order_id<br/>by b2b_customer_name"}
+    end
+
+    subgraph Resolution["Unmatched Resolution"]
+        MANUAL_LINK["Link to Order<br/>(typeahead search)<br/>Creates shipment"]
+        VOID["Mark Voided<br/>Wasted label"]
+        AUTO_RESOLVE["Auto-Resolve<br/>If shipment already<br/>linked to order"]
+    end
+
+    subgraph Output["P&L Integration"]
+        PNL_CALC["P&L Calculation<br/>Sum ALL shipments<br/>per order_id"]
+        SHIPPING_PAGE["Shipping Analytics<br/>Revenue vs Cost<br/>Margin tracking"]
+        ORDERS_PAGE["Orders Page<br/>Ship Cost column<br/>Multi-shipment support"]
+    end
+
+    %% Connections
+    SHIPSTATION --> SS_SYNC
+    DHL_CSV --> INV_ANALYZE
+    INV_ANALYZE --> INV_PROCESS
+    RM_CSV --> RM_PROCESS
+    B2B_MANUAL --> XERO_INV
+
+    SS_SYNC --> SHIPMENTS
+    SS_SYNC --> ORDERS
+
+    INV_PROCESS --> MATCH_ORDER
+    RM_PROCESS --> MATCH_ORDER
+
+    MATCH_ORDER -->|Yes| SHIPMENTS
+    MATCH_ORDER -->|No| UNMATCHED
+
+    XERO_INV --> ORDERS
+    XERO_INV --> XERO_INV_TABLE
+
+    UNMATCHED --> MANUAL_LINK
+    UNMATCHED --> VOID
+    UNMATCHED --> AUTO_RESOLVE
+
+    MANUAL_LINK --> SHIPMENTS
+    AUTO_RESOLVE --> SHIPMENTS
+
+    SHIPMENTS --> PNL_CALC
+    ORDERS --> PNL_CALC
+    PNL_CALC --> SHIPPING_PAGE
+    PNL_CALC --> ORDERS_PAGE
+
+    %% Notes
+    NOTE1["Multiple Shipments Per Order<br/>Order #3126 can have:<br/>- Royal Mail: £5.20<br/>- DHL: £15.80<br/>Total: £21.00"]
+
+    %% Styling
+    classDef source fill:#e3f2fd,stroke:#1565c0
+    classDef api fill:#fff8e1,stroke:#f57f17
+    classDef db fill:#e8f5e9,stroke:#2e7d32
+    classDef decision fill:#fce4ec,stroke:#c2185b
+    classDef resolution fill:#f3e5f5,stroke:#7b1fa2
+    classDef output fill:#e0f2f1,stroke:#00695c
+    classDef note fill:#fffde7,stroke:#fbc02d
+
+    class SHIPSTATION,DHL_CSV,RM_CSV,B2B_MANUAL source
+    class SS_SYNC,INV_ANALYZE,INV_PROCESS,RM_PROCESS,XERO_INV api
+    class ORDERS,SHIPMENTS,UNMATCHED,XERO_INV_TABLE db
+    class MATCH_ORDER decision
+    class MANUAL_LINK,VOID,AUTO_RESOLVE resolution
+    class PNL_CALC,SHIPPING_PAGE,ORDERS_PAGE output
+    class NOTE1 note

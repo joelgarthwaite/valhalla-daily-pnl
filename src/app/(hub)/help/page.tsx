@@ -16,11 +16,16 @@ import {
   WorkedExample,
   PlatformBreakdown,
   AdminFunctionsGuide,
+  ShippingInvoicesGuide,
+  XeroIntegrationGuide,
+  OrderManagementGuide,
+  CountryAnalysisGuide,
 } from '@/components/help';
 
 // Glossary terms
 const glossaryTerms = [
   { term: 'AOV', definition: 'Average Order Value - revenue per order', link: '#order-metrics' },
+  { term: 'B2B', definition: 'Business-to-Business orders (wholesale/trade)', link: '#order-management' },
   { term: 'Blended ROAS', definition: 'Return on Ad Spend across all channels (same as MER)', link: '#efficiency-metrics' },
   { term: 'COGS', definition: 'Cost of Goods Sold - direct product costs', link: '#profit-tiers' },
   { term: 'CoP', definition: 'Cost of Profit - total costs divided by GP3', link: '#efficiency-metrics' },
@@ -32,9 +37,13 @@ const glossaryTerms = [
   { term: 'MER', definition: 'Marketing Efficiency Ratio - Revenue divided by Ad Spend', link: '#efficiency-metrics' },
   { term: 'Net Margin', definition: 'GP3 as a percentage of Net Revenue', link: '#margin-metrics' },
   { term: 'Net Revenue', definition: 'Product Revenue minus Refunds', link: '#revenue-metrics' },
+  { term: 'OPEX', definition: 'Operating Expenses - overhead costs (staff, rent, software)', link: '#admin-functions' },
   { term: 'POAS', definition: 'Profit on Ad Spend - (GP3 / Ad Spend) × 100', link: '#efficiency-metrics' },
   { term: 'Product Revenue', definition: 'Subtotals from all platforms (excludes shipping/tax)', link: '#revenue-metrics' },
   { term: 'ROAS', definition: 'Return on Ad Spend - Revenue divided by Ad Spend', link: '#efficiency-metrics' },
+  { term: 'Shipping Margin', definition: 'Shipping charged minus actual shipping cost', link: '#shipping-analytics' },
+  { term: 'True Net Profit', definition: 'GP3 minus OPEX - the bottom line', link: '#profit-tiers' },
+  { term: 'Unmatched', definition: 'Invoice records that could not be auto-matched to orders', link: '#unmatched-records' },
 ];
 
 export default function HelpPage() {
@@ -111,6 +120,9 @@ export default function HelpPage() {
                     <Badge variant="outline">Multi-platform</Badge>
                     <Badge variant="outline">Shopify + Etsy + B2B</Badge>
                     <Badge variant="outline">Meta Ads integration</Badge>
+                    <Badge variant="outline">Shipping cost tracking</Badge>
+                    <Badge variant="outline">Xero integration</Badge>
+                    <Badge variant="outline">Country analysis</Badge>
                     <Badge variant="outline">CFO-grade metrics</Badge>
                   </div>
                 </CardContent>
@@ -134,6 +146,18 @@ export default function HelpPage() {
 
             {/* Platform Breakdown */}
             <PlatformBreakdown />
+
+            {/* Shipping & Invoices Guide */}
+            <ShippingInvoicesGuide />
+
+            {/* Xero Integration */}
+            <XeroIntegrationGuide />
+
+            {/* Order Management */}
+            <OrderManagementGuide />
+
+            {/* Country Analysis */}
+            <CountryAnalysisGuide />
 
             {/* Admin Functions */}
             <AdminFunctionsGuide />
