@@ -434,12 +434,15 @@ export async function fetchInvoices(
   }
 
   // Note: Xero date filtering uses Date field with DateTime() wrapper
+  // Format: DateTime(YYYY,MM,DD) - commas not dashes
   if (fromDate) {
-    whereParts.push(`Date>=DateTime(${fromDate})`);
+    const [year, month, day] = fromDate.split('-');
+    whereParts.push(`Date>=DateTime(${year},${month},${day})`);
   }
 
   if (toDate) {
-    whereParts.push(`Date<=DateTime(${toDate})`);
+    const [year, month, day] = toDate.split('-');
+    whereParts.push(`Date<=DateTime(${year},${month},${day})`);
   }
 
   const whereClause = encodeURIComponent(whereParts.join(' AND '));
