@@ -66,6 +66,19 @@ const navSections: NavSection[] = [
         icon: BarChart3,
         description: 'Full breakdown',
       },
+      {
+        label: 'Investor Metrics',
+        href: '/finance/investor',
+        icon: LineChart,
+        description: 'M&A data room',
+      },
+      {
+        label: 'Cash Flow',
+        href: '/finance/cashflow',
+        icon: Wallet,
+        description: 'Projections & runway',
+        badge: 'Soon',
+      },
     ],
   },
   {
@@ -102,25 +115,7 @@ const navSections: NavSection[] = [
       },
     ],
   },
-  {
-    title: 'Finance',
-    items: [
-      {
-        label: 'Cash Flow',
-        href: '/finance/cashflow',
-        icon: Wallet,
-        description: 'Projections & runway',
-        badge: 'Soon',
-      },
-      {
-        label: 'Investor Metrics',
-        href: '/finance/investor',
-        icon: LineChart,
-        description: 'M&A data room',
-      },
-    ],
-  },
-  {
+    {
     title: 'System',
     items: [
       {
