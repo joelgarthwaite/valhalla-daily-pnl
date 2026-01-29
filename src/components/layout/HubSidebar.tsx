@@ -19,6 +19,7 @@ import {
   Boxes,
   Link2,
   Tag,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -136,11 +137,17 @@ const navSections: NavSection[] = [
       },
     ],
   },
-    {
-    title: 'System',
+  {
+    title: 'Admin',
     items: [
       {
-        label: 'Admin',
+        label: 'Xero Invoices',
+        href: '/admin/xero/invoices',
+        icon: FileText,
+        description: 'B2B invoice approval',
+      },
+      {
+        label: 'Admin Settings',
         href: '/admin',
         icon: Settings,
         description: 'Settings & data entry',

@@ -15,6 +15,7 @@ const SCOPES = [
   'email',
   'accounting.reports.read',
   'accounting.settings.read',
+  'accounting.transactions.read',  // For invoices
   'offline_access', // Required for refresh tokens
 ];
 

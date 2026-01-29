@@ -339,3 +339,150 @@ function base64UrlEncode(buffer: Uint8Array): string {
     .replace(/\//g, '_')
     .replace(/=+$/, '');
 }
+
+// ============================================
+// Invoice Types and Functions
+// ============================================
+
+export interface XeroInvoiceLineItem {
+  Description: string;
+  Quantity: number;
+  UnitAmount: number;
+  LineAmount: number;
+  AccountCode?: string;
+  TaxType?: string;
+}
+
+export interface XeroInvoiceContact {
+  ContactID: string;
+  Name: string;
+  EmailAddress?: string;
+  FirstName?: string;
+  LastName?: string;
+}
+
+export interface XeroInvoice {
+  InvoiceID: string;
+  InvoiceNumber: string;
+  Status: 'DRAFT' | 'SUBMITTED' | 'AUTHORISED' | 'PAID' | 'VOIDED' | 'DELETED';
+  Type: 'ACCREC' | 'ACCPAY';  // ACCREC = Sales invoice (Accounts Receivable)
+  Date: string;  // Invoice date (format: /Date(timestamp)/)
+  DueDate?: string;
+  SubTotal: number;
+  TotalTax: number;
+  Total: number;
+  CurrencyCode: string;
+  Contact: XeroInvoiceContact;
+  LineItems?: XeroInvoiceLineItem[];
+  Reference?: string;
+  AmountDue?: number;
+  AmountPaid?: number;
+  AmountCredited?: number;
+  UpdatedDateUTC?: string;
+}
+
+export interface FetchInvoicesOptions {
+  status?: 'PAID' | 'AUTHORISED' | 'DRAFT' | 'SUBMITTED' | 'VOIDED';
+  fromDate?: string;  // YYYY-MM-DD
+  toDate?: string;    // YYYY-MM-DD
+  page?: number;
+}
+
+/**
+ * Parse Xero date format to ISO string
+ * Xero returns dates as /Date(timestamp+offset)/
+ */
+export function parseXeroDate(xeroDate: string): string | null {
+  if (!xeroDate) return null;
+
+  // Handle /Date(timestamp)/ format
+  const match = xeroDate.match(/\/Date\((\d+)([+-]\d+)?\)\//);
+  if (match) {
+    const timestamp = parseInt(match[1], 10);
+    return new Date(timestamp).toISOString().split('T')[0];
+  }
+
+  // Handle ISO date format
+  if (xeroDate.includes('-')) {
+    return xeroDate.split('T')[0];
+  }
+
+  return null;
+}
+
+/**
+ * Fetch invoices from Xero API
+ * Filters for ACCREC (sales invoices) by default
+ */
+export async function fetchInvoices(
+  accessToken: string,
+  tenantId: string,
+  options: FetchInvoicesOptions = {}
+): Promise<XeroInvoice[]> {
+  const { status = 'PAID', fromDate, toDate, page = 1 } = options;
+
+  // Build where clause - filter for sales invoices (ACCREC)
+  const whereParts: string[] = ['Type=="ACCREC"'];
+
+  if (status) {
+    whereParts.push(`Status=="${status}"`);
+  }
+
+  // Note: Xero date filtering uses Date field with DateTime() wrapper
+  if (fromDate) {
+    whereParts.push(`Date>=DateTime(${fromDate})`);
+  }
+
+  if (toDate) {
+    whereParts.push(`Date<=DateTime(${toDate})`);
+  }
+
+  const whereClause = encodeURIComponent(whereParts.join(' AND '));
+
+  // Build URL with pagination
+  const url = `${XERO_API_BASE}/Invoices?where=${whereClause}&order=Date DESC&page=${page}`;
+
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Xero-Tenant-Id': tenantId,
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch invoices: ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.Invoices || [];
+}
+
+/**
+ * Fetch a single invoice with full details (including line items)
+ */
+export async function fetchInvoiceDetails(
+  accessToken: string,
+  tenantId: string,
+  invoiceId: string
+): Promise<XeroInvoice | null> {
+  const url = `${XERO_API_BASE}/Invoices/${invoiceId}`;
+
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Xero-Tenant-Id': tenantId,
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch invoice details: ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.Invoices?.[0] || null;
+}

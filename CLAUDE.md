@@ -65,6 +65,7 @@ All projects share the same Supabase database and are planned for consolidation 
 - `operating_expenses` - OPEX tracking (staff, premises, software, overheads)
 - `etsy_fees` - Actual Etsy fees from Payment Ledger API
 - `xero_connections` - Xero OAuth tokens for bank balance fetching
+- `xero_invoices` - Synced Xero invoices for B2B order approval workflow
 - `country_ad_spend` - Ad spend by country from Meta API (for GP3 in Country Analysis)
 - `excluded_orders` - Permanently excluded orders (prevents re-sync)
 - `sku_mapping` - SKU mappings for inventory forecasting (old_sku → current_sku)
@@ -96,6 +97,7 @@ All projects share the same Supabase database and are planned for consolidation 
 - `supabase/migrations/013_add_deutschepost_carrier.sql` - Deutsche Post carrier support
 - `supabase/migrations/014_sku_mapping.sql` - SKU mapping table for inventory forecasting
 - `supabase/migrations/015_inventory_schema.sql` - Full inventory management schema (Phase A)
+- `supabase/migrations/019_xero_invoices.sql` - Xero invoice sync for B2B orders
 
 ---
 
@@ -193,6 +195,96 @@ Real-time bank balances displayed on the dashboard from Xero accounting software
 - `GET /api/xero/auth?brand=DC|BI` - Start OAuth flow
 - `GET /api/xero/callback` - OAuth callback (stores tokens)
 - `GET /api/xero/balances?brand=all|DC|BI` - Fetch bank balances
+
+### Xero Invoice Sync
+
+Sync PAID invoices from Xero and approve them to create B2B orders.
+
+**Location:** Admin > Xero Invoices (`/admin/xero/invoices`)
+
+**OAuth Scope Required:** `accounting.transactions.read` (added Jan 2026)
+- Existing connections need to re-authenticate to get the new scope
+- Click "Connect Xero" again for any brand to upgrade permissions
+
+**Two Tabs:**
+1. **Invoice Approval** - Approve new Xero invoices to create B2B orders
+2. **Reconcile B2B Orders** - Match existing B2B orders with Xero invoices
+
+#### Invoice Approval Workflow
+1. **Sync** - Click "Sync Invoices" to fetch PAID invoices from Xero
+2. **Review** - See pending invoices in approval queue
+3. **Approve** - Creates B2B order with Xero invoice number
+4. **Ignore** - Dismisses invoice with reason
+
+**Features:**
+- Only fetches PAID invoices (Type=ACCREC, Status=PAID)
+- De-duplicates on sync (won't create duplicates)
+- Invoice number used as order_number for easy reference
+- Optional tracking number linking to shipments
+- Status tracking: pending → approved/ignored
+
+#### B2B Order Reconciliation
+
+Match existing B2B orders in the system with Xero invoices using intelligent confidence scoring.
+
+**Matching Algorithm:**
+- **Amount Match (60 pts max)**: Exact match = 60pts, within 1% = 50pts, within 5% = 30pts
+- **Date Proximity (25 pts max)**: Same day = 25pts, within 3 days = 20pts, within 7 days = 15pts
+- **Customer Name (15 pts max)**: Exact match = 15pts, partial match = 10pts, word overlap = 5pts
+
+**Confidence Levels:**
+- **High (≥80%)**: Strong match - likely correct
+- **Medium (50-79%)**: Probable match - review recommended
+- **Low (<50%)**: Weak match - careful review needed
+
+**Workflow:**
+1. View match suggestions sorted by confidence
+2. Click "Link" to review details
+3. Confirm to link order with invoice
+4. Order's `raw_data.xero_invoice_id` is updated, invoice marked as approved
+
+**API Endpoints:**
+- `GET /api/xero/invoices` - List synced invoices (with filters)
+- `POST /api/xero/invoices` - Sync invoices from Xero
+  ```json
+  {
+    "brandCode": "DC",
+    "fromDate": "2025-01-01",
+    "toDate": "2025-01-31"
+  }
+  ```
+- `GET /api/xero/invoices/[id]` - Get single invoice details
+- `PATCH /api/xero/invoices/[id]` - Approve or ignore invoice
+  ```json
+  {
+    "action": "approve",
+    "tracking_number": "optional",
+    "notes": "optional"
+  }
+  ```
+- `DELETE /api/xero/invoices/[id]` - Delete pending invoice
+- `GET /api/xero/invoices/reconcile` - Get unreconciled B2B orders with match suggestions
+  ```
+  Query params: brand (all|DC|BI), minConfidence (0-100, default 40)
+  ```
+- `POST /api/xero/invoices/reconcile` - Link a B2B order to a Xero invoice
+  ```json
+  {
+    "orderId": "uuid",
+    "invoiceId": "uuid"
+  }
+  ```
+- `DELETE /api/xero/invoices/reconcile?orderId=uuid` - Unlink an order from its invoice
+
+**Database Table:** `xero_invoices`
+- `approval_status`: pending | approved | ignored
+- `matched_order_id`: Links to created B2B order
+- `line_items`: JSONB with invoice line items
+
+**Order `raw_data` Fields (after reconciliation):**
+- `xero_invoice_id`: The Xero invoice ID
+- `xero_invoice_number`: The invoice number
+- `reconciled_at`: Timestamp when reconciled
 
 ---
 

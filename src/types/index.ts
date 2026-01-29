@@ -1221,3 +1221,57 @@ export const STOCK_STATUS_CONFIG: Record<StockStatus, { label: string; color: st
   critical: { label: 'Critical', color: 'text-red-700', bgColor: 'bg-red-100' },
   out_of_stock: { label: 'Out of Stock', color: 'text-red-900', bgColor: 'bg-red-200' },
 };
+
+// ============================================
+// Xero Invoice Sync Types
+// ============================================
+
+export type XeroInvoiceApprovalStatus = 'pending' | 'approved' | 'ignored';
+
+export interface XeroInvoiceLineItem {
+  Description: string;
+  Quantity: number;
+  UnitAmount: number;
+  LineAmount: number;
+  AccountCode?: string;
+  TaxType?: string;
+}
+
+export interface XeroInvoiceContact {
+  ContactID: string;
+  Name: string;
+  EmailAddress?: string;
+  FirstName?: string;
+  LastName?: string;
+}
+
+export interface XeroInvoiceRecord {
+  id: string;
+  brand_id: string;
+  xero_invoice_id: string;
+  invoice_number: string;
+  contact_name: string;
+  contact_email: string | null;
+  invoice_date: string | null;
+  due_date: string | null;
+  subtotal: number;
+  tax_total: number;
+  total: number;
+  currency: string;
+  xero_status: string;
+  approval_status: XeroInvoiceApprovalStatus;
+  matched_order_id: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  notes: string | null;
+  line_items: XeroInvoiceLineItem[];
+  contact_data: XeroInvoiceContact | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export const XERO_INVOICE_STATUS_LABELS: Record<XeroInvoiceApprovalStatus, string> = {
+  pending: 'Pending Approval',
+  approved: 'Approved',
+  ignored: 'Ignored',
+};

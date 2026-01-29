@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Building2, CheckCircle, XCircle, RefreshCw, ExternalLink, AlertTriangle, Trash2 } from 'lucide-react';
+import { Building2, CheckCircle, XCircle, RefreshCw, ExternalLink, AlertTriangle, Trash2, FileText, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -162,6 +163,31 @@ export default function XeroAdminPage() {
         </p>
       </div>
 
+      {/* Invoice Sync Quick Access */}
+      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200">
+        <CardContent className="pt-6">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <FileText className="h-8 w-8 text-green-600 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-green-900 dark:text-green-100 mb-1">
+                  Xero Invoice Sync
+                </h3>
+                <p className="text-sm text-green-800 dark:text-green-200">
+                  Sync PAID invoices from Xero and approve them to automatically create B2B orders.
+                </p>
+              </div>
+            </div>
+            <Link href="/admin/xero/invoices">
+              <Button variant="outline" className="border-green-300 text-green-700 hover:bg-green-100">
+                Open Invoice Sync
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Info Card */}
       <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
         <CardContent className="pt-6">
@@ -173,7 +199,32 @@ export default function XeroAdminPage() {
             <li>Bank account balances are displayed on the main dashboard</li>
             <li>Credit cards shared across brands are deduplicated automatically</li>
             <li>Tokens auto-refresh every 30 minutes - no manual action needed</li>
+            <li><strong>Invoice Sync:</strong> Requires re-authentication to enable the invoice scope</li>
           </ul>
+        </CardContent>
+      </Card>
+
+      {/* Scope Warning Card */}
+      <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200">
+        <CardContent className="pt-6">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                Invoice Sync Scope Required
+              </h3>
+              <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                To use the Invoice Sync feature, you need to re-authenticate with Xero to grant the
+                <code className="mx-1 bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded text-xs">
+                  accounting.transactions.read
+                </code>
+                permission. Click &quot;Connect Xero&quot; again for any brand to upgrade permissions.
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                After re-authenticating, you can sync and approve PAID invoices from Xero.
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
