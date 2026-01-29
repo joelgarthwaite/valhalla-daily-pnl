@@ -324,15 +324,21 @@ export function calculateDailyPnL(input: DailyDataInput): Omit<DailyPnL, 'id' | 
   // Calculate shipping
   const shippingCharged = dayOrders.reduce((sum, o) => sum + Number(o.shipping_charged || 0), 0);
 
-  // Create map of shipments by order_id
-  const shipmentsByOrderId = new Map<string, Shipment>();
+  // Create map of ALL shipments by order_id (an order can have multiple shipments)
+  const shipmentsByOrderId = new Map<string, Shipment[]>();
   shipments.forEach((s) => {
-    if (s.order_id) shipmentsByOrderId.set(s.order_id, s);
+    if (s.order_id) {
+      const existing = shipmentsByOrderId.get(s.order_id) || [];
+      existing.push(s);
+      shipmentsByOrderId.set(s.order_id, existing);
+    }
   });
 
+  // Sum ALL shipment costs for each order (including duties, split shipments, etc.)
   const shippingCost = dayOrders.reduce((sum, order) => {
-    const shipment = shipmentsByOrderId.get(order.id);
-    return sum + (shipment ? Number(shipment.shipping_cost || 0) : 0);
+    const orderShipments = shipmentsByOrderId.get(order.id) || [];
+    const orderShippingCost = orderShipments.reduce((s, shipment) => s + Number(shipment.shipping_cost || 0), 0);
+    return sum + orderShippingCost;
   }, 0);
   const shippingMargin = shippingCharged - shippingCost;
 
