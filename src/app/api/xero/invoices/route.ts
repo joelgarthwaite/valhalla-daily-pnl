@@ -63,10 +63,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Add brand info to each invoice
+    // Get linked order info for approved invoices (tracking numbers)
+    const approvedInvoiceIds = (invoices || [])
+      .filter(inv => inv.matched_order_id)
+      .map(inv => inv.matched_order_id);
+
+    let orderTrackingMap = new Map<string, string>();
+    if (approvedInvoiceIds.length > 0) {
+      const { data: linkedOrders } = await supabase
+        .from('orders')
+        .select('id, raw_data')
+        .in('id', approvedInvoiceIds);
+
+      if (linkedOrders) {
+        for (const order of linkedOrders) {
+          const trackingNumber = order.raw_data?.tracking_number;
+          if (trackingNumber) {
+            orderTrackingMap.set(order.id, trackingNumber);
+          }
+        }
+      }
+    }
+
+    // Add brand info and tracking to each invoice
     const invoicesWithBrand = (invoices || []).map(inv => ({
       ...inv,
       brand: brandNameMap.get(inv.brand_id),
+      linked_tracking: inv.matched_order_id ? orderTrackingMap.get(inv.matched_order_id) || null : null,
     }));
 
     // Get status counts for summary

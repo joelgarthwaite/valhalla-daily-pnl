@@ -660,8 +660,15 @@ export default function XeroInvoicesPage() {
                                 </Button>
                               </div>
                             )}
-                            {invoice.approval_status === 'approved' && invoice.notes && (
-                              <span className="text-xs text-muted-foreground">{invoice.notes}</span>
+                            {invoice.approval_status === 'approved' && (
+                              <div className="text-xs text-muted-foreground text-left">
+                                {(invoice as XeroInvoiceRecord & { linked_tracking?: string }).linked_tracking && (
+                                  <div className="font-mono">
+                                    📦 {(invoice as XeroInvoiceRecord & { linked_tracking?: string }).linked_tracking}
+                                  </div>
+                                )}
+                                {invoice.notes && <div>{invoice.notes}</div>}
+                              </div>
                             )}
                           </TableCell>
                         </TableRow>

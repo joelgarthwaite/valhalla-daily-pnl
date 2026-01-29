@@ -191,7 +191,7 @@ export async function PATCH(
 
     // Optionally link tracking number to shipment if provided
     if (tracking_number) {
-      // Check if shipment exists
+      // Check if shipment exists in shipments table
       const { data: shipment } = await supabase
         .from('shipments')
         .select('id')
@@ -204,6 +204,26 @@ export async function PATCH(
           .from('shipments')
           .update({ order_id: order.id })
           .eq('id', shipment.id);
+      }
+
+      // Also mark as matched in unmatched_invoice_records if it exists there
+      const { data: unmatchedRecord } = await supabase
+        .from('unmatched_invoice_records')
+        .select('id')
+        .eq('tracking_number', tracking_number)
+        .eq('status', 'pending')
+        .single();
+
+      if (unmatchedRecord) {
+        await supabase
+          .from('unmatched_invoice_records')
+          .update({
+            status: 'matched',
+            matched_order_id: order.id,
+            resolution_notes: `Linked via Xero invoice ${invoice.invoice_number}`,
+            resolved_at: now,
+          })
+          .eq('id', unmatchedRecord.id);
       }
     }
 
