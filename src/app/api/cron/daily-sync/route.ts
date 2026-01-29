@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { fetchAllMetaAdSpend, verifyMetaToken } from '@/lib/meta/client';
 
+// Allow up to 60 seconds for the cron job (max for Hobby plan)
+// This is needed because syncing Shopify, Etsy, Meta, and refreshing P&L takes ~30-40 seconds
+export const maxDuration = 60;
+
 /**
  * Daily Cron Job - Syncs all data and refreshes P&L
  *

@@ -67,6 +67,7 @@ All projects share the same Supabase database and are planned for consolidation 
 - `xero_connections` - Xero OAuth tokens for bank balance fetching
 - `country_ad_spend` - Ad spend by country from Meta API (for GP3 in Country Analysis)
 - `excluded_orders` - Permanently excluded orders (prevents re-sync)
+- `sku_mapping` - SKU mappings for inventory forecasting (old_sku → current_sku)
 
 **Migrations:**
 - `supabase/migrations/002_pnl_schema.sql` - Core P&L tables
@@ -81,6 +82,7 @@ All projects share the same Supabase database and are planned for consolidation 
 - `supabase/migrations/011_order_exclusions.sql` - Order exclusion system (excluded_at, excluded_orders table)
 - `supabase/migrations/012_unmatched_invoices.sql` - Unmatched invoice records for reconciliation
 - `supabase/migrations/013_add_deutschepost_carrier.sql` - Deutsche Post carrier support
+- `supabase/migrations/014_sku_mapping.sql` - SKU mapping table for inventory forecasting
 
 ---
 
@@ -1351,6 +1353,134 @@ unmatched_invoice_records (
   UNIQUE(tracking_number, invoice_number)
 );
 ```
+
+---
+
+## SKU Mapping (Inventory)
+
+### Purpose
+Map legacy/old SKUs to current canonical SKUs for accurate inventory forecasting. When products are renamed, repackaged, or SKU codes change, historical sales data needs to be consolidated under the current SKU for demand forecasting.
+
+### Location
+Inventory > SKU Mapping (`/inventory/sku-mapping`)
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **SKU Discovery** | Automatically discovers all SKUs from order history across Shopify & Etsy |
+| **Variant Grouping** | Groups P-suffix and -BALL variants with base SKUs (toggle "Hide variants") |
+| **AI Suggestions** | Click "Get Suggestions" for AI-powered mapping recommendations |
+| **Bulk Mapping** | Select multiple SKUs with checkboxes, choose target, create mappings in bulk |
+| **Unmapped Filter** | Filter to show only unmapped SKUs for easy cleanup |
+| **Platform/Brand Filters** | Filter by Shopify/Etsy and Display Champ/Bright Ivy |
+| **Grouped Saved Mappings** | Saved mappings grouped by target SKU - shows when multiple SKUs map to same master |
+| **Scroll Indicator** | Visual indicator when more mappings available to scroll |
+
+### How Mapping Works
+
+1. **Select SKUs** - Use checkboxes to select 2+ SKUs you want to consolidate
+2. **Map Selected** - Click "Map Selected" button in the sticky toolbar
+3. **Choose Target** - In the dialog, select which SKU is the canonical (current) one
+4. **Create Mappings** - All other selected SKUs are mapped → target SKU
+
+### Variant Handling
+
+When "Hide variants" is enabled:
+- SKUs are grouped by base name (removes P suffix and -BALL suffix)
+- Order counts are aggregated across all variants
+- Hover over "X grouped" badge to see individual variant SKUs
+- Mapping checks all underlying variants (not just displayed base SKU)
+
+### SKU Types
+
+| Badge | Meaning |
+|-------|---------|
+| `P` | Has P suffix variant (e.g., GBCPRESTIGEOAKP) |
+| `BALL` | Ball case variant (e.g., GBCPRESTIGEOAK-BALL) |
+| `+variants` | Base SKU that has P or BALL variants |
+| `X grouped` | Aggregated group when "Hide variants" is on |
+
+### Saved Mappings Display
+
+Saved mappings are grouped by their target (master) SKU to clearly show relationships:
+
+```
+Target: GBCHERITAGEMAH    [5 SKUs mapped here]
+├─ GBCMWB →
+├─ GBCMWBP →
+├─ GBCHERITAGEAFZ →
+├─ GBCHERITAGEMAHP →
+└─ GBCHERITAGE →
+
+Target: GBDSICON
+└─ GBSICON →
+```
+
+- Groups sorted by size (largest first)
+- Badge shows count when multiple SKUs map to same target
+- Scroll indicator appears when more groups available
+- Delete buttons appear on hover
+
+### Exclusions
+
+Jewellery products (Bright Ivy) are automatically excluded from SKU discovery:
+- Keywords filtered: jewel, necklace, bracelet, earring, pendant, 14k gold, etc.
+- Only ball case products appear in the mapping interface
+
+### API Endpoints
+
+- `GET /api/inventory/sku-discovery` - Discover SKUs from order history
+  - Query params: `brand` (all/DC/BI), `limit`
+  - Returns: SKUs with order counts, platforms, brands, date ranges
+
+- `GET /api/inventory/sku-mapping` - List all saved mappings
+  - Query params: `platform` (all/shopify/etsy)
+
+- `POST /api/inventory/sku-mapping` - Create a new mapping
+  ```json
+  {
+    "oldSku": "LEGACYSKU123",
+    "currentSku": "CURRENTSKU123",
+    "platform": "shopify",  // optional
+    "notes": "Renamed in 2024"
+  }
+  ```
+
+- `DELETE /api/inventory/sku-mapping?id=uuid` - Delete a mapping
+
+### Database Schema
+
+```sql
+sku_mapping (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  old_sku TEXT NOT NULL,           -- Legacy SKU to map FROM
+  current_sku TEXT NOT NULL,       -- Current SKU to map TO
+  brand_id UUID REFERENCES brands(id),  -- Optional brand filter
+  platform TEXT,                   -- Optional: shopify, etsy, or NULL for all
+  notes TEXT,                      -- Why this mapping exists
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_sku_mapping_old_sku ON sku_mapping(old_sku);
+CREATE INDEX idx_sku_mapping_current_sku ON sku_mapping(current_sku);
+```
+
+### RLS Policies
+- **View**: All authenticated users can view mappings
+- **Manage**: Only admins can create/update/delete mappings
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `src/app/(hub)/inventory/sku-mapping/page.tsx` | Main SKU mapping page |
+| `src/app/api/inventory/sku-mapping/route.ts` | CRUD API for mappings |
+| `src/app/api/inventory/sku-discovery/route.ts` | SKU discovery from orders |
+| `src/app/api/inventory/sku-suggestions/route.ts` | AI-powered suggestions |
+| `src/lib/inventory/sku-utils.ts` | SKU parsing utilities (getBaseSku, isVariantSku, etc.) |
+| `supabase/migrations/014_sku_mapping.sql` | Database migration |
 
 ---
 

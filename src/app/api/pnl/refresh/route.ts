@@ -13,6 +13,9 @@ import {
   calculateNetAOV,
 } from '@/lib/pnl/calculations';
 
+// Allow up to 60 seconds for P&L refresh (max for Hobby plan)
+export const maxDuration = 60;
+
 // Default cost percentages
 const DEFAULT_COGS_RATE = 0.30; // 30% COGS for 70% gross margin
 const DEFAULT_PICK_PACK_RATE = 0.05; // 5% pick & pack

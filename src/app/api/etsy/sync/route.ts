@@ -9,6 +9,9 @@ import {
   EtsyStoreCredentials,
 } from '@/lib/etsy/client';
 
+// Allow up to 60 seconds for Etsy sync (max for Hobby plan)
+export const maxDuration = 60;
+
 interface Brand {
   id: string;
   code: string;

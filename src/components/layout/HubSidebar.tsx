@@ -15,6 +15,7 @@ import {
   LineChart,
   Users,
   Building,
+  Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -75,6 +76,17 @@ const navSections: NavSection[] = [
         href: '/shipping',
         icon: Truck,
         description: 'Carrier costs & margins',
+      },
+    ],
+  },
+  {
+    title: 'Inventory',
+    items: [
+      {
+        label: 'SKU Mapping',
+        href: '/inventory/sku-mapping',
+        icon: Package,
+        description: 'Product SKU management',
       },
     ],
   },

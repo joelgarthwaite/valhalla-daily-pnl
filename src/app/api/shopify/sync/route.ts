@@ -8,6 +8,9 @@ import {
   ShopifyStoreCredentials,
 } from '@/lib/shopify/client';
 
+// Allow up to 60 seconds for Shopify sync (max for Hobby plan)
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
