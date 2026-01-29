@@ -939,10 +939,12 @@ If emails aren't arriving at 7am/7pm:
 2. **Common Issues:**
    | Symptom | Cause | Fix |
    |---------|-------|-----|
-   | 401 Unauthorized | `x-vercel-cron` header check failing | Check header exists (not specific value) |
+   | 401 on cron endpoint | `x-vercel-cron` header check failing | Check header exists (not specific value) |
+   | 401 on internal API calls | Using Vercel function URL (has Deployment Protection) | Use production URL `https://pnl.displaychamp.com` |
    | 500 Error | Code error in sync | Check function logs for stack trace |
    | No logs at all | Cron not triggering | Verify crons enabled in Settings → Cron Jobs |
    | Email not sent | No P&L data for date | Check `daily_pnl` table has data |
+   | "Success: false" | One of the sync steps failed | Expand logs to see which step errored |
 
 3. **Manual Test:**
    ```bash
@@ -957,10 +959,17 @@ If emails aren't arriving at 7am/7pm:
    ```
 
 4. **Vercel Cron Auth:**
-   - Vercel sets `x-vercel-cron` header when calling cron endpoints
-   - Code checks for header **existence** (not specific value)
+   - Vercel sends `Authorization: Bearer $CRON_SECRET` (if CRON_SECRET env var is set)
+   - Vercel also sends `x-vercel-cron` header (but may be null)
+   - Code checks for EITHER auth header OR x-vercel-cron header existence
    - Manual triggers require `Authorization: Bearer $CRON_SECRET` header
    - `CRON_SECRET` must be set in Vercel Environment Variables
+
+5. **Internal API Calls from Cron:**
+   - Cron makes fetch() calls to internal endpoints (/api/shopify/sync, etc.)
+   - MUST use production URL `https://pnl.displaychamp.com` NOT `request.url.origin`
+   - `request.url.origin` gives Vercel function URL which has Deployment Protection
+   - Code uses `VERCEL_ENV === 'production'` to select correct base URL
 
 5. **Run Manually from Vercel:**
    - Go to Settings → Cron Jobs
