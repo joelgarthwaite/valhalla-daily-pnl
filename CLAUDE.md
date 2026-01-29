@@ -782,6 +782,12 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/cr
 
 **Environment Variable:** `CRON_SECRET` - Required for manual triggering (Vercel cron calls are authenticated automatically)
 
+**Function Timeouts:** The cron and sync endpoints use `maxDuration = 120` seconds (Vercel Pro plan). The full sync takes ~30-40 seconds, so this provides adequate headroom. Key endpoints with extended timeouts:
+- `/api/cron/daily-sync` - Main cron job
+- `/api/shopify/sync` - Shopify order sync
+- `/api/etsy/sync` - Etsy order sync
+- `/api/pnl/refresh` - P&L calculations
+
 ### Daily P&L Summary Emails
 
 Two automated emails are sent daily to key stakeholders:
@@ -1010,8 +1016,9 @@ Run migrations in order via Supabase SQL editor:
 
 ### Production
 - **GitHub:** https://github.com/joelgarthwaite/valhalla-daily-pnl
-- **Hosting:** Vercel (auto-deploys on push to `main`)
+- **Hosting:** Vercel Pro (auto-deploys on push to `main`)
 - **URL:** https://pnl.displaychamp.com
+- **Plan:** Pro (required for 120s function timeouts and reliable cron execution)
 
 ### Auto-Deploy Workflow
 ```bash
