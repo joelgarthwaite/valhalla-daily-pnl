@@ -214,6 +214,10 @@ export async function POST(request: NextRequest) {
         } else if (order.platform === 'etsy') {
           day.etsy_revenue += revenue;
           day.etsy_orders += 1;
+        } else if (order.platform === 'b2b') {
+          // B2B orders created directly in orders table
+          day.b2b_revenue += revenue;
+          day.b2b_orders += 1;
         }
         day.shipping_charged += shippingCharged;
       }

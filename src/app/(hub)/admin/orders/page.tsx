@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { format, subDays, startOfWeek, startOfMonth, startOfYear, endOfWeek, subWeeks } from 'date-fns';
-import { RefreshCw, Building2, Check, X, ChevronLeft, ChevronRight, CalendarIcon, Globe, Ban, RotateCcw, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { RefreshCw, Building2, Check, X, ChevronLeft, ChevronRight, CalendarIcon, Globe, Ban, RotateCcw, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Search, Pencil, Hash, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,7 +44,7 @@ import { formatCurrency } from '@/lib/pnl/targets';
 
 interface OrderWithBrand {
   id: string;
-  platform: 'shopify' | 'etsy';
+  platform: 'shopify' | 'etsy' | 'b2b';
   platform_order_id: string;
   order_number: string | null;
   order_date: string;
@@ -60,7 +60,13 @@ interface OrderWithBrand {
   excluded_at: string | null;
   exclusion_reason: string | null;
   shipping_address: {
+    name?: string;
+    address1?: string;
+    city?: string;
+    province?: string;
+    country?: string;
     country_code?: string;
+    zip?: string;
   } | null;
   brand: {
     id: string;
@@ -92,7 +98,7 @@ interface OrdersResponse {
 }
 
 type BrandFilter = 'all' | 'DC' | 'BI';
-type PlatformFilter = 'all' | 'shopify' | 'etsy';
+type PlatformFilter = 'all' | 'shopify' | 'etsy' | 'b2b';
 type B2BFilter = 'all' | 'b2b' | 'regular';
 type CountryFilter = string; // 'all' or ISO country code
 type ExcludedFilter = 'active' | 'excluded' | 'all';
@@ -172,6 +178,33 @@ export default function OrdersPage() {
   const [b2bCustomerName, setB2BCustomerName] = useState('');
   const [pendingB2BOrderId, setPendingB2BOrderId] = useState<string | null>(null);
 
+  // Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Order number edit dialog
+  const [showOrderNumberDialog, setShowOrderNumberDialog] = useState(false);
+  const [pendingOrderNumberEdit, setPendingOrderNumberEdit] = useState<OrderWithBrand | null>(null);
+  const [newOrderNumber, setNewOrderNumber] = useState('');
+
+  // New B2B Order dialog
+  const [showNewB2BDialog, setShowNewB2BDialog] = useState(false);
+  const [isCreatingB2B, setIsCreatingB2B] = useState(false);
+  const [b2bFormData, setB2bFormData] = useState({
+    brand_id: '',
+    order_date: format(new Date(), 'yyyy-MM-dd'),
+    customer_name: '',
+    order_number: '',  // Can be tracking number
+    subtotal: '',
+    shipping_charged: '',
+    city: '',
+    country_code: 'GB',
+    notes: '',
+  });
+
+  // Brands for B2B order form
+  const [brands, setBrands] = useState<Array<{ id: string; code: string; name: string }>>([]);
+
   const fetchOrders = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -202,6 +235,11 @@ export default function OrdersPage() {
       }
       // 'active' is the default (no params) - only non-excluded orders
 
+      // Add search parameter
+      if (debouncedSearch.trim()) {
+        params.set('search', debouncedSearch.trim());
+      }
+
       const response = await fetch(`/api/orders?${params}`);
       const data: OrdersResponse = await response.json();
 
@@ -220,16 +258,39 @@ export default function OrdersPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [brandFilter, platformFilter, b2bFilter, excludedFilter, countryFilter, dateFrom, dateTo, offset]);
+  }, [brandFilter, platformFilter, b2bFilter, excludedFilter, countryFilter, dateFrom, dateTo, offset, debouncedSearch]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
+  // Fetch brands for B2B form - extract from orders data
+  useEffect(() => {
+    if (orders.length > 0) {
+      const brandSet = new Map<string, { id: string; code: string; name: string }>();
+      orders.forEach(order => {
+        if (order.brand && !brandSet.has(order.brand.id)) {
+          brandSet.set(order.brand.id, order.brand);
+        }
+      });
+      if (brandSet.size > 0) {
+        setBrands(Array.from(brandSet.values()));
+      }
+    }
+  }, [orders]);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   // Reset offset when filters change
   useEffect(() => {
     setOffset(0);
-  }, [brandFilter, platformFilter, b2bFilter, excludedFilter, countryFilter, dateFrom, dateTo]);
+  }, [brandFilter, platformFilter, b2bFilter, excludedFilter, countryFilter, dateFrom, dateTo, debouncedSearch]);
 
   const handleToggleB2B = async (order: OrderWithBrand) => {
     if (!order.is_b2b) {
@@ -383,6 +444,104 @@ export default function OrdersPage() {
     }
   };
 
+  // Create B2B order handler
+  const handleCreateB2BOrder = async () => {
+    if (!b2bFormData.brand_id || !b2bFormData.customer_name || !b2bFormData.subtotal) {
+      toast.error('Please fill in brand, customer name, and subtotal');
+      return;
+    }
+
+    setIsCreatingB2B(true);
+    try {
+      const response = await fetch('/api/orders/b2b', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brand_id: b2bFormData.brand_id,
+          order_date: b2bFormData.order_date,
+          customer_name: b2bFormData.customer_name,
+          order_number: b2bFormData.order_number || null,
+          subtotal: parseFloat(b2bFormData.subtotal) || 0,
+          shipping_charged: parseFloat(b2bFormData.shipping_charged) || 0,
+          shipping_address: b2bFormData.city || b2bFormData.country_code ? {
+            city: b2bFormData.city || null,
+            country_code: b2bFormData.country_code || null,
+          } : null,
+          notes: b2bFormData.notes || null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create B2B order');
+      }
+
+      toast.success('B2B order created successfully');
+      setShowNewB2BDialog(false);
+      setB2bFormData({
+        brand_id: '',
+        order_date: format(new Date(), 'yyyy-MM-dd'),
+        customer_name: '',
+        order_number: '',
+        subtotal: '',
+        shipping_charged: '',
+        city: '',
+        country_code: 'GB',
+        notes: '',
+      });
+      fetchOrders();
+    } catch (error) {
+      console.error('Error creating B2B order:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create B2B order');
+    } finally {
+      setIsCreatingB2B(false);
+    }
+  };
+
+  // Order number edit handlers
+  const handleEditOrderNumber = (order: OrderWithBrand) => {
+    setPendingOrderNumberEdit(order);
+    setNewOrderNumber(order.order_number || '');
+    setShowOrderNumberDialog(true);
+  };
+
+  const handleConfirmOrderNumber = async () => {
+    if (!pendingOrderNumberEdit) return;
+
+    try {
+      const response = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: pendingOrderNumberEdit.id,
+          order_number: newOrderNumber.trim() || null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update order number');
+      }
+
+      // Update local state
+      setOrders(prev => prev.map(o =>
+        o.id === pendingOrderNumberEdit.id
+          ? { ...o, order_number: newOrderNumber.trim() || null }
+          : o
+      ));
+
+      toast.success('Order number updated');
+      setShowOrderNumberDialog(false);
+      setPendingOrderNumberEdit(null);
+      setNewOrderNumber('');
+    } catch (error) {
+      console.error('Error updating order number:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update order number');
+    }
+  };
+
   const handleSelectAll = (checked: boolean) => {
     setSelectAll(checked);
     if (checked) {
@@ -503,6 +662,14 @@ export default function OrdersPage() {
             </Button>
           )}
           <Button
+            variant="default"
+            onClick={() => setShowNewB2BDialog(true)}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New B2B Order
+          </Button>
+          <Button
             variant="outline"
             onClick={fetchOrders}
             disabled={isLoading}
@@ -513,10 +680,33 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Search and Filters */}
       <Card>
         <CardContent className="py-4">
           <div className="flex flex-wrap items-center gap-4">
+            {/* Search */}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search orders, names, addresses..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-[280px] pl-8"
+                />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1 h-6 w-6 p-0"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
             {/* Date Range */}
             <div className="flex items-center gap-2">
               <Label className="text-sm font-medium text-muted-foreground">
@@ -599,6 +789,7 @@ export default function OrdersPage() {
                   <SelectItem value="all">All</SelectItem>
                   <SelectItem value="shopify">Shopify</SelectItem>
                   <SelectItem value="etsy">Etsy</SelectItem>
+                  <SelectItem value="b2b">B2B</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -725,7 +916,20 @@ export default function OrdersPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {order.order_number || order.platform_order_id.slice(0, 10)}
+                        <span className={cn(!order.order_number && 'text-muted-foreground')}>
+                          {order.order_number || order.platform_order_id.slice(0, 10)}
+                        </span>
+                        {!order.excluded_at && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 opacity-50 hover:opacity-100"
+                            onClick={() => handleEditOrderNumber(order)}
+                            title="Edit order number"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        )}
                         {order.excluded_at && (
                           <Badge variant="destructive" className="text-xs">
                             <Ban className="h-3 w-3 mr-1" />
@@ -748,9 +952,13 @@ export default function OrdersPage() {
                     <TableCell>
                       <Badge
                         variant={order.platform === 'shopify' ? 'default' : 'secondary'}
-                        className={order.platform === 'shopify' ? 'bg-green-600' : 'bg-orange-500'}
+                        className={cn(
+                          order.platform === 'shopify' && 'bg-green-600',
+                          order.platform === 'etsy' && 'bg-orange-500',
+                          order.platform === 'b2b' && 'bg-blue-600'
+                        )}
                       >
-                        {order.platform}
+                        {order.platform === 'b2b' ? 'B2B' : order.platform}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-mono">
@@ -949,6 +1157,245 @@ export default function OrdersPage() {
             >
               <Ban className="h-4 w-4 mr-2" />
               Exclude Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Order Number Edit Dialog */}
+      <Dialog open={showOrderNumberDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowOrderNumberDialog(false);
+          setPendingOrderNumberEdit(null);
+          setNewOrderNumber('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              <Hash className="h-5 w-5 inline mr-2" />
+              Edit Order Number
+            </DialogTitle>
+            <DialogDescription>
+              Set a custom order number for this order. This is useful for B2B orders imported from
+              CSV that need to be linked to shipments by tracking number.
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingOrderNumberEdit && (
+            <div className="py-4 space-y-4">
+              <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Customer:</span>
+                  <span className="font-medium">{pendingOrderNumberEdit.customer_name || pendingOrderNumberEdit.b2b_customer_name || '-'}</span>
+                </div>
+                {pendingOrderNumberEdit.shipping_address && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Address:</span>
+                    <span className="text-right text-xs">
+                      {[
+                        pendingOrderNumberEdit.shipping_address.city,
+                        pendingOrderNumberEdit.shipping_address.country_code
+                      ].filter(Boolean).join(', ') || '-'}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Platform ID:</span>
+                  <span className="font-mono text-xs">{pendingOrderNumberEdit.platform_order_id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Date:</span>
+                  <span>{format(new Date(pendingOrderNumberEdit.order_date), 'MMM d, yyyy')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount:</span>
+                  <span className="font-medium">{formatCurrency(pendingOrderNumberEdit.subtotal)}</span>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="order-number">Order Number / Tracking Reference</Label>
+                <Input
+                  id="order-number"
+                  value={newOrderNumber}
+                  onChange={(e) => setNewOrderNumber(e.target.value)}
+                  placeholder="e.g., B2B-2024-001 or 1872335441"
+                  className="mt-2 font-mono"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  For B2B orders, this can be a tracking number to match with shipments
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowOrderNumberDialog(false)}>
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmOrderNumber}>
+              <Check className="h-4 w-4 mr-2" />
+              Save Order Number
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New B2B Order Dialog */}
+      <Dialog open={showNewB2BDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowNewB2BDialog(false);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              <Plus className="h-5 w-5 inline mr-2 text-blue-600" />
+              New B2B Order
+            </DialogTitle>
+            <DialogDescription>
+              Create a B2B order that can be linked to shipments via tracking number.
+              This will be included in P&L calculations.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="b2b-brand">Brand *</Label>
+                <Select
+                  value={b2bFormData.brand_id}
+                  onValueChange={(v) => setB2bFormData(prev => ({ ...prev, brand_id: v }))}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select brand" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {brands.map(brand => (
+                      <SelectItem key={brand.id} value={brand.id}>
+                        {brand.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="b2b-date">Order Date *</Label>
+                <Input
+                  id="b2b-date"
+                  type="date"
+                  value={b2bFormData.order_date}
+                  onChange={(e) => setB2bFormData(prev => ({ ...prev, order_date: e.target.value }))}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="b2b-customer">Customer Name *</Label>
+              <Input
+                id="b2b-customer"
+                value={b2bFormData.customer_name}
+                onChange={(e) => setB2bFormData(prev => ({ ...prev, customer_name: e.target.value }))}
+                placeholder="e.g., DP World Tour Dubai"
+                className="mt-1"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="b2b-order-number">Order # / Tracking Number</Label>
+              <Input
+                id="b2b-order-number"
+                value={b2bFormData.order_number}
+                onChange={(e) => setB2bFormData(prev => ({ ...prev, order_number: e.target.value }))}
+                placeholder="e.g., 1872335441"
+                className="mt-1 font-mono"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter tracking number to link with shipments
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="b2b-subtotal">Subtotal (£) *</Label>
+                <Input
+                  id="b2b-subtotal"
+                  type="number"
+                  step="0.01"
+                  value={b2bFormData.subtotal}
+                  onChange={(e) => setB2bFormData(prev => ({ ...prev, subtotal: e.target.value }))}
+                  placeholder="0.00"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="b2b-shipping">Shipping Charged (£)</Label>
+                <Input
+                  id="b2b-shipping"
+                  type="number"
+                  step="0.01"
+                  value={b2bFormData.shipping_charged}
+                  onChange={(e) => setB2bFormData(prev => ({ ...prev, shipping_charged: e.target.value }))}
+                  placeholder="0.00"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="b2b-city">City</Label>
+                <Input
+                  id="b2b-city"
+                  value={b2bFormData.city}
+                  onChange={(e) => setB2bFormData(prev => ({ ...prev, city: e.target.value }))}
+                  placeholder="e.g., Dubai"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="b2b-country">Country Code</Label>
+                <Input
+                  id="b2b-country"
+                  value={b2bFormData.country_code}
+                  onChange={(e) => setB2bFormData(prev => ({ ...prev, country_code: e.target.value.toUpperCase() }))}
+                  placeholder="e.g., AE"
+                  maxLength={2}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="b2b-notes">Notes</Label>
+              <Input
+                id="b2b-notes"
+                value={b2bFormData.notes}
+                onChange={(e) => setB2bFormData(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Optional notes about this order"
+                className="mt-1"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewB2BDialog(false)}>
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateB2BOrder}
+              disabled={isCreatingB2B}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isCreatingB2B ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-2" />
+              )}
+              Create B2B Order
             </Button>
           </DialogFooter>
         </DialogContent>

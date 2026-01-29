@@ -26,7 +26,7 @@ export interface Order {
   id: string;
   store_id: string;
   brand_id: string;
-  platform: 'shopify' | 'etsy';
+  platform: 'shopify' | 'etsy' | 'b2b';
   platform_order_id: string;
   order_number: string | null;
   order_date: string;

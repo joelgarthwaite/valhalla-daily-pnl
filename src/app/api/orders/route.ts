@@ -18,6 +18,7 @@ interface OrdersQueryParams {
   offset?: string;
   includeExcluded?: string;
   excludedOnly?: string;
+  search?: string;
 }
 
 /**
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
     offset: searchParams.get('offset') || '0',
     includeExcluded: searchParams.get('includeExcluded') || undefined,
     excludedOnly: searchParams.get('excludedOnly') || undefined,
+    search: searchParams.get('search') || undefined,
   };
 
   try {
@@ -83,6 +85,23 @@ export async function GET(request: NextRequest) {
       query = query.filter('shipping_address->>country_code', 'ilike', params.country);
     }
 
+    // Apply search filter (searches across multiple fields)
+    if (params.search && params.search.trim()) {
+      const searchTerm = params.search.trim();
+      // Use OR filter to search across multiple columns
+      // Note: For JSONB fields we need separate filters
+      query = query.or(
+        `order_number.ilike.%${searchTerm}%,` +
+        `platform_order_id.ilike.%${searchTerm}%,` +
+        `customer_name.ilike.%${searchTerm}%,` +
+        `customer_email.ilike.%${searchTerm}%,` +
+        `b2b_customer_name.ilike.%${searchTerm}%,` +
+        `shipping_address->>name.ilike.%${searchTerm}%,` +
+        `shipping_address->>address1.ilike.%${searchTerm}%,` +
+        `shipping_address->>city.ilike.%${searchTerm}%`
+      );
+    }
+
     // Apply pagination
     const limit = parseInt(params.limit || '50', 10);
     const offset = parseInt(params.offset || '0', 10);
@@ -121,6 +140,7 @@ interface UpdateOrderBody {
   id: string;
   is_b2b?: boolean;
   b2b_customer_name?: string | null;
+  order_number?: string | null;
 }
 
 /**
@@ -149,6 +169,10 @@ export async function PATCH(request: NextRequest) {
       updateData.b2b_customer_name = body.b2b_customer_name;
     }
 
+    if (body.order_number !== undefined) {
+      updateData.order_number = body.order_number;
+    }
+
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No update data provided' }, { status: 400 });
     }
@@ -157,7 +181,7 @@ export async function PATCH(request: NextRequest) {
       .from('orders')
       .update(updateData)
       .eq('id', body.id)
-      .select('id, is_b2b, b2b_customer_name')
+      .select('id, is_b2b, b2b_customer_name, order_number')
       .single();
 
     if (error) {

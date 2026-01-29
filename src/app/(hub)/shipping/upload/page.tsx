@@ -44,9 +44,25 @@ import {
   SkipForward,
   Ban,
   Truck,
+  AlertTriangle,
+  Receipt,
 } from 'lucide-react';
 
 type Step = 'upload' | 'mapping' | 'mode' | 'analysis' | 'results';
+
+// Detect DHL invoice type from filename
+type DHLInvoiceType = 'shipping' | 'duties' | 'unknown';
+
+function detectDHLInvoiceType(filename: string): DHLInvoiceType {
+  const upperName = filename.toUpperCase();
+  if (upperName.startsWith('CBGIR') || upperName.includes('DUTY') || upperName.includes('DUTIES') || upperName.includes('IMPORT')) {
+    return 'duties';
+  }
+  if (upperName.startsWith('CBGR')) {
+    return 'shipping';
+  }
+  return 'unknown';
+}
 
 export default function InvoiceUploadPage() {
   // Step management
@@ -57,6 +73,7 @@ export default function InvoiceUploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<ParsedInvoice[]>([]);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
+  const [dhlInvoiceType, setDhlInvoiceType] = useState<DHLInvoiceType>('unknown');
 
   // Step 2: Upload mode selection
   const [uploadMode, setUploadMode] = useState<UploadMode>('overwrite_all');
@@ -86,6 +103,21 @@ export default function InvoiceUploadPage() {
       setFile(selectedFile);
       // Reset parse result when new file selected
       setParseResult(null);
+
+      // Detect DHL invoice type and auto-set mode
+      if (carrier === 'dhl') {
+        const invoiceType = detectDHLInvoiceType(selectedFile.name);
+        setDhlInvoiceType(invoiceType);
+
+        // Auto-select the correct upload mode
+        if (invoiceType === 'duties') {
+          setUploadMode('add_to_existing');
+        } else if (invoiceType === 'shipping') {
+          setUploadMode('overwrite_all');
+        }
+      } else {
+        setDhlInvoiceType('unknown');
+      }
     }
   };
 
@@ -206,6 +238,7 @@ export default function InvoiceUploadPage() {
     setParsedData([]);
     setParseResult(null);
     setUploadMode('overwrite_all');
+    setDhlInvoiceType('unknown');
     setAnalysis(null);
     setUploadResults([]);
     setUploadSummary(null);
@@ -298,7 +331,22 @@ export default function InvoiceUploadPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Carrier</label>
-                <Select value={carrier} onValueChange={(v) => setCarrier(v as 'dhl' | 'royalmail')}>
+                <Select value={carrier} onValueChange={(v) => {
+                  const newCarrier = v as 'dhl' | 'royalmail';
+                  setCarrier(newCarrier);
+                  // Re-detect invoice type when carrier changes
+                  if (file && newCarrier === 'dhl') {
+                    const invoiceType = detectDHLInvoiceType(file.name);
+                    setDhlInvoiceType(invoiceType);
+                    if (invoiceType === 'duties') {
+                      setUploadMode('add_to_existing');
+                    } else if (invoiceType === 'shipping') {
+                      setUploadMode('overwrite_all');
+                    }
+                  } else {
+                    setDhlInvoiceType('unknown');
+                  }
+                }}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -310,6 +358,41 @@ export default function InvoiceUploadPage() {
               </div>
 
               <CarrierWarningBanner carrier={carrier} />
+
+              {/* DHL Invoice Type Detection Banner */}
+              {carrier === 'dhl' && file && dhlInvoiceType === 'duties' && (
+                <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-amber-800">DHL Duties Invoice Detected</p>
+                      <p className="text-sm text-amber-700 mt-1">
+                        This file appears to be a <strong>duties/import invoice</strong> (CBGIR prefix).
+                        The upload mode has been automatically set to &quot;Add to existing cost&quot; to add duties to existing shipping costs.
+                      </p>
+                      <div className="mt-2 flex items-center gap-2 text-sm text-amber-800">
+                        <Receipt className="h-4 w-4" />
+                        <span>Duties will be <strong>added to</strong> existing shipping costs, not replace them.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {carrier === 'dhl' && file && dhlInvoiceType === 'shipping' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <Truck className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-blue-800">DHL Shipping Invoice Detected</p>
+                      <p className="text-sm text-blue-700 mt-1">
+                        This file appears to be a <strong>shipping invoice</strong> (CBGR prefix).
+                        The upload mode is set to &quot;Overwrite all&quot; to set/update shipping costs.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Invoice File</label>
@@ -431,7 +514,41 @@ export default function InvoiceUploadPage() {
               </CardContent>
             </Card>
 
+            {/* DHL Duties Warning - shown if user tries to change mode */}
+            {carrier === 'dhl' && dhlInvoiceType === 'duties' && uploadMode !== 'add_to_existing' && (
+              <div className="bg-red-50 border-2 border-red-400 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-800">Warning: Wrong Mode for Duties Invoice</p>
+                    <p className="text-sm text-red-700 mt-1">
+                      You have selected a mode other than &quot;Add to existing cost&quot; for a duties invoice.
+                      This will <strong>replace</strong> the shipping cost instead of adding duties to it.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 border-red-400 text-red-700 hover:bg-red-100"
+                      onClick={() => setUploadMode('add_to_existing')}
+                    >
+                      Use &quot;Add to existing cost&quot; mode
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <UploadModeSelector value={uploadMode} onChange={setUploadMode} />
+
+            {/* Reminder banner at the bottom */}
+            {carrier === 'dhl' && dhlInvoiceType === 'duties' && uploadMode === 'add_to_existing' && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-green-800">
+                  <Check className="h-5 w-5 text-green-600" />
+                  <span className="text-sm font-medium">Correct mode selected for duties invoice</span>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-2">
               <Button variant="outline" onClick={goBack}>
