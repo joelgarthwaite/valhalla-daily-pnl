@@ -120,6 +120,15 @@ interface ReconcileSummary {
 
 type ApprovalStatus = 'pending' | 'approved' | 'ignored';
 
+interface UnmatchedTrackingRecord {
+  id: string;
+  tracking_number: string;
+  carrier: string;
+  shipping_cost: number;
+  service_type: string | null;
+  shipping_date: string | null;
+}
+
 const statusConfig: Record<ApprovalStatus, { label: string; color: string; icon: React.ReactNode }> = {
   pending: {
     label: 'Pending',
@@ -168,6 +177,9 @@ export default function XeroInvoicesPage() {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [unmatchedTrackings, setUnmatchedTrackings] = useState<UnmatchedTrackingRecord[]>([]);
+  const [loadingTrackings, setLoadingTrackings] = useState(false);
+  const [showTrackingPicker, setShowTrackingPicker] = useState(false);
 
   // Sync dialog states
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
@@ -363,11 +375,37 @@ export default function XeroInvoicesPage() {
     setActionType(null);
     setTrackingNumber('');
     setNotes('');
+    setShowTrackingPicker(false);
+    setUnmatchedTrackings([]);
+  };
+
+  const fetchUnmatchedTrackings = async () => {
+    setLoadingTrackings(true);
+    try {
+      const response = await fetch('/api/invoices/unmatched?status=pending&limit=50');
+      const data = await response.json();
+      if (data.records) {
+        setUnmatchedTrackings(data.records);
+      }
+    } catch (error) {
+      console.error('Error fetching unmatched trackings:', error);
+    } finally {
+      setLoadingTrackings(false);
+    }
   };
 
   const openActionDialog = (invoice: XeroInvoiceRecord, action: 'approve' | 'ignore') => {
     setSelectedInvoice(invoice);
     setActionType(action);
+    // Fetch unmatched tracking numbers when approving
+    if (action === 'approve') {
+      fetchUnmatchedTrackings();
+    }
+  };
+
+  const selectTracking = (tracking: UnmatchedTrackingRecord) => {
+    setTrackingNumber(tracking.tracking_number);
+    setShowTrackingPicker(false);
   };
 
   const formatDate = (dateString: string | null) => {
@@ -1086,15 +1124,73 @@ export default function XeroInvoicesPage() {
             <div className="space-y-4 pt-2 border-t">
               {actionType === 'approve' && (
                 <div className="space-y-2">
-                  <Label htmlFor="trackingNumber">Tracking Number (Optional)</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="trackingNumber">Tracking Number (Optional)</Label>
+                    {unmatchedTrackings.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto py-1 px-2 text-xs"
+                        onClick={() => setShowTrackingPicker(!showTrackingPicker)}
+                      >
+                        {showTrackingPicker ? 'Hide' : 'Select from'} unmatched ({unmatchedTrackings.length})
+                      </Button>
+                    )}
+                  </div>
                   <Input
                     id="trackingNumber"
                     placeholder="e.g., JD0123456789GB"
                     value={trackingNumber}
                     onChange={(e) => setTrackingNumber(e.target.value)}
                   />
+
+                  {/* Unmatched Tracking Picker */}
+                  {showTrackingPicker && (
+                    <div className="border rounded-md max-h-[200px] overflow-y-auto bg-muted/30">
+                      {loadingTrackings ? (
+                        <div className="p-4 text-center text-sm text-muted-foreground">
+                          Loading...
+                        </div>
+                      ) : unmatchedTrackings.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-muted-foreground">
+                          No unmatched tracking numbers
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {unmatchedTrackings.map((tracking) => (
+                            <button
+                              key={tracking.id}
+                              type="button"
+                              className="w-full px-3 py-2 text-left hover:bg-muted transition-colors flex items-center justify-between gap-2"
+                              onClick={() => selectTracking(tracking)}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="font-mono text-sm font-medium truncate">
+                                  {tracking.tracking_number}
+                                </div>
+                                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                  <span className="uppercase">{tracking.carrier}</span>
+                                  {tracking.shipping_date && (
+                                    <span>• {formatDate(tracking.shipping_date)}</span>
+                                  )}
+                                  <span>• {formatCurrency(tracking.shipping_cost)}</span>
+                                </div>
+                              </div>
+                              <Badge variant="outline" className="shrink-0 text-xs">
+                                Select
+                              </Badge>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <p className="text-xs text-muted-foreground">
-                    If provided, this will link the order to an existing shipment
+                    {trackingNumber
+                      ? 'This will link the order to the shipment with this tracking number'
+                      : 'Select from unmatched shipments above or enter manually'}
                   </p>
                 </div>
               )}
