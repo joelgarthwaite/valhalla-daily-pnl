@@ -371,6 +371,9 @@ export interface PnLSummary {
 
   // Orders
   totalOrders: number;
+  shopifyOrders: number;
+  etsyOrders: number;
+  b2bOrders: number;
   grossAOV: number;
   netAOV: number;
 

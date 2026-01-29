@@ -503,6 +503,9 @@ export function calculatePnLSummary(
 
   // Orders
   const totalOrders = dailyData.reduce((sum, d) => sum + Number(d.total_orders || 0), 0);
+  const shopifyOrders = dailyData.reduce((sum, d) => sum + Number(d.shopify_orders || 0), 0);
+  const etsyOrders = dailyData.reduce((sum, d) => sum + Number(d.etsy_orders || 0), 0);
+  const b2bOrders = dailyData.reduce((sum, d) => sum + Number(d.b2b_orders || 0), 0);
 
   // Calculate averaged AOV values (shippingCharged already calculated above)
   const grossAOV = calculateGrossAOV(totalRevenue, shippingCharged, totalOrders);
@@ -557,6 +560,9 @@ export function calculatePnLSummary(
     netMarginPct: trueNetMarginPct,
     // Orders
     totalOrders,
+    shopifyOrders,
+    etsyOrders,
+    b2bOrders,
     grossAOV,
     netAOV,
     // Efficiency metrics

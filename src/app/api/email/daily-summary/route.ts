@@ -131,6 +131,9 @@ export async function POST(request: NextRequest) {
       etsyRevenue: number;
       b2bRevenue: number;
       orders: number;
+      shopifyOrders: number;
+      etsyOrders: number;
+      b2bOrders: number;
       gp3: number;
       opex: number;
       netProfit: number;
@@ -157,6 +160,9 @@ export async function POST(request: NextRequest) {
         etsyRevenue: brandSummary.etsyRevenue,
         b2bRevenue: brandSummary.b2bRevenue,
         orders: brandSummary.totalOrders,
+        shopifyOrders: brandSummary.shopifyOrders,
+        etsyOrders: brandSummary.etsyOrders,
+        b2bOrders: brandSummary.b2bOrders,
         gp3: brandSummary.gp3,
         opex: brandOpex,
         netProfit: brandNetProfit,

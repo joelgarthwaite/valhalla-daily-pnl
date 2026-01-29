@@ -21,6 +21,9 @@ export interface BrandSummary {
   etsyRevenue: number;
   b2bRevenue: number;
   orders: number;
+  shopifyOrders: number;
+  etsyOrders: number;
+  b2bOrders: number;
   gp3: number;
   opex: number;
   netProfit: number;
@@ -209,38 +212,70 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
     <!-- Brand Performance -->
     <h3 style="margin: 25px 0 15px 0; color: #374151; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">🏢 Performance by Brand</h3>
     ${data.brands && Object.keys(data.brands).length > 0 ? `
-    <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 15px;">
-      <thead>
-        <tr style="border-bottom: 2px solid #e5e7eb;">
-          <th style="padding: 8px 0; text-align: left; font-weight: 600; color: #374151;">Brand</th>
-          <th style="padding: 8px 0; text-align: right; font-weight: 600; color: #374151;">Revenue</th>
-          <th style="padding: 8px 0; text-align: right; font-weight: 600; color: #374151;">Net Profit</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${Object.values(data.brands).map(brand => `
-        <tr style="border-bottom: 1px solid #f3f4f6;">
-          <td style="padding: 10px 0;">
-            <div style="font-weight: 600; color: #111827;">${brand.name}</div>
-            <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
-              ${brand.shopifyRevenue > 0 ? `Shopify: ${formatCurrency(brand.shopifyRevenue)}` : ''}
-              ${brand.shopifyRevenue > 0 && (brand.etsyRevenue > 0 || brand.b2bRevenue > 0) ? ' · ' : ''}
-              ${brand.etsyRevenue > 0 ? `Etsy: ${formatCurrency(brand.etsyRevenue)}` : ''}
-              ${brand.etsyRevenue > 0 && brand.b2bRevenue > 0 ? ' · ' : ''}
-              ${brand.b2bRevenue > 0 ? `B2B: ${formatCurrency(brand.b2bRevenue)}` : ''}
-            </div>
-          </td>
-          <td style="padding: 10px 0; text-align: right; font-weight: 500;">${formatCurrency(brand.revenue)}</td>
-          <td style="padding: 10px 0; text-align: right; font-weight: 600; color: ${brand.netProfit >= 0 ? '#22c55e' : '#ef4444'};">${formatCurrency(brand.netProfit)}</td>
-        </tr>
-        `).join('')}
-        <tr style="background-color: #f9fafb;">
-          <td style="padding: 12px 0; font-weight: 700; color: #1e3a8a;">Valhalla Group</td>
-          <td style="padding: 12px 0; text-align: right; font-weight: 700; color: #1e3a8a;">${formatCurrency(data.totalRevenue)}</td>
-          <td style="padding: 12px 0; text-align: right; font-weight: 700; color: ${data.trueNetProfit >= 0 ? '#22c55e' : '#ef4444'};">${formatCurrency(data.trueNetProfit)}</td>
-        </tr>
-      </tbody>
-    </table>
+    ${Object.values(data.brands).map(brand => {
+      const shopifyAOV = brand.shopifyOrders > 0 ? brand.shopifyRevenue / brand.shopifyOrders : 0;
+      const etsyAOV = brand.etsyOrders > 0 ? brand.etsyRevenue / brand.etsyOrders : 0;
+      const b2bAOV = brand.b2bOrders > 0 ? brand.b2bRevenue / brand.b2bOrders : 0;
+      return `
+      <div style="background-color: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-weight: 700; color: #111827; font-size: 15px;">${brand.name}</span>
+          <span style="font-weight: 700; color: ${brand.netProfit >= 0 ? '#22c55e' : '#ef4444'};">${formatCurrency(brand.netProfit)}</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+              <th style="padding: 4px 0; text-align: left; font-weight: 500; color: #6b7280;">Channel</th>
+              <th style="padding: 4px 0; text-align: right; font-weight: 500; color: #6b7280;">Revenue</th>
+              <th style="padding: 4px 0; text-align: right; font-weight: 500; color: #6b7280;">Orders</th>
+              <th style="padding: 4px 0; text-align: right; font-weight: 500; color: #6b7280;">AOV</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${brand.shopifyOrders > 0 || brand.shopifyRevenue > 0 ? `
+            <tr>
+              <td style="padding: 4px 0;"><span style="display: inline-block; width: 8px; height: 8px; background-color: #22c55e; border-radius: 50%; margin-right: 6px;"></span>Shopify</td>
+              <td style="padding: 4px 0; text-align: right; font-weight: 500;">${formatCurrency(brand.shopifyRevenue)}</td>
+              <td style="padding: 4px 0; text-align: right;">${brand.shopifyOrders}</td>
+              <td style="padding: 4px 0; text-align: right;">${formatCurrency(shopifyAOV)}</td>
+            </tr>
+            ` : ''}
+            ${brand.etsyOrders > 0 || brand.etsyRevenue > 0 ? `
+            <tr>
+              <td style="padding: 4px 0;"><span style="display: inline-block; width: 8px; height: 8px; background-color: #f97316; border-radius: 50%; margin-right: 6px;"></span>Etsy</td>
+              <td style="padding: 4px 0; text-align: right; font-weight: 500;">${formatCurrency(brand.etsyRevenue)}</td>
+              <td style="padding: 4px 0; text-align: right;">${brand.etsyOrders}</td>
+              <td style="padding: 4px 0; text-align: right;">${formatCurrency(etsyAOV)}</td>
+            </tr>
+            ` : ''}
+            ${brand.b2bOrders > 0 || brand.b2bRevenue > 0 ? `
+            <tr>
+              <td style="padding: 4px 0;"><span style="display: inline-block; width: 8px; height: 8px; background-color: #3b82f6; border-radius: 50%; margin-right: 6px;"></span>B2B</td>
+              <td style="padding: 4px 0; text-align: right; font-weight: 500;">${formatCurrency(brand.b2bRevenue)}</td>
+              <td style="padding: 4px 0; text-align: right;">${brand.b2bOrders}</td>
+              <td style="padding: 4px 0; text-align: right;">${formatCurrency(b2bAOV)}</td>
+            </tr>
+            ` : ''}
+            <tr style="border-top: 1px solid #e5e7eb; font-weight: 600;">
+              <td style="padding: 6px 0;">Total</td>
+              <td style="padding: 6px 0; text-align: right;">${formatCurrency(brand.revenue)}</td>
+              <td style="padding: 6px 0; text-align: right;">${brand.orders}</td>
+              <td style="padding: 6px 0; text-align: right;">${formatCurrency(brand.orders > 0 ? brand.revenue / brand.orders : 0)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      `;
+    }).join('')}
+    <div style="background-color: #1e3a8a; border-radius: 8px; padding: 12px; color: white;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-weight: 700; font-size: 15px;">Valhalla Group Total</span>
+        <div style="text-align: right;">
+          <div style="font-weight: 700; font-size: 16px;">${formatCurrency(data.totalRevenue)}</div>
+          <div style="font-size: 12px; opacity: 0.9;">Net: <span style="color: ${data.trueNetProfit >= 0 ? '#86efac' : '#fca5a5'};">${formatCurrency(data.trueNetProfit)}</span></div>
+        </div>
+      </div>
+    </div>
     ` : `
     <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
       <tr>
