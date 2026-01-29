@@ -284,35 +284,57 @@ export async function GET(request: NextRequest) {
   }
 
   // Step 6: Send Daily Summary Email
+  // Only send email if critical syncs succeeded (at least P&L refresh must work)
+  // This prevents sending emails with stale/incomplete data
+  const pnlRefreshResult = results.find(r => r.step === 'P&L Refresh');
+  const shopifySyncResult = results.find(r => r.step === 'Shopify Sync');
+  const etsySyncResult = results.find(r => r.step === 'Etsy Sync');
+
+  const criticalSyncsSucceeded = pnlRefreshResult?.success &&
+    (shopifySyncResult?.success || etsySyncResult?.success);
+
   // Determine sync type from query param or time of day
   const syncType = request.nextUrl.searchParams.get('type') ||
     (new Date().getUTCHours() < 12 ? 'morning' : 'evening');
 
-  try {
-    const emailResponse = await fetch(
-      `${baseUrl}/api/email/daily-summary?type=${syncType}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${cronSecret}`,
-        },
-      }
-    );
-    const emailData = await emailResponse.json();
-
-    results.push({
-      step: 'Daily Summary Email',
-      success: emailResponse.ok,
-      message: emailResponse.ok ? emailData.message : emailData.error,
-      details: { ...emailData.data, syncType },
-    });
-  } catch (error) {
+  if (!criticalSyncsSucceeded) {
     results.push({
       step: 'Daily Summary Email',
       success: false,
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: 'Skipped - critical syncs failed (P&L refresh or all order syncs failed)',
+      details: {
+        pnlRefresh: pnlRefreshResult?.success,
+        shopifySync: shopifySyncResult?.success,
+        etsySync: etsySyncResult?.success,
+      },
     });
+  } else {
+    try {
+      const emailResponse = await fetch(
+        `${baseUrl}/api/email/daily-summary?type=${syncType}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${cronSecret}`,
+          },
+        }
+      );
+      const emailData = await emailResponse.json();
+
+      results.push({
+        step: 'Daily Summary Email',
+        success: emailResponse.ok,
+        message: emailResponse.ok ? emailData.message : emailData.error,
+        details: { ...emailData.data, syncType },
+      });
+    } catch (error) {
+      results.push({
+        step: 'Daily Summary Email',
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 
   const duration = Date.now() - startTime;
