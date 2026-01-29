@@ -384,11 +384,49 @@ export default function XeroInvoicesPage() {
   const fetchUnmatchedTrackings = async () => {
     setLoadingTrackings(true);
     try {
-      const response = await fetch('/api/invoices/unmatched?status=pending&limit=50');
-      const data = await response.json();
-      if (data.records) {
-        setUnmatchedTrackings(data.records);
+      // Fetch from both unmatched_invoice_records AND unlinked shipments
+      const [unmatchedResponse, shipmentsResponse] = await Promise.all([
+        fetch('/api/invoices/unmatched?status=pending&limit=50'),
+        fetch('/api/shipments?unlinked=true&limit=50'),
+      ]);
+
+      const unmatchedData = await unmatchedResponse.json();
+      const shipmentsData = await shipmentsResponse.json();
+
+      // Combine results, avoiding duplicates by tracking number
+      const trackingMap = new Map<string, UnmatchedTrackingRecord>();
+
+      // Add unmatched invoice records first
+      if (unmatchedData.records) {
+        for (const record of unmatchedData.records) {
+          trackingMap.set(record.tracking_number, {
+            id: record.id,
+            tracking_number: record.tracking_number,
+            carrier: record.carrier,
+            shipping_cost: record.shipping_cost,
+            service_type: record.service_type,
+            shipping_date: record.shipping_date,
+          });
+        }
       }
+
+      // Add unlinked shipments (shipments without order_id)
+      if (shipmentsData.shipments) {
+        for (const shipment of shipmentsData.shipments) {
+          if (!trackingMap.has(shipment.tracking_number)) {
+            trackingMap.set(shipment.tracking_number, {
+              id: shipment.id,
+              tracking_number: shipment.tracking_number,
+              carrier: shipment.carrier,
+              shipping_cost: shipment.shipping_cost || 0,
+              service_type: shipment.service_type,
+              shipping_date: shipment.shipping_date,
+            });
+          }
+        }
+      }
+
+      setUnmatchedTrackings(Array.from(trackingMap.values()));
     } catch (error) {
       console.error('Error fetching unmatched trackings:', error);
     } finally {
