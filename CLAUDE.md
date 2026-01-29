@@ -1113,6 +1113,11 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?type=morning&test=tru
 - `GET /api/invoices/unmatched` - List unmatched invoice records
   - Query: `status`, `carrier`, `limit`, `offset`
 - `PATCH /api/invoices/unmatched` - Update record status (match, void, resolve)
+  - When matching to order: checks if shipment exists, updates it or creates new one
+  - Supports multiple shipments per order (split shipments, different carriers)
+- `POST /api/invoices/unmatched` - Batch operations
+  - `action: 'dedupe'` - Remove duplicate records (same tracking + invoice + cost)
+  - `action: 'auto-resolve'` - Auto-resolve records where shipment already exists and is linked to an order
 - `DELETE /api/invoices/unmatched?id=uuid` - Delete a record
 
 ### Shipments
