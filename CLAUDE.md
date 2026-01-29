@@ -97,6 +97,7 @@ All projects share the same Supabase database and are planned for consolidation 
 - `supabase/migrations/013_add_deutschepost_carrier.sql` - Deutsche Post carrier support
 - `supabase/migrations/014_sku_mapping.sql` - SKU mapping table for inventory forecasting
 - `supabase/migrations/015_inventory_schema.sql` - Full inventory management schema (Phase A)
+- `supabase/migrations/018_b2b_orders_platform.sql` - Allow 'b2b' as platform type for orders
 - `supabase/migrations/019_xero_invoices.sql` - Xero invoice sync for B2B orders
 
 ---
@@ -217,11 +218,13 @@ Sync PAID invoices from Xero and approve them to create B2B orders.
 4. **Ignore** - Dismisses invoice with reason
 
 **Features:**
-- Only fetches PAID invoices (Type=ACCREC, Status=PAID)
+- Fetches sales invoices (Type=ACCREC) with configurable status (PAID, AUTHORISED, or ALL)
 - De-duplicates on sync (won't create duplicates)
 - Invoice number used as order_number for easy reference
-- Optional tracking number linking to shipments
+- **Tracking number picker** - Select from unmatched shipments or enter manually
 - Status tracking: pending → approved/ignored
+
+**Required Migration:** `018_b2b_orders_platform.sql` - Drops the platform check constraint to allow `b2b` as a platform type. Run in Supabase SQL Editor if you get "orders_platform_check" constraint errors.
 
 #### B2B Order Reconciliation
 
