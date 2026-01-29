@@ -982,7 +982,7 @@ export default function XeroInvoicesPage() {
 
       {/* Invoice Action Dialog */}
       <Dialog open={!!selectedInvoice && !!actionType} onOpenChange={() => closeDialog()}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {actionType === 'approve' ? 'Approve Invoice & Create B2B Order' : 'Ignore Invoice'}
@@ -994,103 +994,137 @@ export default function XeroInvoicesPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="flex-1 overflow-y-auto space-y-4 py-4">
             {selectedInvoice && (
-              <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Invoice #:</span>
-                  <span className="font-mono font-medium">{selectedInvoice.invoice_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Customer:</span>
-                  <span className="font-medium">{selectedInvoice.contact_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Date:</span>
-                  <span>{formatDate(selectedInvoice.invoice_date)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotal:</span>
-                  <span className="font-mono font-medium">
-                    {formatCurrency(selectedInvoice.subtotal)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tax:</span>
-                  <span className="font-mono">
-                    {formatCurrency(selectedInvoice.tax_total)}
-                  </span>
-                </div>
-                <div className="flex justify-between border-t pt-2 mt-2">
-                  <span className="text-muted-foreground font-medium">Total:</span>
-                  <span className="font-mono font-bold">
-                    {formatCurrency(selectedInvoice.total)}
-                  </span>
+              <>
+                {/* Invoice Header */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Card className="border-blue-200 bg-blue-50/50">
+                    <CardContent className="pt-4">
+                      <div className="text-sm text-muted-foreground">Invoice Number</div>
+                      <div className="text-xl font-mono font-bold text-blue-700">
+                        {selectedInvoice.invoice_number}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-green-200 bg-green-50/50">
+                    <CardContent className="pt-4">
+                      <div className="text-sm text-muted-foreground">Total Amount</div>
+                      <div className="text-xl font-mono font-bold text-green-700">
+                        {formatCurrency(selectedInvoice.total)}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
 
+                {/* Invoice Details */}
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Customer:</span>
+                        <span className="font-medium">{selectedInvoice.contact_name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Date:</span>
+                        <span>{formatDate(selectedInvoice.invoice_date)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Subtotal:</span>
+                        <span className="font-mono">{formatCurrency(selectedInvoice.subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Tax:</span>
+                        <span className="font-mono">{formatCurrency(selectedInvoice.tax_total)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Line Items */}
                 {selectedInvoice.line_items && selectedInvoice.line_items.length > 0 && (
-                  <div className="border-t pt-2 mt-2">
-                    <div className="text-muted-foreground mb-1">Line Items:</div>
-                    <ul className="text-xs space-y-1">
-                      {selectedInvoice.line_items.slice(0, 5).map((item, idx) => (
-                        <li key={idx} className="flex justify-between">
-                          <span className="truncate mr-2">
-                            {item.Quantity}x {item.Description}
-                          </span>
-                          <span className="font-mono">{formatCurrency(item.LineAmount)}</span>
-                        </li>
-                      ))}
-                      {selectedInvoice.line_items.length > 5 && (
-                        <li className="text-muted-foreground">
-                          +{selectedInvoice.line_items.length - 5} more items
-                        </li>
-                      )}
-                    </ul>
-                  </div>
+                  <Card>
+                    <CardHeader className="py-3">
+                      <CardTitle className="text-sm font-medium">
+                        Line Items ({selectedInvoice.line_items.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="border rounded-md overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead className="w-[60px]">Qty</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead className="text-right w-[100px]">Amount</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedInvoice.line_items.map((item, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell className="font-mono text-center">
+                                  {item.Quantity}
+                                </TableCell>
+                                <TableCell className="text-sm">
+                                  {item.Description}
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {formatCurrency(item.LineAmount)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
-              </div>
+              </>
             )}
 
-            {actionType === 'approve' && (
+            {/* Action-specific fields */}
+            <div className="space-y-4 pt-2 border-t">
+              {actionType === 'approve' && (
+                <div className="space-y-2">
+                  <Label htmlFor="trackingNumber">Tracking Number (Optional)</Label>
+                  <Input
+                    id="trackingNumber"
+                    placeholder="e.g., JD0123456789GB"
+                    value={trackingNumber}
+                    onChange={(e) => setTrackingNumber(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    If provided, this will link the order to an existing shipment
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
-                <Label htmlFor="trackingNumber">Tracking Number (Optional)</Label>
-                <Input
-                  id="trackingNumber"
-                  placeholder="For shipment linking"
-                  value={trackingNumber}
-                  onChange={(e) => setTrackingNumber(e.target.value)}
+                <Label htmlFor="notes">
+                  {actionType === 'ignore' ? 'Reason for Ignoring (Required)' : 'Notes (Optional)'}
+                </Label>
+                <Textarea
+                  id="notes"
+                  placeholder={
+                    actionType === 'ignore'
+                      ? 'e.g., Duplicate invoice, personal purchase, not B2B'
+                      : 'Add any relevant notes...'
+                  }
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
                 />
-                <p className="text-xs text-muted-foreground">
-                  If provided, this will link the order to an existing shipment
-                </p>
               </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">
-                {actionType === 'ignore' ? 'Reason for Ignoring' : 'Notes (Optional)'}
-              </Label>
-              <Textarea
-                id="notes"
-                placeholder={
-                  actionType === 'ignore'
-                    ? 'e.g., Duplicate invoice, personal purchase, not B2B'
-                    : 'Add any relevant notes...'
-                }
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-              />
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="border-t pt-4">
             <Button variant="outline" onClick={closeDialog} disabled={actionLoading}>
               Cancel
             </Button>
             <Button
               onClick={handleAction}
-              disabled={actionLoading}
+              disabled={actionLoading || (actionType === 'ignore' && !notes.trim())}
               variant={actionType === 'approve' ? 'default' : 'secondary'}
             >
               {actionLoading ? (
