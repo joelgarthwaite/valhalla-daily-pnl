@@ -1,5 +1,5 @@
 // Daily P&L Summary Email Template
-// Sends at 6pm with profitability status and key metrics
+// Modern, elegant design with clean lines
 
 import { Resend } from 'resend';
 
@@ -31,30 +31,23 @@ export interface BrandSummary {
 
 export interface DailySummaryData {
   date: string;
-  isTodaySoFar?: boolean; // true = "today so far" (evening), false = "yesterday's full results" (morning)
-  // Revenue
+  isTodaySoFar?: boolean;
   totalRevenue: number;
   shopifyRevenue: number;
   etsyRevenue: number;
   b2bRevenue: number;
-  // Orders
   totalOrders: number;
-  // Profit tiers
   gp1: number;
   gp2: number;
   gp3: number;
   totalOpex: number;
   trueNetProfit: number;
-  // Margins
   grossMarginPct: number;
   netMarginPct: number;
-  // Ad spend
   totalAdSpend: number;
   mer: number;
   poas: number;
-  // Brand breakdowns
   brands?: Record<string, BrandSummary>;
-  // Comparison (vs previous day)
   previousDay?: {
     totalRevenue: number;
     trueNetProfit: number;
@@ -76,21 +69,24 @@ function calculateChange(current: number, previous: number): number {
   return ((current - previous) / Math.abs(previous)) * 100;
 }
 
-function getStatusEmoji(profitable: boolean): string {
-  return profitable ? '✅' : '⚠️';
-}
-
-function getProfitColor(amount: number): string {
-  return amount >= 0 ? '#22c55e' : '#ef4444';
-}
+// Color palette - refined and elegant
+const COLORS = {
+  primary: '#18181b',      // Near black
+  secondary: '#71717a',    // Zinc gray
+  muted: '#a1a1aa',        // Light gray
+  border: '#e4e4e7',       // Very light gray
+  background: '#fafafa',   // Off-white
+  white: '#ffffff',
+  success: '#059669',      // Emerald (muted green)
+  danger: '#dc2626',       // Red
+  accent: '#2563eb',       // Blue accent
+};
 
 export function generateDailySummaryHTML(data: DailySummaryData): string {
   const isProfitable = data.trueNetProfit > 0;
-  const profitColor = getProfitColor(data.trueNetProfit);
-  const statusEmoji = getStatusEmoji(isProfitable);
+  const profitColor = isProfitable ? COLORS.success : COLORS.danger;
   const isTodaySoFar = data.isTodaySoFar || false;
 
-  // Calculate changes vs previous day
   const revenueChange = data.previousDay
     ? calculateChange(data.totalRevenue, data.previousDay.totalRevenue)
     : null;
@@ -108,11 +104,8 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
     year: 'numeric',
   });
 
-  // Different titles for morning (yesterday) vs evening (today so far)
-  const emailTitle = isTodaySoFar ? 'Today So Far' : 'Daily P&L Summary';
-  const subtitleText = isTodaySoFar
-    ? `${formattedDate} (as of 7pm)`
-    : formattedDate;
+  const headerTitle = isTodaySoFar ? 'Today So Far' : 'Daily Summary';
+  const headerSubtitle = isTodaySoFar ? `${formattedDate} · 7pm update` : formattedDate;
 
   return `
 <!DOCTYPE html>
@@ -120,223 +113,210 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${emailTitle} - ${data.date}</title>
+  <title>P&L ${headerTitle}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 40px 20px; background-color: ${COLORS.background}; color: ${COLORS.primary}; line-height: 1.5;">
 
   <!-- Header -->
-  <div style="background: linear-gradient(135deg, ${isTodaySoFar ? '#7c3aed' : '#1e3a8a'} 0%, ${isTodaySoFar ? '#a78bfa' : '#3b82f6'} 100%); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-    <h1 style="margin: 0 0 10px 0; font-size: 24px;">${emailTitle}</h1>
-    <p style="margin: 0; opacity: 0.9; font-size: 16px;">${subtitleText}</p>
+  <table style="width: 100%; margin-bottom: 32px;">
+    <tr>
+      <td>
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: ${COLORS.muted}; margin-bottom: 4px;">Valhalla Holdings</div>
+        <div style="font-size: 24px; font-weight: 600; color: ${COLORS.primary};">${headerTitle}</div>
+        <div style="font-size: 14px; color: ${COLORS.secondary}; margin-top: 4px;">${headerSubtitle}</div>
+      </td>
+      <td style="text-align: right; vertical-align: top;">
+        <div style="display: inline-block; padding: 8px 16px; border-radius: 20px; background-color: ${isProfitable ? '#ecfdf5' : '#fef2f2'}; border: 1px solid ${isProfitable ? '#a7f3d0' : '#fecaca'};">
+          <span style="font-size: 13px; font-weight: 600; color: ${profitColor};">${isProfitable ? 'Profitable' : 'Loss'}</span>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Hero Metric -->
+  <div style="background: ${COLORS.white}; border: 1px solid ${COLORS.border}; border-radius: 12px; padding: 28px; margin-bottom: 24px; text-align: center;">
+    <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: ${COLORS.muted}; margin-bottom: 8px;">Net Profit${isTodaySoFar ? ' (so far)' : ''}</div>
+    <div style="font-size: 36px; font-weight: 700; color: ${profitColor}; letter-spacing: -1px;">${formatCurrency(data.trueNetProfit)}</div>
+    ${profitChange !== null ? `<div style="font-size: 13px; color: ${profitChange >= 0 ? COLORS.success : COLORS.danger}; margin-top: 6px;">${formatPercentage(profitChange)} vs previous day</div>` : ''}
   </div>
 
-  <!-- Profitability Status -->
-  <div style="background-color: ${isProfitable ? '#f0fdf4' : '#fef2f2'}; border-left: 4px solid ${profitColor}; padding: 20px; margin: 0;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <span style="font-size: 32px;">${statusEmoji}</span>
-      <div>
-        <h2 style="margin: 0; color: ${profitColor}; font-size: 20px;">
-          ${isTodaySoFar
-            ? (isProfitable ? 'On Track for Profit!' : 'Not Profitable Yet')
-            : (isProfitable ? 'Profitable Day!' : 'Unprofitable Day')}
-        </h2>
-        <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">
-          True Net Profit${isTodaySoFar ? ' (so far)' : ''}: <strong style="color: ${profitColor}; font-size: 18px;">${formatCurrency(data.trueNetProfit)}</strong>
-          ${profitChange !== null ? `<span style="color: ${profitChange >= 0 ? '#22c55e' : '#ef4444'};">(${formatPercentage(profitChange)} vs ${isTodaySoFar ? 'yesterday' : 'day before'})</span>` : ''}
-        </p>
-      </div>
-    </div>
+  <!-- Key Metrics Row -->
+  <table style="width: 100%; margin-bottom: 24px; border-collapse: separate; border-spacing: 12px 0;">
+    <tr>
+      <td style="background: ${COLORS.white}; border: 1px solid ${COLORS.border}; border-radius: 10px; padding: 20px; text-align: center; width: 33%;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: ${COLORS.muted}; margin-bottom: 6px;">Revenue</div>
+        <div style="font-size: 20px; font-weight: 600; color: ${COLORS.primary};">${formatCurrency(data.totalRevenue)}</div>
+        ${revenueChange !== null ? `<div style="font-size: 12px; color: ${revenueChange >= 0 ? COLORS.success : COLORS.danger}; margin-top: 4px;">${formatPercentage(revenueChange)}</div>` : ''}
+      </td>
+      <td style="background: ${COLORS.white}; border: 1px solid ${COLORS.border}; border-radius: 10px; padding: 20px; text-align: center; width: 33%;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: ${COLORS.muted}; margin-bottom: 6px;">Orders</div>
+        <div style="font-size: 20px; font-weight: 600; color: ${COLORS.primary};">${data.totalOrders}</div>
+        ${ordersChange !== null ? `<div style="font-size: 12px; color: ${ordersChange >= 0 ? COLORS.success : COLORS.danger}; margin-top: 4px;">${formatPercentage(ordersChange)}</div>` : ''}
+      </td>
+      <td style="background: ${COLORS.white}; border: 1px solid ${COLORS.border}; border-radius: 10px; padding: 20px; text-align: center; width: 33%;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: ${COLORS.muted}; margin-bottom: 6px;">Net Margin</div>
+        <div style="font-size: 20px; font-weight: 600; color: ${data.netMarginPct >= 0 ? COLORS.success : COLORS.danger};">${data.netMarginPct.toFixed(1)}%</div>
+        <div style="font-size: 12px; color: ${COLORS.muted}; margin-top: 4px;">Target: 15%</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- Profit Waterfall -->
+  <div style="background: ${COLORS.white}; border: 1px solid ${COLORS.border}; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+    <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: ${COLORS.secondary}; margin-bottom: 16px;">Profit Breakdown</div>
+    <table style="width: 100%; font-size: 14px;">
+      <tr>
+        <td style="padding: 8px 0; color: ${COLORS.secondary};">Revenue</td>
+        <td style="padding: 8px 0; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">${formatCurrency(data.totalRevenue)}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 0; color: ${COLORS.muted}; padding-left: 12px;">GP1 <span style="color: ${COLORS.muted};">after COGS</span></td>
+        <td style="padding: 8px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(data.gp1)}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 0; color: ${COLORS.muted}; padding-left: 12px;">GP2 <span style="color: ${COLORS.muted};">after Ops</span></td>
+        <td style="padding: 8px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(data.gp2)}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 0; color: ${COLORS.muted}; padding-left: 12px;">GP3 <span style="color: ${COLORS.muted};">after £${data.totalAdSpend.toFixed(0)} ads</span></td>
+        <td style="padding: 8px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(data.gp3)}</td>
+      </tr>
+      <tr style="border-top: 1px solid ${COLORS.border};">
+        <td style="padding: 12px 0 8px 0; color: ${COLORS.secondary};">OPEX</td>
+        <td style="padding: 12px 0 8px 0; text-align: right; color: ${COLORS.danger}; font-variant-numeric: tabular-nums;">-${formatCurrency(data.totalOpex)}</td>
+      </tr>
+      <tr style="background: ${isProfitable ? '#f0fdf4' : '#fef2f2'};">
+        <td style="padding: 12px; font-weight: 600; color: ${profitColor}; border-radius: 6px 0 0 6px;">Net Profit</td>
+        <td style="padding: 12px; text-align: right; font-weight: 700; font-size: 16px; color: ${profitColor}; border-radius: 0 6px 6px 0; font-variant-numeric: tabular-nums;">${formatCurrency(data.trueNetProfit)}</td>
+      </tr>
+    </table>
   </div>
 
-  <!-- Main Content -->
-  <div style="background-color: white; padding: 25px; border-radius: 0 0 12px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+  <!-- Brand Performance -->
+  <div style="background: ${COLORS.white}; border: 1px solid ${COLORS.border}; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+    <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: ${COLORS.secondary}; margin-bottom: 16px;">By Brand</div>
 
-    <!-- Key Metrics Grid -->
-    <h3 style="margin: 0 0 15px 0; color: #374151; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">📊 Key Metrics</h3>
-    <table style="width: 100%; border-collapse: collapse;">
-      <tr>
-        <td style="padding: 12px; background-color: #f9fafb; border-radius: 8px 0 0 0;">
-          <div style="color: #6b7280; font-size: 12px; text-transform: uppercase;">Revenue</div>
-          <div style="color: #111827; font-size: 20px; font-weight: bold;">${formatCurrency(data.totalRevenue)}</div>
-          ${revenueChange !== null ? `<div style="color: ${revenueChange >= 0 ? '#22c55e' : '#ef4444'}; font-size: 12px;">${formatPercentage(revenueChange)}</div>` : ''}
-        </td>
-        <td style="padding: 12px; background-color: #f9fafb; border-radius: 0 8px 0 0;">
-          <div style="color: #6b7280; font-size: 12px; text-transform: uppercase;">Orders</div>
-          <div style="color: #111827; font-size: 20px; font-weight: bold;">${data.totalOrders}</div>
-          ${ordersChange !== null ? `<div style="color: ${ordersChange >= 0 ? '#22c55e' : '#ef4444'}; font-size: 12px;">${formatPercentage(ordersChange)}</div>` : ''}
-        </td>
-      </tr>
-      <tr>
-        <td style="padding: 12px; background-color: #f9fafb;">
-          <div style="color: #6b7280; font-size: 12px; text-transform: uppercase;">Net Margin</div>
-          <div style="color: ${data.netMarginPct >= 15 ? '#22c55e' : data.netMarginPct >= 0 ? '#f59e0b' : '#ef4444'}; font-size: 20px; font-weight: bold;">${data.netMarginPct.toFixed(1)}%</div>
-          <div style="color: #6b7280; font-size: 12px;">Target: >15%</div>
-        </td>
-        <td style="padding: 12px; background-color: #f9fafb;">
-          <div style="color: #6b7280; font-size: 12px; text-transform: uppercase;">MER</div>
-          <div style="color: ${data.mer >= 3 ? '#22c55e' : '#f59e0b'}; font-size: 20px; font-weight: bold;">${data.mer.toFixed(2)}x</div>
-          <div style="color: #6b7280; font-size: 12px;">Target: >3x</div>
-        </td>
-      </tr>
-    </table>
-
-    <!-- Profit Waterfall -->
-    <h3 style="margin: 25px 0 15px 0; color: #374151; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">💰 Profit Breakdown</h3>
-    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-      <tr>
-        <td style="padding: 8px 0; color: #6b7280;">Revenue</td>
-        <td style="padding: 8px 0; text-align: right; font-weight: 500;">${formatCurrency(data.totalRevenue)}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0; color: #6b7280;">→ GP1 (after COGS)</td>
-        <td style="padding: 8px 0; text-align: right; font-weight: 500;">${formatCurrency(data.gp1)}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0; color: #6b7280;">→ GP2 (after Ops)</td>
-        <td style="padding: 8px 0; text-align: right; font-weight: 500;">${formatCurrency(data.gp2)}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0; color: #6b7280;">→ GP3 (after Ads: ${formatCurrency(data.totalAdSpend)})</td>
-        <td style="padding: 8px 0; text-align: right; font-weight: 500;">${formatCurrency(data.gp3)}</td>
-      </tr>
-      <tr style="border-top: 1px solid #e5e7eb;">
-        <td style="padding: 8px 0; color: #6b7280;">- OPEX</td>
-        <td style="padding: 8px 0; text-align: right; color: #ef4444; font-weight: 500;">-${formatCurrency(data.totalOpex)}</td>
-      </tr>
-      <tr style="background-color: ${isProfitable ? '#f0fdf4' : '#fef2f2'}; border-radius: 8px;">
-        <td style="padding: 12px 8px; font-weight: bold; color: ${profitColor};">= True Net Profit</td>
-        <td style="padding: 12px 8px; text-align: right; font-weight: bold; font-size: 18px; color: ${profitColor};">${formatCurrency(data.trueNetProfit)}</td>
-      </tr>
-    </table>
-
-    <!-- Brand Performance -->
-    <h3 style="margin: 25px 0 15px 0; color: #374151; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">🏢 Performance by Brand</h3>
     ${data.brands && Object.keys(data.brands).length > 0 ? `
-    ${Object.values(data.brands).map(brand => {
+    ${Object.values(data.brands).map((brand, idx, arr) => {
       const shopifyAOV = brand.shopifyOrders > 0 ? brand.shopifyRevenue / brand.shopifyOrders : 0;
       const etsyAOV = brand.etsyOrders > 0 ? brand.etsyRevenue / brand.etsyOrders : 0;
       const b2bAOV = brand.b2bOrders > 0 ? brand.b2bRevenue / brand.b2bOrders : 0;
+      const totalAOV = brand.orders > 0 ? brand.revenue / brand.orders : 0;
+      const isLast = idx === arr.length - 1;
+
       return `
-      <div style="background-color: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span style="font-weight: 700; color: #111827; font-size: 15px;">${brand.name}</span>
-          <span style="font-weight: 700; color: ${brand.netProfit >= 0 ? '#22c55e' : '#ef4444'};">${formatCurrency(brand.netProfit)}</span>
-        </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-          <thead>
-            <tr style="border-bottom: 1px solid #e5e7eb;">
-              <th style="padding: 4px 0; text-align: left; font-weight: 500; color: #6b7280;">Channel</th>
-              <th style="padding: 4px 0; text-align: right; font-weight: 500; color: #6b7280;">Revenue</th>
-              <th style="padding: 4px 0; text-align: right; font-weight: 500; color: #6b7280;">Orders</th>
-              <th style="padding: 4px 0; text-align: right; font-weight: 500; color: #6b7280;">AOV</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${brand.shopifyOrders > 0 || brand.shopifyRevenue > 0 ? `
-            <tr>
-              <td style="padding: 4px 0;"><span style="display: inline-block; width: 8px; height: 8px; background-color: #22c55e; border-radius: 50%; margin-right: 6px;"></span>Shopify</td>
-              <td style="padding: 4px 0; text-align: right; font-weight: 500;">${formatCurrency(brand.shopifyRevenue)}</td>
-              <td style="padding: 4px 0; text-align: right;">${brand.shopifyOrders}</td>
-              <td style="padding: 4px 0; text-align: right;">${formatCurrency(shopifyAOV)}</td>
-            </tr>
-            ` : ''}
-            ${brand.etsyOrders > 0 || brand.etsyRevenue > 0 ? `
-            <tr>
-              <td style="padding: 4px 0;"><span style="display: inline-block; width: 8px; height: 8px; background-color: #f97316; border-radius: 50%; margin-right: 6px;"></span>Etsy</td>
-              <td style="padding: 4px 0; text-align: right; font-weight: 500;">${formatCurrency(brand.etsyRevenue)}</td>
-              <td style="padding: 4px 0; text-align: right;">${brand.etsyOrders}</td>
-              <td style="padding: 4px 0; text-align: right;">${formatCurrency(etsyAOV)}</td>
-            </tr>
-            ` : ''}
-            ${brand.b2bOrders > 0 || brand.b2bRevenue > 0 ? `
-            <tr>
-              <td style="padding: 4px 0;"><span style="display: inline-block; width: 8px; height: 8px; background-color: #3b82f6; border-radius: 50%; margin-right: 6px;"></span>B2B</td>
-              <td style="padding: 4px 0; text-align: right; font-weight: 500;">${formatCurrency(brand.b2bRevenue)}</td>
-              <td style="padding: 4px 0; text-align: right;">${brand.b2bOrders}</td>
-              <td style="padding: 4px 0; text-align: right;">${formatCurrency(b2bAOV)}</td>
-            </tr>
-            ` : ''}
-            <tr style="border-top: 1px solid #e5e7eb; font-weight: 600;">
-              <td style="padding: 6px 0;">Total</td>
-              <td style="padding: 6px 0; text-align: right;">${formatCurrency(brand.revenue)}</td>
-              <td style="padding: 6px 0; text-align: right;">${brand.orders}</td>
-              <td style="padding: 6px 0; text-align: right;">${formatCurrency(brand.orders > 0 ? brand.revenue / brand.orders : 0)}</td>
-            </tr>
-          </tbody>
+      <div style="padding-bottom: ${isLast ? '0' : '16px'}; margin-bottom: ${isLast ? '0' : '16px'}; border-bottom: ${isLast ? 'none' : `1px solid ${COLORS.border}`};">
+        <table style="width: 100%; margin-bottom: 12px;">
+          <tr>
+            <td style="font-weight: 600; font-size: 15px; color: ${COLORS.primary};">${brand.name}</td>
+            <td style="text-align: right;">
+              <span style="font-weight: 600; color: ${brand.netProfit >= 0 ? COLORS.success : COLORS.danger};">${formatCurrency(brand.netProfit)}</span>
+            </td>
+          </tr>
+        </table>
+        <table style="width: 100%; font-size: 12px; color: ${COLORS.secondary};">
+          <tr style="border-bottom: 1px solid ${COLORS.border};">
+            <td style="padding: 6px 0; font-weight: 500; color: ${COLORS.muted};">Channel</td>
+            <td style="padding: 6px 0; text-align: right; font-weight: 500; color: ${COLORS.muted};">Revenue</td>
+            <td style="padding: 6px 0; text-align: right; font-weight: 500; color: ${COLORS.muted};">Orders</td>
+            <td style="padding: 6px 0; text-align: right; font-weight: 500; color: ${COLORS.muted};">AOV</td>
+          </tr>
+          ${brand.shopifyOrders > 0 || brand.shopifyRevenue > 0 ? `
+          <tr>
+            <td style="padding: 6px 0;"><span style="display: inline-block; width: 6px; height: 6px; background: #22c55e; border-radius: 50%; margin-right: 6px;"></span>Shopify</td>
+            <td style="padding: 6px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(brand.shopifyRevenue)}</td>
+            <td style="padding: 6px 0; text-align: right; font-variant-numeric: tabular-nums;">${brand.shopifyOrders}</td>
+            <td style="padding: 6px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(shopifyAOV)}</td>
+          </tr>
+          ` : ''}
+          ${brand.etsyOrders > 0 || brand.etsyRevenue > 0 ? `
+          <tr>
+            <td style="padding: 6px 0;"><span style="display: inline-block; width: 6px; height: 6px; background: #f97316; border-radius: 50%; margin-right: 6px;"></span>Etsy</td>
+            <td style="padding: 6px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(brand.etsyRevenue)}</td>
+            <td style="padding: 6px 0; text-align: right; font-variant-numeric: tabular-nums;">${brand.etsyOrders}</td>
+            <td style="padding: 6px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(etsyAOV)}</td>
+          </tr>
+          ` : ''}
+          ${brand.b2bOrders > 0 || brand.b2bRevenue > 0 ? `
+          <tr>
+            <td style="padding: 6px 0;"><span style="display: inline-block; width: 6px; height: 6px; background: #3b82f6; border-radius: 50%; margin-right: 6px;"></span>B2B</td>
+            <td style="padding: 6px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(brand.b2bRevenue)}</td>
+            <td style="padding: 6px 0; text-align: right; font-variant-numeric: tabular-nums;">${brand.b2bOrders}</td>
+            <td style="padding: 6px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(b2bAOV)}</td>
+          </tr>
+          ` : ''}
+          <tr style="border-top: 1px solid ${COLORS.border}; font-weight: 500; color: ${COLORS.primary};">
+            <td style="padding: 8px 0;">Total</td>
+            <td style="padding: 8px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(brand.revenue)}</td>
+            <td style="padding: 8px 0; text-align: right; font-variant-numeric: tabular-nums;">${brand.orders}</td>
+            <td style="padding: 8px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(totalAOV)}</td>
+          </tr>
         </table>
       </div>
       `;
     }).join('')}
-    <div style="background-color: #1e3a8a; border-radius: 8px; padding: 12px; color: white;">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-weight: 700; font-size: 15px;">Valhalla Group Total</span>
-        <div style="text-align: right;">
-          <div style="font-weight: 700; font-size: 16px;">${formatCurrency(data.totalRevenue)}</div>
-          <div style="font-size: 12px; opacity: 0.9;">Net: <span style="color: ${data.trueNetProfit >= 0 ? '#86efac' : '#fca5a5'};">${formatCurrency(data.trueNetProfit)}</span></div>
-        </div>
-      </div>
+
+    <!-- Group Total -->
+    <div style="background: ${COLORS.primary}; border-radius: 8px; padding: 16px; margin-top: 16px;">
+      <table style="width: 100%;">
+        <tr>
+          <td style="color: ${COLORS.white}; font-weight: 600;">Valhalla Group</td>
+          <td style="text-align: right;">
+            <div style="color: ${COLORS.white}; font-weight: 600; font-size: 16px;">${formatCurrency(data.totalRevenue)}</div>
+            <div style="color: ${data.trueNetProfit >= 0 ? '#86efac' : '#fca5a5'}; font-size: 12px; margin-top: 2px;">Net: ${formatCurrency(data.trueNetProfit)}</div>
+          </td>
+        </tr>
+      </table>
     </div>
     ` : `
-    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <table style="width: 100%; font-size: 14px;">
       <tr>
-        <td style="padding: 8px 0;">
-          <span style="display: inline-block; width: 10px; height: 10px; background-color: #22c55e; border-radius: 50%; margin-right: 8px;"></span>
-          Shopify
-        </td>
+        <td style="padding: 8px 0;"><span style="display: inline-block; width: 8px; height: 8px; background: #22c55e; border-radius: 50%; margin-right: 8px;"></span>Shopify</td>
         <td style="padding: 8px 0; text-align: right; font-weight: 500;">${formatCurrency(data.shopifyRevenue)}</td>
-        <td style="padding: 8px 0; text-align: right; color: #6b7280; width: 60px;">${data.totalRevenue > 0 ? ((data.shopifyRevenue / data.totalRevenue) * 100).toFixed(0) : 0}%</td>
       </tr>
       <tr>
-        <td style="padding: 8px 0;">
-          <span style="display: inline-block; width: 10px; height: 10px; background-color: #f97316; border-radius: 50%; margin-right: 8px;"></span>
-          Etsy
-        </td>
+        <td style="padding: 8px 0;"><span style="display: inline-block; width: 8px; height: 8px; background: #f97316; border-radius: 50%; margin-right: 8px;"></span>Etsy</td>
         <td style="padding: 8px 0; text-align: right; font-weight: 500;">${formatCurrency(data.etsyRevenue)}</td>
-        <td style="padding: 8px 0; text-align: right; color: #6b7280; width: 60px;">${data.totalRevenue > 0 ? ((data.etsyRevenue / data.totalRevenue) * 100).toFixed(0) : 0}%</td>
       </tr>
       <tr>
-        <td style="padding: 8px 0;">
-          <span style="display: inline-block; width: 10px; height: 10px; background-color: #3b82f6; border-radius: 50%; margin-right: 8px;"></span>
-          B2B
-        </td>
+        <td style="padding: 8px 0;"><span style="display: inline-block; width: 8px; height: 8px; background: #3b82f6; border-radius: 50%; margin-right: 8px;"></span>B2B</td>
         <td style="padding: 8px 0; text-align: right; font-weight: 500;">${formatCurrency(data.b2bRevenue)}</td>
-        <td style="padding: 8px 0; text-align: right; color: #6b7280; width: 60px;">${data.totalRevenue > 0 ? ((data.b2bRevenue / data.totalRevenue) * 100).toFixed(0) : 0}%</td>
       </tr>
     </table>
     `}
+  </div>
 
-    <!-- Ad Performance -->
-    ${data.totalAdSpend > 0 ? `
-    <h3 style="margin: 25px 0 15px 0; color: #374151; font-size: 16px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">📈 Ad Performance</h3>
-    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+  <!-- Marketing Metrics -->
+  ${data.totalAdSpend > 0 ? `
+  <div style="background: ${COLORS.white}; border: 1px solid ${COLORS.border}; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+    <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: ${COLORS.secondary}; margin-bottom: 16px;">Marketing</div>
+    <table style="width: 100%; font-size: 14px;">
       <tr>
-        <td style="padding: 8px 0; color: #6b7280;">Ad Spend</td>
-        <td style="padding: 8px 0; text-align: right; font-weight: 500;">${formatCurrency(data.totalAdSpend)}</td>
+        <td style="padding: 8px 0; color: ${COLORS.secondary};">Ad Spend</td>
+        <td style="padding: 8px 0; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums;">${formatCurrency(data.totalAdSpend)}</td>
       </tr>
       <tr>
-        <td style="padding: 8px 0; color: #6b7280;">POAS (Profit on Ad Spend)</td>
-        <td style="padding: 8px 0; text-align: right; font-weight: 500; color: ${data.poas >= 200 ? '#22c55e' : '#f59e0b'};">${data.poas.toFixed(0)}%</td>
+        <td style="padding: 8px 0; color: ${COLORS.secondary};">MER <span style="color: ${COLORS.muted};">(Revenue / Spend)</span></td>
+        <td style="padding: 8px 0; text-align: right; font-weight: 600; color: ${data.mer >= 3 ? COLORS.success : COLORS.secondary};">${data.mer.toFixed(2)}x</td>
       </tr>
       <tr>
-        <td style="padding: 8px 0; color: #6b7280;">MER (Revenue / Ad Spend)</td>
-        <td style="padding: 8px 0; text-align: right; font-weight: 500; color: ${data.mer >= 3 ? '#22c55e' : '#f59e0b'};">${data.mer.toFixed(2)}x</td>
+        <td style="padding: 8px 0; color: ${COLORS.secondary};">POAS <span style="color: ${COLORS.muted};">(Profit / Spend)</span></td>
+        <td style="padding: 8px 0; text-align: right; font-weight: 500; color: ${data.poas >= 100 ? COLORS.success : COLORS.danger};">${data.poas.toFixed(0)}%</td>
       </tr>
     </table>
-    ` : ''}
-
-    <!-- Footer CTA -->
-    <div style="margin-top: 30px; text-align: center; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-      <a href="https://pnl.displaychamp.com" style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 500;">
-        View Full Dashboard →
-      </a>
-    </div>
   </div>
+  ` : ''}
 
   <!-- Footer -->
-  <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
-    <p style="margin: 0;">Valhalla Daily P&L Dashboard</p>
-    <p style="margin: 5px 0 0 0;">${isTodaySoFar ? 'Evening update sent at 7:00 PM' : 'Morning summary sent at 7:00 AM'}</p>
+  <div style="text-align: center; padding: 24px 0;">
+    <a href="https://pnl.displaychamp.com" style="display: inline-block; background: ${COLORS.primary}; color: ${COLORS.white}; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 500;">View Dashboard</a>
   </div>
+
+  <div style="text-align: center; font-size: 11px; color: ${COLORS.muted}; padding-top: 16px; border-top: 1px solid ${COLORS.border};">
+    Valhalla Holdings · P&L Dashboard<br>
+    ${isTodaySoFar ? 'Evening update · 7:00 PM' : 'Morning summary · 7:00 AM'}
+  </div>
+
 </body>
 </html>
   `.trim();
@@ -353,59 +333,59 @@ export function generateDailySummaryText(data: DailySummaryData): string {
   });
 
   const title = isTodaySoFar ? 'TODAY SO FAR' : 'DAILY P&L SUMMARY';
-  const statusMessage = isTodaySoFar
-    ? (isProfitable ? '✅ ON TRACK FOR PROFIT!' : '⚠️ NOT PROFITABLE YET')
-    : (isProfitable ? '✅ PROFITABLE DAY!' : '⚠️ UNPROFITABLE DAY');
+  const statusMessage = isProfitable ? 'PROFITABLE' : 'LOSS';
 
   return `
-${title} - ${formattedDate}${isTodaySoFar ? ' (as of 7pm)' : ''}
-${'='.repeat(50)}
+VALHALLA HOLDINGS
+${title} - ${formattedDate}${isTodaySoFar ? ' (7pm update)' : ''}
+${'─'.repeat(50)}
 
 ${statusMessage}
 
-True Net Profit${isTodaySoFar ? ' (so far)' : ''}: ${formatCurrency(data.trueNetProfit)}
+Net Profit: ${formatCurrency(data.trueNetProfit)}
 Net Margin: ${data.netMarginPct.toFixed(1)}%
 
 KEY METRICS
------------
+───────────
 Revenue: ${formatCurrency(data.totalRevenue)}
 Orders: ${data.totalOrders}
 MER: ${data.mer.toFixed(2)}x
 
 PROFIT BREAKDOWN
-----------------
+────────────────
 Revenue:        ${formatCurrency(data.totalRevenue)}
-→ GP1:          ${formatCurrency(data.gp1)}
-→ GP2:          ${formatCurrency(data.gp2)}
-→ GP3:          ${formatCurrency(data.gp3)}
+  GP1:          ${formatCurrency(data.gp1)}
+  GP2:          ${formatCurrency(data.gp2)}
+  GP3:          ${formatCurrency(data.gp3)}
 - OPEX:         ${formatCurrency(data.totalOpex)}
 = Net Profit:   ${formatCurrency(data.trueNetProfit)}
 
-PERFORMANCE BY BRAND
---------------------
+BY BRAND
+────────
 ${data.brands && Object.keys(data.brands).length > 0
-  ? Object.values(data.brands).map(brand =>
-      `${brand.name}:
-  Revenue: ${formatCurrency(brand.revenue)} (Shopify: ${formatCurrency(brand.shopifyRevenue)}, Etsy: ${formatCurrency(brand.etsyRevenue)}, B2B: ${formatCurrency(brand.b2bRevenue)})
-  Net Profit: ${formatCurrency(brand.netProfit)}`
-    ).join('\n\n') + `
-
-VALHALLA GROUP TOTAL
-Revenue: ${formatCurrency(data.totalRevenue)}
-Net Profit: ${formatCurrency(data.trueNetProfit)}`
+  ? Object.values(data.brands).map(brand => {
+      const shopifyAOV = brand.shopifyOrders > 0 ? brand.shopifyRevenue / brand.shopifyOrders : 0;
+      const etsyAOV = brand.etsyOrders > 0 ? brand.etsyRevenue / brand.etsyOrders : 0;
+      const b2bAOV = brand.b2bOrders > 0 ? brand.b2bRevenue / brand.b2bOrders : 0;
+      return `${brand.name}: ${formatCurrency(brand.revenue)} (${brand.orders} orders)
+  Net Profit: ${formatCurrency(brand.netProfit)}
+  ${brand.shopifyOrders > 0 ? `Shopify: ${formatCurrency(brand.shopifyRevenue)} · ${brand.shopifyOrders} orders · ${formatCurrency(shopifyAOV)} AOV` : ''}
+  ${brand.etsyOrders > 0 ? `Etsy: ${formatCurrency(brand.etsyRevenue)} · ${brand.etsyOrders} orders · ${formatCurrency(etsyAOV)} AOV` : ''}
+  ${brand.b2bOrders > 0 ? `B2B: ${formatCurrency(brand.b2bRevenue)} · ${brand.b2bOrders} orders · ${formatCurrency(b2bAOV)} AOV` : ''}`;
+    }).join('\n\n')
   : `Shopify: ${formatCurrency(data.shopifyRevenue)}
-Etsy:    ${formatCurrency(data.etsyRevenue)}
-B2B:     ${formatCurrency(data.b2bRevenue)}`}
+Etsy: ${formatCurrency(data.etsyRevenue)}
+B2B: ${formatCurrency(data.b2bRevenue)}`}
 
 ${data.totalAdSpend > 0 ? `
-AD PERFORMANCE
---------------
+MARKETING
+─────────
 Ad Spend: ${formatCurrency(data.totalAdSpend)}
-POAS: ${data.poas.toFixed(0)}%
 MER: ${data.mer.toFixed(2)}x
+POAS: ${data.poas.toFixed(0)}%
 ` : ''}
----
-View full dashboard: https://pnl.displaychamp.com
+───
+View dashboard: https://pnl.displaychamp.com
   `.trim();
 }
 
@@ -419,22 +399,21 @@ export async function sendDailySummaryEmail(
 
   const isProfitable = data.trueNetProfit > 0;
   const isTodaySoFar = data.isTodaySoFar || false;
-  const statusEmoji = isProfitable ? '✅' : '⚠️';
   const formattedDate = new Date(data.date).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
   });
 
-  // Different subject lines for morning (yesterday) vs evening (today so far)
-  const subjectPrefix = isTodaySoFar ? 'Today So Far' : 'Daily P&L';
-  const profitLabel = isTodaySoFar ? 'profit so far' : 'profit';
+  // Clean, professional subject line
+  const subjectPrefix = isTodaySoFar ? 'Today' : 'Daily';
+  const statusIndicator = isProfitable ? '↑' : '↓';
 
   try {
     const client = getResendClient();
     const { error } = await client.emails.send({
       from: 'Valhalla P&L <pnl@displaychamp.com>',
       to: recipients,
-      subject: `${statusEmoji} ${subjectPrefix}: ${formatCurrency(data.trueNetProfit)} ${profitLabel} (${formattedDate})`,
+      subject: `${statusIndicator} ${subjectPrefix}: ${formatCurrency(data.trueNetProfit)} · ${formattedDate}`,
       html: generateDailySummaryHTML(data),
       text: generateDailySummaryText(data),
     });
