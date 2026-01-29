@@ -221,7 +221,7 @@ Sync PAID invoices from Xero and approve them to create B2B orders.
 - Fetches sales invoices (Type=ACCREC) with configurable status (PAID, AUTHORISED, or ALL)
 - De-duplicates on sync (won't create duplicates)
 - Invoice number used as order_number for easy reference
-- **Tracking number picker** - Select from unmatched shipments or enter manually
+- **Tracking number picker** - Select from unmatched invoice records (DHL) OR unlinked shipments (Royal Mail, etc.), or enter manually
 - Status tracking: pending → approved/ignored
 
 **Required Migration:** `018_b2b_orders_platform.sql` - Drops the platform check constraint to allow `b2b` as a platform type. Run in Supabase SQL Editor if you get "orders_platform_check" constraint errors.
@@ -1114,6 +1114,15 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?type=morning&test=tru
   - Query: `status`, `carrier`, `limit`, `offset`
 - `PATCH /api/invoices/unmatched` - Update record status (match, void, resolve)
 - `DELETE /api/invoices/unmatched?id=uuid` - Delete a record
+
+### Shipments
+- `GET /api/shipments` - List shipments with optional filters
+  - Query params:
+    - `unlinked=true` - Only return shipments without an order_id (for linking to B2B orders)
+    - `carrier` - Filter by carrier (dhl, royalmail, deutschepost)
+    - `search` - Search by tracking number
+    - `limit`, `offset` - Pagination
+  - Used by Xero invoice approval to find tracking numbers across all carriers
 
 ---
 
