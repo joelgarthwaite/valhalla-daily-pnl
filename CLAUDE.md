@@ -925,6 +925,47 @@ curl -H "Authorization: Bearer $CRON_SECRET" https://pnl.displaychamp.com/api/cr
 - `/api/etsy/sync` - Etsy order sync
 - `/api/pnl/refresh` - P&L calculations
 
+**Vercel Plan:** Pro (required for reliable cron execution and 120s function timeouts)
+
+### Cron Troubleshooting
+
+If emails aren't arriving at 7am/7pm:
+
+1. **Check Vercel Cron Logs:**
+   - Vercel Dashboard → Project → Settings → Cron Jobs
+   - Click "View Logs" next to the cron job
+   - Look for 401 errors (auth issue) or 500 errors (code issue)
+
+2. **Common Issues:**
+   | Symptom | Cause | Fix |
+   |---------|-------|-----|
+   | 401 Unauthorized | `x-vercel-cron` header check failing | Check header exists (not specific value) |
+   | 500 Error | Code error in sync | Check function logs for stack trace |
+   | No logs at all | Cron not triggering | Verify crons enabled in Settings → Cron Jobs |
+   | Email not sent | No P&L data for date | Check `daily_pnl` table has data |
+
+3. **Manual Test:**
+   ```bash
+   # Test email only (no auth required for test mode)
+   curl "https://pnl.displaychamp.com/api/email/daily-summary?type=evening&test=true"
+
+   # Actually send email (no auth required)
+   curl -X POST "https://pnl.displaychamp.com/api/email/daily-summary?type=evening"
+
+   # Full cron (requires CRON_SECRET)
+   curl -H "Authorization: Bearer $CRON_SECRET" "https://pnl.displaychamp.com/api/cron/daily-sync?type=evening"
+   ```
+
+4. **Vercel Cron Auth:**
+   - Vercel sets `x-vercel-cron` header when calling cron endpoints
+   - Code checks for header **existence** (not specific value)
+   - Manual triggers require `Authorization: Bearer $CRON_SECRET` header
+   - `CRON_SECRET` must be set in Vercel Environment Variables
+
+5. **Run Manually from Vercel:**
+   - Go to Settings → Cron Jobs
+   - Click "Run" button next to the cron job to trigger immediately
+
 ### Daily P&L Summary Emails
 
 Two automated emails are sent daily to key stakeholders:
