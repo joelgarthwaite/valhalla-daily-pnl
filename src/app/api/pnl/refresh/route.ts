@@ -13,8 +13,8 @@ import {
   calculateNetAOV,
 } from '@/lib/pnl/calculations';
 
-// Allow up to 60 seconds for P&L refresh (max for Hobby plan)
-export const maxDuration = 60;
+// Allow up to 120 seconds for P&L refresh (Pro plan allows up to 300s)
+export const maxDuration = 120;
 
 // Default cost percentages
 const DEFAULT_COGS_RATE = 0.30; // 30% COGS for 70% gross margin

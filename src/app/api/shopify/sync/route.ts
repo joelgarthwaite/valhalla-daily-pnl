@@ -8,8 +8,8 @@ import {
   ShopifyStoreCredentials,
 } from '@/lib/shopify/client';
 
-// Allow up to 60 seconds for Shopify sync (max for Hobby plan)
-export const maxDuration = 60;
+// Allow up to 120 seconds for Shopify sync (Pro plan allows up to 300s)
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   try {
