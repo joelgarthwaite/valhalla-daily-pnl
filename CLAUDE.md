@@ -983,20 +983,46 @@ If emails aren't arriving at 7am/7pm:
 
 ### Daily P&L Summary Emails
 
-Two automated emails are sent daily to key stakeholders:
+Two automated emails are sent daily to key stakeholders with different purposes:
 
-| Time | Email Type | Content |
-|------|------------|---------|
-| 7:00 AM | **Daily P&L Summary** | Yesterday's complete results |
-| 7:00 PM | **Today So Far** | Current day's progress |
+| Time | Email Type | Title | Purpose |
+|------|------------|-------|---------|
+| 7:00 AM | **Morning Recap** | "Yesterday's Results" | Final numbers for the previous day |
+| 7:00 PM | **Evening Check-in** | "Today So Far" | Progress update on the current day |
 
-**Email Contents:**
-- Profitability status (profitable or not)
-- True Net Profit amount and comparison vs previous day
-- Key metrics: Revenue, Orders, Net Margin, MER
-- Profit waterfall: GP1 → GP2 → GP3 → OPEX → True Net Profit
-- Revenue breakdown by channel (Shopify, Etsy, B2B)
-- Ad performance: Spend, POAS, MER
+**Email Structure:**
+1. **Inspirational Quote** - Different quote each day (morning = reflective/wisdom, evening = motivational/action)
+2. **Hero Metric** - Large net profit figure with % change vs previous period
+3. **Quick Insights** - Auto-generated bullet points highlighting wins (+) and concerns (!)
+4. **Key Metrics Row** - Revenue, Orders, Net Margin with change indicators
+5. **Profit Breakdown** - Waterfall: Revenue → GP1 → GP2 → GP3 → OPEX → Net Profit
+6. **Brand Performance** - Per-brand breakdown with channel details (Shopify/Etsy/B2B Revenue, Orders, AOV)
+7. **Marketing** - Ad Spend, MER, POAS (when ad spend > 0)
+
+**Auto-Generated Insights:**
+
+The Quick Insights section automatically analyzes the data and generates context-aware observations:
+
+| Insight Type | Examples |
+|--------------|----------|
+| **Wins (+)** | "Net margin at 15.6% so far today - hitting the 15% target" |
+| | "MER at 4.8x - excellent ad efficiency" |
+| | "Profit tracking 42% ahead of yesterday" |
+| | "All 2 brands currently profitable" |
+| **Concerns (!)** | "Loss-making day with -8.2% margin" |
+| | "Currently losing money on ads - POAS at 72%" |
+| | "Orders down 12% vs yesterday - quieter day" |
+| | "Bright Ivy currently in the red" |
+
+**Language differs by email type:**
+- **Evening (7pm)**: In-progress language ("tracking ahead", "so far today", "still time to recover")
+- **Morning (7am)**: Conclusive language ("surged", "dropped", "was in the red")
+
+**Inspirational Quotes:**
+
+30 curated business quotes rotate daily (different quote each day, same both emails):
+- Morning quotes: Reflective/wisdom-focused (Warren Buffett, Peter Drucker, W. Edwards Deming)
+- Evening quotes: Motivational/action-focused (Steve Jobs, Walt Disney, Simon Sinek)
 
 **Recipients:** joel@displaychamp.com, lee@displaychamp.com
 

@@ -3,6 +3,53 @@
 
 import { Resend } from 'resend';
 
+// Morning quotes - reflective, wisdom-focused (for yesterday's recap)
+const MORNING_QUOTES = [
+  { text: "Price is what you pay. Value is what you get.", author: "Warren Buffett" },
+  { text: "Revenue is vanity, profit is sanity, but cash is king.", author: "Business Wisdom" },
+  { text: "What gets measured gets managed.", author: "Peter Drucker" },
+  { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+  { text: "Your most unhappy customers are your greatest source of learning.", author: "Bill Gates" },
+  { text: "Profit in business comes from repeat customers.", author: "W. Edwards Deming" },
+  { text: "If you really look closely, most overnight successes took a long time.", author: "Steve Jobs" },
+  { text: "Without data, you're just another person with an opinion.", author: "W. Edwards Deming" },
+  { text: "The best investment you can make is in yourself.", author: "Warren Buffett" },
+  { text: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
+  { text: "Success usually comes to those who are too busy to be looking for it.", author: "Henry David Thoreau" },
+  { text: "Small daily improvements are the key to staggering long-term results.", author: "Robin Sharma" },
+  { text: "A satisfied customer is the best business strategy of all.", author: "Michael LeBoeuf" },
+  { text: "Business has only two functions: marketing and innovation.", author: "Peter Drucker" },
+  { text: "The harder I work, the luckier I get.", author: "Gary Player" },
+];
+
+// Evening quotes - motivational, action-focused (for today's progress)
+const EVENING_QUOTES = [
+  { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+  { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+  { text: "The way to get started is to quit talking and begin doing.", author: "Walt Disney" },
+  { text: "It's not about ideas. It's about making ideas happen.", author: "Scott Belsky" },
+  { text: "Don't be afraid to give up the good to go for the great.", author: "John D. Rockefeller" },
+  { text: "The biggest risk is not taking any risk.", author: "Mark Zuckerberg" },
+  { text: "The goal is not to be perfect by the end. The goal is to be better today.", author: "Simon Sinek" },
+  { text: "Opportunities don't happen. You create them.", author: "Chris Grosser" },
+  { text: "The only limit to our realization of tomorrow is our doubts of today.", author: "Franklin D. Roosevelt" },
+  { text: "Chase the vision, not the money; the money will end up following you.", author: "Tony Hsieh" },
+  { text: "Stay hungry, stay foolish.", author: "Steve Jobs" },
+  { text: "I never dreamed about success. I worked for it.", author: "Estée Lauder" },
+  { text: "Excellence is not a skill. It's an attitude.", author: "Ralph Marston" },
+  { text: "Discipline is the bridge between goals and accomplishment.", author: "Jim Rohn" },
+  { text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb" },
+];
+
+function getRandomQuote(isTodaySoFar: boolean): { text: string; author: string } {
+  const quotes = isTodaySoFar ? EVENING_QUOTES : MORNING_QUOTES;
+  // Use date-based seed for consistency within a day but variety across days
+  const today = new Date().toISOString().split('T')[0];
+  const seed = today.split('-').reduce((acc, num) => acc + parseInt(num, 10), 0);
+  const index = seed % quotes.length;
+  return quotes[index];
+}
+
 // Resend client is initialized lazily to avoid build-time errors
 let resend: Resend | null = null;
 
@@ -82,6 +129,181 @@ const COLORS = {
   accent: '#2563eb',       // Blue accent
 };
 
+// Insight types for categorization
+interface Insight {
+  type: 'win' | 'concern';
+  text: string;
+  priority: number; // Higher = more important
+}
+
+// Generate intelligent insights based on P&L data
+function generateInsights(data: DailySummaryData): Insight[] {
+  const insights: Insight[] = [];
+  const aov = data.totalOrders > 0 ? data.totalRevenue / data.totalOrders : 0;
+  const isTodaySoFar = data.isTodaySoFar || false;
+
+  // Context-aware language
+  const timeContext = isTodaySoFar ? 'so far today' : 'yesterday';
+  const vsText = isTodaySoFar ? 'vs yesterday' : 'vs day before';
+
+  // Calculate channel percentages
+  const shopifyPct = data.totalRevenue > 0 ? (data.shopifyRevenue / data.totalRevenue) * 100 : 0;
+  const etsyPct = data.totalRevenue > 0 ? (data.etsyRevenue / data.totalRevenue) * 100 : 0;
+  const b2bPct = data.totalRevenue > 0 ? (data.b2bRevenue / data.totalRevenue) * 100 : 0;
+
+  // Calculate changes vs previous day
+  const revenueChange = data.previousDay
+    ? calculateChange(data.totalRevenue, data.previousDay.totalRevenue)
+    : null;
+  const profitChange = data.previousDay
+    ? calculateChange(data.trueNetProfit, data.previousDay.trueNetProfit)
+    : null;
+  const ordersChange = data.previousDay
+    ? calculateChange(data.totalOrders, data.previousDay.totalOrders)
+    : null;
+
+  // === PROFITABILITY ===
+  if (data.trueNetProfit > 0) {
+    if (data.netMarginPct >= 20) {
+      insights.push({ type: 'win', text: `Excellent ${data.netMarginPct.toFixed(1)}% net margin ${timeContext} - well above 15% target`, priority: 95 });
+    } else if (data.netMarginPct >= 15) {
+      insights.push({ type: 'win', text: `Net margin at ${data.netMarginPct.toFixed(1)}% ${timeContext} - hitting the 15% target`, priority: 85 });
+    } else if (data.netMarginPct >= 10) {
+      insights.push({ type: 'concern', text: `Net margin at ${data.netMarginPct.toFixed(1)}% ${timeContext} - below 15% target`, priority: 70 });
+    }
+  } else {
+    const lossText = isTodaySoFar ? 'Currently in the red' : 'Loss-making day';
+    insights.push({ type: 'concern', text: `${lossText} with ${data.netMarginPct.toFixed(1)}% margin`, priority: 100 });
+  }
+
+  // === REVENUE TRENDS ===
+  if (revenueChange !== null) {
+    if (revenueChange >= 30) {
+      insights.push({ type: 'win', text: `Revenue up ${revenueChange.toFixed(0)}% ${vsText} - strong ${isTodaySoFar ? 'pace' : 'growth'}`, priority: 88 });
+    } else if (revenueChange <= -30) {
+      insights.push({ type: 'concern', text: `Revenue down ${Math.abs(revenueChange).toFixed(0)}% ${vsText}${isTodaySoFar ? ' - still time to recover' : ''}`, priority: 82 });
+    }
+  }
+
+  // === PROFIT TRENDS ===
+  if (profitChange !== null && data.previousDay && data.previousDay.trueNetProfit !== 0) {
+    if (profitChange >= 50 && data.trueNetProfit > 0) {
+      insights.push({ type: 'win', text: `Profit ${isTodaySoFar ? 'tracking' : 'surged'} ${profitChange.toFixed(0)}% ${isTodaySoFar ? 'ahead of' : 'vs'} ${isTodaySoFar ? 'yesterday' : 'day before'}`, priority: 90 });
+    } else if (profitChange <= -50 && data.previousDay.trueNetProfit > 0) {
+      insights.push({ type: 'concern', text: `Profit ${isTodaySoFar ? 'tracking' : 'dropped'} ${Math.abs(profitChange).toFixed(0)}% ${isTodaySoFar ? 'behind yesterday' : vsText}`, priority: 85 });
+    }
+  }
+
+  // === AD EFFICIENCY ===
+  if (data.totalAdSpend > 0) {
+    if (data.mer >= 5) {
+      insights.push({ type: 'win', text: `MER at ${data.mer.toFixed(1)}x ${timeContext} - excellent ad efficiency`, priority: 80 });
+    } else if (data.mer >= 3) {
+      insights.push({ type: 'win', text: `Healthy ${data.mer.toFixed(1)}x MER on £${data.totalAdSpend.toFixed(0)} spend`, priority: 65 });
+    } else if (data.mer < 2) {
+      insights.push({ type: 'concern', text: `MER at ${data.mer.toFixed(1)}x - ads underperforming (target >3x)`, priority: 78 });
+    }
+
+    if (data.poas < 100) {
+      const poasText = isTodaySoFar ? 'Currently losing money on ads' : 'Lost money on ads';
+      insights.push({ type: 'concern', text: `${poasText} - POAS at ${data.poas.toFixed(0)}%`, priority: 88 });
+    } else if (data.poas >= 200) {
+      insights.push({ type: 'win', text: `Strong ${data.poas.toFixed(0)}% POAS - £${((data.poas / 100) - 1).toFixed(2)} profit per £1 ad spend`, priority: 75 });
+    }
+  }
+
+  // === AOV ===
+  if (aov >= 100) {
+    insights.push({ type: 'win', text: `High AOV at ${formatCurrency(aov)} per order`, priority: 60 });
+  } else if (aov < 50 && data.totalOrders >= 5) {
+    insights.push({ type: 'concern', text: `Low AOV at ${formatCurrency(aov)} - consider upselling`, priority: 55 });
+  }
+
+  // === CHANNEL MIX ===
+  if (shopifyPct > 90 && data.etsyRevenue > 0) {
+    insights.push({ type: 'concern', text: `${shopifyPct.toFixed(0)}% revenue from Shopify - diversify channels`, priority: 45 });
+  }
+  if (etsyPct > 30) {
+    insights.push({ type: 'win', text: `Etsy contributing ${etsyPct.toFixed(0)}% of revenue - good diversification`, priority: 50 });
+  }
+  if (b2bPct > 20) {
+    insights.push({ type: 'win', text: `B2B at ${b2bPct.toFixed(0)}% of revenue - strong wholesale`, priority: 55 });
+  }
+
+  // === OPEX BURDEN ===
+  if (data.gp3 > 0) {
+    const opexBurden = (data.totalOpex / data.gp3) * 100;
+    if (opexBurden > 80) {
+      insights.push({ type: 'concern', text: `OPEX consuming ${opexBurden.toFixed(0)}% of GP3 - tight margins`, priority: 72 });
+    }
+  }
+
+  // === BRAND PERFORMANCE ===
+  if (data.brands && Object.keys(data.brands).length > 1) {
+    const brandList = Object.values(data.brands);
+    const profitable = brandList.filter(b => b.netProfit > 0);
+    const unprofitable = brandList.filter(b => b.netProfit <= 0);
+
+    if (profitable.length === brandList.length) {
+      insights.push({ type: 'win', text: `All ${brandList.length} brands ${isTodaySoFar ? 'currently' : ''} profitable`, priority: 70 });
+    } else if (unprofitable.length > 0) {
+      const names = unprofitable.map(b => b.name).join(', ');
+      insights.push({ type: 'concern', text: `${names} ${isTodaySoFar ? 'currently' : 'was'} in the red`, priority: 75 });
+    }
+
+    // Check for standout performer
+    const topBrand = brandList.reduce((a, b) => a.netProfit > b.netProfit ? a : b);
+    if (topBrand.netProfit > 0 && brandList.length > 1) {
+      const share = (topBrand.revenue / data.totalRevenue) * 100;
+      if (share >= 70) {
+        insights.push({ type: 'win', text: `${topBrand.name} driving ${share.toFixed(0)}% of revenue ${timeContext}`, priority: 58 });
+      }
+    }
+  }
+
+  // === ORDER VOLUME ===
+  if (ordersChange !== null) {
+    if (ordersChange >= 50) {
+      insights.push({ type: 'win', text: `Order volume up ${ordersChange.toFixed(0)}% ${vsText}${isTodaySoFar ? ' - strong pace' : ''}`, priority: 68 });
+    } else if (ordersChange <= -40) {
+      insights.push({ type: 'concern', text: `Orders down ${Math.abs(ordersChange).toFixed(0)}% ${vsText}${isTodaySoFar ? ' - quieter day' : ''}`, priority: 62 });
+    }
+  }
+
+  // Sort by priority (highest first) and take top insights
+  return insights.sort((a, b) => b.priority - a.priority);
+}
+
+// Get top N insights, balancing wins and concerns
+function getTopInsights(data: DailySummaryData, maxInsights: number = 4): Insight[] {
+  const all = generateInsights(data);
+  const wins = all.filter(i => i.type === 'win');
+  const concerns = all.filter(i => i.type === 'concern');
+
+  // Prioritize showing at least one of each type if available
+  const result: Insight[] = [];
+
+  // Add top concern if any exist
+  if (concerns.length > 0) {
+    result.push(concerns[0]);
+  }
+
+  // Add top win if any exist
+  if (wins.length > 0) {
+    result.push(wins[0]);
+  }
+
+  // Fill remaining slots with highest priority items not yet added
+  const remaining = all.filter(i => !result.includes(i));
+  for (const insight of remaining) {
+    if (result.length >= maxInsights) break;
+    result.push(insight);
+  }
+
+  // Sort final list by priority
+  return result.sort((a, b) => b.priority - a.priority);
+}
+
 export function generateDailySummaryHTML(data: DailySummaryData): string {
   const isProfitable = data.trueNetProfit > 0;
   const profitColor = isProfitable ? COLORS.success : COLORS.danger;
@@ -104,8 +326,11 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
     year: 'numeric',
   });
 
-  const headerTitle = isTodaySoFar ? 'Today So Far' : 'Daily Summary';
-  const headerSubtitle = isTodaySoFar ? `${formattedDate} · 7pm update` : formattedDate;
+  const headerTitle = isTodaySoFar ? 'Today So Far' : 'Yesterday\'s Results';
+  const headerSubtitle = isTodaySoFar
+    ? `${formattedDate} · Evening check-in`
+    : `${formattedDate} · Final numbers`;
+  const quote = getRandomQuote(isTodaySoFar);
 
   return `
 <!DOCTYPE html>
@@ -116,6 +341,12 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
   <title>P&L ${headerTitle}</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 0 auto; padding: 40px 20px; background-color: ${COLORS.background}; color: ${COLORS.primary}; line-height: 1.5;">
+
+  <!-- Daily Quote -->
+  <div style="text-align: center; margin-bottom: 32px; padding: 0 16px;">
+    <div style="font-size: 15px; font-style: italic; color: ${COLORS.secondary}; line-height: 1.5;">"${quote.text}"</div>
+    <div style="font-size: 12px; color: ${COLORS.muted}; margin-top: 8px;">— ${quote.author}</div>
+  </div>
 
   <!-- Header -->
   <table style="width: 100%; margin-bottom: 32px;">
@@ -139,6 +370,43 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
     <div style="font-size: 36px; font-weight: 700; color: ${profitColor}; letter-spacing: -1px;">${formatCurrency(data.trueNetProfit)}</div>
     ${profitChange !== null ? `<div style="font-size: 13px; color: ${profitChange >= 0 ? COLORS.success : COLORS.danger}; margin-top: 6px;">${formatPercentage(profitChange)} vs previous day</div>` : ''}
   </div>
+
+  <!-- Quick Insights -->
+  ${(() => {
+    const insights = getTopInsights(data, 4);
+    if (insights.length === 0) return '';
+
+    const wins = insights.filter(i => i.type === 'win');
+    const concerns = insights.filter(i => i.type === 'concern');
+
+    return `
+  <div style="background: ${COLORS.white}; border: 1px solid ${COLORS.border}; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+    <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: ${COLORS.secondary}; margin-bottom: 16px;">Quick Insights</div>
+
+    ${wins.length > 0 ? `
+    <div style="margin-bottom: ${concerns.length > 0 ? '16px' : '0'};">
+      ${wins.map(insight => `
+      <div style="display: flex; align-items: flex-start; margin-bottom: 10px;">
+        <span style="display: inline-block; width: 18px; height: 18px; min-width: 18px; background: #ecfdf5; border-radius: 50%; text-align: center; line-height: 18px; font-size: 11px; color: ${COLORS.success}; margin-right: 10px;">+</span>
+        <span style="font-size: 14px; color: ${COLORS.primary}; line-height: 1.4;">${insight.text}</span>
+      </div>
+      `).join('')}
+    </div>
+    ` : ''}
+
+    ${concerns.length > 0 ? `
+    <div>
+      ${concerns.map(insight => `
+      <div style="display: flex; align-items: flex-start; margin-bottom: 10px;">
+        <span style="display: inline-block; width: 18px; height: 18px; min-width: 18px; background: #fef2f2; border-radius: 50%; text-align: center; line-height: 18px; font-size: 11px; color: ${COLORS.danger}; margin-right: 10px;">!</span>
+        <span style="font-size: 14px; color: ${COLORS.primary}; line-height: 1.4;">${insight.text}</span>
+      </div>
+      `).join('')}
+    </div>
+    ` : ''}
+  </div>
+    `;
+  })()}
 
   <!-- Key Metrics Row -->
   <table style="width: 100%; margin-bottom: 24px; border-collapse: separate; border-spacing: 12px 0;">
@@ -314,7 +582,7 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
 
   <div style="text-align: center; font-size: 11px; color: ${COLORS.muted}; padding-top: 16px; border-top: 1px solid ${COLORS.border};">
     Valhalla Holdings · P&L Dashboard<br>
-    ${isTodaySoFar ? 'Evening update · 7:00 PM' : 'Morning summary · 7:00 AM'}
+    ${isTodaySoFar ? 'Evening check-in · How today is shaping up' : 'Morning recap · Yesterday\'s final numbers'}
   </div>
 
 </body>
