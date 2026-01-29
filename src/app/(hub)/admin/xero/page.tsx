@@ -218,7 +218,7 @@ export default function XeroAdminPage() {
                 <code className="mx-1 bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded text-xs">
                   accounting.transactions.read
                 </code>
-                permission. Click &quot;Connect Xero&quot; again for any brand to upgrade permissions.
+                permission. Click <strong>&quot;Reconnect&quot;</strong> for any brand below to upgrade permissions.
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-300">
                 After re-authenticating, you can sync and approve PAID invoices from Xero.
@@ -315,6 +315,14 @@ export default function XeroAdminPage() {
                         <div className="flex items-center gap-2">
                           {isConnected ? (
                             <>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleConnect(brand.code)}
+                              >
+                                <ExternalLink className="h-4 w-4 mr-1" />
+                                Reconnect
+                              </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
