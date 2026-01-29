@@ -244,6 +244,101 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+// POST - Deduplicate records
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { action } = body;
+
+    if (action !== 'dedupe') {
+      return NextResponse.json(
+        { error: 'Unknown action. Supported: dedupe' },
+        { status: 400 }
+      );
+    }
+
+    // Fetch all pending records
+    const { data: allRecords, error: fetchError } = await supabaseAdmin
+      .from('unmatched_invoice_records')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true });
+
+    if (fetchError) {
+      console.error('Error fetching records for deduplication:', fetchError);
+      return NextResponse.json(
+        { error: 'Failed to fetch records' },
+        { status: 500 }
+      );
+    }
+
+    if (!allRecords || allRecords.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'No pending records to deduplicate',
+        duplicatesRemoved: 0,
+      });
+    }
+
+    // Group by tracking_number + invoice_number + shipping_cost
+    const groups = new Map<string, typeof allRecords>();
+
+    for (const record of allRecords) {
+      const key = `${record.tracking_number}|${record.invoice_number || ''}|${record.shipping_cost}`;
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(record);
+    }
+
+    // Find duplicates (groups with more than 1 record)
+    const idsToDelete: string[] = [];
+
+    for (const [, records] of groups) {
+      if (records.length > 1) {
+        // Keep the first one (oldest by created_at), delete the rest
+        for (let i = 1; i < records.length; i++) {
+          idsToDelete.push(records[i].id);
+        }
+      }
+    }
+
+    if (idsToDelete.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: 'No duplicates found',
+        duplicatesRemoved: 0,
+      });
+    }
+
+    // Delete duplicates
+    const { error: deleteError } = await supabaseAdmin
+      .from('unmatched_invoice_records')
+      .delete()
+      .in('id', idsToDelete);
+
+    if (deleteError) {
+      console.error('Error deleting duplicates:', deleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete duplicates' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Removed ${idsToDelete.length} duplicate records`,
+      duplicatesRemoved: idsToDelete.length,
+    });
+  } catch (error) {
+    console.error('Error in unmatched records POST:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE - Remove a record
 export async function DELETE(request: NextRequest) {
   try {

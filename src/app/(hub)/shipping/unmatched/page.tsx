@@ -38,6 +38,7 @@ import {
   RefreshCw,
   FileQuestion,
   Trash2,
+  Copy,
 } from 'lucide-react';
 import type { UnmatchedInvoiceRecord, UnmatchedRecordStatus } from '@/types';
 
@@ -106,9 +107,41 @@ export default function UnmatchedInvoicesPage() {
   const [orderSearchLoading, setOrderSearchLoading] = useState(false);
   const [selectedOrderDisplay, setSelectedOrderDisplay] = useState<string | null>(null);
 
+  // Dedupe state
+  const [dedupeLoading, setDedupeLoading] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleDedupe = async () => {
+    if (!confirm('This will remove duplicate records (same tracking number, invoice, and cost). Continue?')) {
+      return;
+    }
+
+    setDedupeLoading(true);
+    try {
+      const response = await fetch('/api/invoices/unmatched', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'dedupe' }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(data.message);
+        fetchRecords();
+      } else {
+        alert(data.error || 'Failed to deduplicate');
+      }
+    } catch (error) {
+      console.error('Error deduplicating:', error);
+      alert('Failed to deduplicate records');
+    } finally {
+      setDedupeLoading(false);
+    }
+  };
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -369,10 +402,16 @@ export default function UnmatchedInvoicesPage() {
                 Invoice line items that couldn&apos;t be matched to any order
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={() => fetchRecords()} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleDedupe} disabled={dedupeLoading || loading}>
+                <Copy className={`h-4 w-4 mr-2 ${dedupeLoading ? 'animate-pulse' : ''}`} />
+                Dedupe
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => fetchRecords()} disabled={loading}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
