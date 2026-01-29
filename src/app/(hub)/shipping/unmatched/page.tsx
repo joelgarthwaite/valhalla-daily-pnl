@@ -92,6 +92,20 @@ export default function UnmatchedInvoicesPage() {
   const [orderId, setOrderId] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Order search states
+  const [orderSearch, setOrderSearch] = useState('');
+  const [orderSearchResults, setOrderSearchResults] = useState<Array<{
+    id: string;
+    order_number: string | null;
+    order_date: string;
+    customer_name: string | null;
+    b2b_customer_name: string | null;
+    subtotal: number;
+    platform: string;
+  }>>([]);
+  const [orderSearchLoading, setOrderSearchLoading] = useState(false);
+  const [selectedOrderDisplay, setSelectedOrderDisplay] = useState<string | null>(null);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -196,6 +210,44 @@ export default function UnmatchedInvoicesPage() {
     setActionType(null);
     setResolutionNotes('');
     setOrderId('');
+    setOrderSearch('');
+    setOrderSearchResults([]);
+    setSelectedOrderDisplay(null);
+  };
+
+  // Debounced order search
+  useEffect(() => {
+    if (!orderSearch || orderSearch.length < 2) {
+      setOrderSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setOrderSearchLoading(true);
+      try {
+        const params = new URLSearchParams({ search: orderSearch, limit: '10' });
+        const response = await fetch(`/api/orders?${params}`);
+        const data = await response.json();
+        if (data.orders) {
+          setOrderSearchResults(data.orders);
+        }
+      } catch (error) {
+        console.error('Error searching orders:', error);
+      } finally {
+        setOrderSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [orderSearch]);
+
+  const selectOrder = (order: typeof orderSearchResults[0]) => {
+    setOrderId(order.id);
+    setSelectedOrderDisplay(
+      `${order.order_number || order.id.slice(0, 8)} - ${order.b2b_customer_name || order.customer_name || 'Unknown'} (£${order.subtotal.toFixed(2)})`
+    );
+    setOrderSearch('');
+    setOrderSearchResults([]);
   };
 
   const openActionDialog = (record: UnmatchedInvoiceRecord, action: 'void' | 'resolve' | 'match') => {
@@ -465,15 +517,75 @@ export default function UnmatchedInvoicesPage() {
 
             {actionType === 'match' && (
               <div className="space-y-2">
-                <Label htmlFor="orderId">Order ID or Reference</Label>
-                <Input
-                  id="orderId"
-                  placeholder="Order #, B2B customer name, or UUID"
-                  value={orderId}
-                  onChange={(e) => setOrderId(e.target.value)}
-                />
+                <Label htmlFor="orderSearch">Search Orders</Label>
+                {selectedOrderDisplay ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 p-2 bg-green-50 border border-green-200 rounded-md text-sm">
+                      <span className="text-green-700 font-medium">Selected:</span>{' '}
+                      {selectedOrderDisplay}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setOrderId('');
+                        setSelectedOrderDisplay(null);
+                      }}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Input
+                      id="orderSearch"
+                      placeholder="Search by customer name or order number..."
+                      value={orderSearch}
+                      onChange={(e) => setOrderSearch(e.target.value)}
+                      autoComplete="off"
+                    />
+                    {orderSearchLoading && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                    {orderSearchResults.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                        {orderSearchResults.map((order) => (
+                          <button
+                            key={order.id}
+                            type="button"
+                            className="w-full px-3 py-2 text-left hover:bg-muted/50 border-b last:border-b-0 transition-colors"
+                            onClick={() => selectOrder(order)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">
+                                {order.order_number || order.id.slice(0, 8)}
+                              </span>
+                              <span className="text-sm text-muted-foreground">
+                                £{order.subtotal.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                              <span>{order.b2b_customer_name || order.customer_name || 'Unknown'}</span>
+                              <span>•</span>
+                              <span className="capitalize">{order.platform}</span>
+                              <span>•</span>
+                              <span>{new Date(order.order_date).toLocaleDateString('en-GB')}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {orderSearch.length >= 2 && !orderSearchLoading && orderSearchResults.length === 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg p-3 text-center text-sm text-muted-foreground">
+                        No orders found matching &quot;{orderSearch}&quot;
+                      </div>
+                    )}
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Enter an order number (e.g. #3306), B2B customer name (e.g. &quot;Dubai DP World&quot;), or UUID
+                  Type at least 2 characters to search by customer name or order number
                 </p>
               </div>
             )}
