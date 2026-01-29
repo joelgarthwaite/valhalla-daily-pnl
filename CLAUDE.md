@@ -15,6 +15,8 @@ For comprehensive technical documentation, see:
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete systems architecture, data flows, and consolidation roadmap
 - **[docs/API.md](docs/API.md)** - Full API endpoint reference with request/response examples
 - **[docs/diagrams/](docs/diagrams/)** - Mermaid diagrams for data flow, shipping flow, database schema, and P&L waterfall
+- **[docs/PRODUCTS.md](docs/PRODUCTS.md)** - Technical reference for product structure and inventory system
+- **[docs/PRODUCT-GUIDE.pdf](docs/PRODUCT-GUIDE.pdf)** - Team-facing product guide (SKU logic, components, assembly)
 
 ### Related Projects (Valhalla Hub)
 
@@ -104,10 +106,12 @@ All projects share the same Supabase database and are planned for consolidation 
 
 ## Brands
 
-| Brand | Code | Status |
-|-------|------|--------|
-| Display Champ | DC | Active, stores connected |
-| Bright Ivy | BI | In database (Google Ads suspended) |
+| Brand | Code | Description | Status |
+|-------|------|-------------|--------|
+| Display Champ | DC | Sports memorabilia display cases (all sports) | Active, stores connected |
+| Bright Ivy | BI | Display cases for special memories & keepsakes | In database (Google Ads suspended) |
+
+**Note:** Both brands share the same physical component parts (bases, domes, etc.) - they are marketed to different audiences but use common inventory.
 
 ---
 
@@ -1219,6 +1223,32 @@ Uses ISO week numbering for consistency with spreadsheets:
 - This Month, Last Month
 - Last 30 Days, Last 90 Days
 - Year to Date (YTD)
+- **All Time** - From Jan 1, 2024 to today (full historical data)
+
+### Year-over-Year (YoY) Comparison
+
+Enable the "Compare YoY" toggle to see current period vs same period last year.
+
+**How it works:**
+- API fetches both current and previous year data in parallel
+- Periods are aligned by week/month/day number (W5 2026 vs W5 2025)
+- Charts show solid lines for current year, dashed lines for previous year
+
+**Visual indicators:**
+- Legend shows year labels (e.g., "2025 Total", "2024 Total")
+- Subtitle explains comparison (e.g., "Comparing 2025 (solid) vs 2024 (dashed)")
+- KPI cards show YoY percentage changes
+- Tooltips display both years with change percentages
+
+**Chart features with YoY:**
+| Chart | Current Year | Previous Year |
+|-------|--------------|---------------|
+| Revenue by Channel | Solid lines/bars | Dashed gray line |
+| Revenue vs Ad Spend | Solid blue line | Dashed gray line |
+| Orders by Channel | Stacked bars | Dashed gray line |
+
+**Trend Lines:**
+Each chart has a "Trend Line" checkbox that adds a linear regression line showing the overall trend direction.
 
 ---
 
@@ -1591,9 +1621,9 @@ Target: GBDSICON
 
 ### Exclusions
 
-Jewellery products (Bright Ivy) are automatically excluded from SKU discovery:
-- Keywords filtered: jewel, necklace, bracelet, earring, pendant, 14k gold, etc.
-- Only ball case products appear in the mapping interface
+Non-display-case products are automatically excluded from SKU discovery:
+- Keywords filtered to focus on display cases and relevant accessories
+- Both DC (sports memorabilia) and BI (keepsakes) products are included
 
 ### API Endpoints
 

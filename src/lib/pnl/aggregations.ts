@@ -18,6 +18,8 @@ import {
   eachQuarterOfInterval,
   getQuarter,
   getYear,
+  getWeek,
+  getMonth,
   subYears,
   isWithinInterval,
 } from 'date-fns';
@@ -55,9 +57,33 @@ export interface AggregatedPnL {
 
   // Orders
   totalOrders: number;
+  shopifyOrders: number;
+  etsyOrders: number;
+  b2bOrders: number;
   avgOrderValue: number;
   avgDailyRevenue: number;
   avgDailyOrders: number;
+}
+
+// Extended type with YoY comparison data
+export interface AggregatedPnLWithYoY extends AggregatedPnL {
+  // Period key for matching (e.g., "W05" for weeks, "01" for months)
+  periodKey: string;
+
+  // Previous year values
+  yoyTotalRevenue?: number;
+  yoyShopifyRevenue?: number;
+  yoyEtsyRevenue?: number;
+  yoyB2bRevenue?: number;
+  yoyTotalOrders?: number;
+  yoyTotalAdSpend?: number;
+  yoyNetProfit?: number;
+
+  // Percentage changes
+  revenueChangePercent?: number;
+  ordersChangePercent?: number;
+  adSpendChangePercent?: number;
+  profitChangePercent?: number;
 }
 
 // ============================================
@@ -167,6 +193,9 @@ export function aggregatePnLByPeriod(
         netProfit: d.net_profit,
         netMarginPct: d.net_margin_pct,
         totalOrders: d.total_orders,
+        shopifyOrders: d.shopify_orders,
+        etsyOrders: d.etsy_orders,
+        b2bOrders: d.b2b_orders,
         avgOrderValue: d.total_orders > 0 ? d.total_revenue / d.total_orders : 0,
         avgDailyRevenue: d.total_revenue,
         avgDailyOrders: d.total_orders,
@@ -210,6 +239,9 @@ export function aggregatePnLByPeriod(
     const shippingMargin = periodData.reduce((sum, d) => sum + d.shipping_margin, 0);
     const netProfit = periodData.reduce((sum, d) => sum + d.net_profit, 0);
     const totalOrders = periodData.reduce((sum, d) => sum + d.total_orders, 0);
+    const shopifyOrders = periodData.reduce((sum, d) => sum + d.shopify_orders, 0);
+    const etsyOrders = periodData.reduce((sum, d) => sum + d.etsy_orders, 0);
+    const b2bOrders = periodData.reduce((sum, d) => sum + d.b2b_orders, 0);
     const dayCount = periodData.length;
 
     aggregated.push({
@@ -233,6 +265,9 @@ export function aggregatePnLByPeriod(
       netProfit,
       netMarginPct: totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0,
       totalOrders,
+      shopifyOrders,
+      etsyOrders,
+      b2bOrders,
       avgOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
       avgDailyRevenue: totalRevenue / dayCount,
       avgDailyOrders: totalOrders / dayCount,
@@ -313,4 +348,85 @@ export function getCumulativeTotals(
       cumulativeOrders,
     };
   });
+}
+
+/**
+ * Extract period key for YoY matching (e.g., "W05" for weeks, "01" for months)
+ * This allows matching W5 2026 with W5 2025
+ */
+export function extractPeriodKey(period: string, periodType: PeriodType): string {
+  switch (periodType) {
+    case 'weekly':
+      // "2025-W05" -> "W05"
+      return period.split('-')[1] || period;
+    case 'monthly':
+      // "2025-01" -> "01"
+      return period.split('-')[1] || period;
+    case 'quarterly':
+      // "2025-Q1" -> "Q1"
+      return period.split('-')[1] || period;
+    case 'yearly':
+      // For yearly, we don't do YoY comparison (no equivalent period)
+      return period;
+    case 'daily':
+    default:
+      // "2025-01-15" -> "01-15" (month-day)
+      const parts = period.split('-');
+      return parts.length >= 3 ? `${parts[1]}-${parts[2]}` : period;
+  }
+}
+
+/**
+ * Align current and YoY periods for comparison
+ * Maps current period data with previous year data by period key
+ */
+export function alignYoYPeriods(
+  currentData: AggregatedPnL[],
+  yoyData: AggregatedPnL[],
+  periodType: PeriodType
+): AggregatedPnLWithYoY[] {
+  // Create a map of YoY data by period key for fast lookup
+  const yoyMap = new Map<string, AggregatedPnL>();
+  yoyData.forEach((d) => {
+    const key = extractPeriodKey(d.period, periodType);
+    yoyMap.set(key, d);
+  });
+
+  // Map current data with YoY comparisons
+  return currentData.map((current) => {
+    const periodKey = extractPeriodKey(current.period, periodType);
+    const yoy = yoyMap.get(periodKey);
+
+    // Calculate percentage changes
+    const calcChange = (currentVal: number, yoyVal: number | undefined): number | undefined => {
+      if (yoyVal === undefined || yoyVal === 0) return undefined;
+      return ((currentVal - yoyVal) / yoyVal) * 100;
+    };
+
+    return {
+      ...current,
+      periodKey,
+      // Previous year values
+      yoyTotalRevenue: yoy?.totalRevenue,
+      yoyShopifyRevenue: yoy?.shopifyRevenue,
+      yoyEtsyRevenue: yoy?.etsyRevenue,
+      yoyB2bRevenue: yoy?.b2bRevenue,
+      yoyTotalOrders: yoy?.totalOrders,
+      yoyTotalAdSpend: yoy?.totalAdSpend,
+      yoyNetProfit: yoy?.netProfit,
+      // Percentage changes
+      revenueChangePercent: calcChange(current.totalRevenue, yoy?.totalRevenue),
+      ordersChangePercent: calcChange(current.totalOrders, yoy?.totalOrders),
+      adSpendChangePercent: calcChange(current.totalAdSpend, yoy?.totalAdSpend),
+      profitChangePercent: calcChange(current.netProfit, yoy?.netProfit),
+    };
+  });
+}
+
+/**
+ * Get the year from an aggregated period
+ */
+export function getYearFromPeriod(period: string): number {
+  // All period formats start with the year: "2025-W05", "2025-01", "2025-Q1", "2025"
+  return parseInt(period.split('-')[0], 10);
 }

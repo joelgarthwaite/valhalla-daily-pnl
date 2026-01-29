@@ -19,14 +19,16 @@ import {
   CashPositionCard,
 } from '@/components/dashboard';
 import {
-  RevenueTrendChart,
   WaterfallChart,
   TargetGauge,
+  ChannelRevenueChart,
+  SpendVsRevenueChart,
+  OrderVolumeChart,
 } from '@/components/charts';
 import { usePnLData } from '@/hooks/usePnLData';
 import { useFilterParams } from '@/hooks/useFilterParams';
 import { generateWaterfallData } from '@/lib/pnl/calculations';
-import { aggregatePnLByPeriod } from '@/lib/pnl/aggregations';
+import type { AggregatedPnL } from '@/lib/pnl/aggregations';
 import { exportToExcel, exportToPDF } from '@/lib/utils/export';
 import type { DailyPnL } from '@/types';
 
@@ -49,6 +51,7 @@ function PnLDashboardContent() {
 
   const {
     dailyData,
+    aggregatedDataWithYoY,
     summary,
     trendData,
     roasData,
@@ -66,11 +69,12 @@ function PnLDashboardContent() {
   // Generate waterfall data from summary
   const waterfallData = summary ? generateWaterfallData(summary) : [];
 
-  // Get aggregated data for table (limited to recent periods for quick summary)
-  const aggregatedData = aggregatePnLByPeriod(dailyData as never[], periodType);
+  // dailyData from the hook is already aggregated by periodType
+  // Cast it to the correct type (the hook returns AggregatedPnL[] typed as DailyPnL[])
+  const aggregatedData = dailyData as unknown as AggregatedPnL[];
   const quickSummaryData = aggregatedData.slice(0, 7); // Last 7 periods
 
-  // Get raw daily data for alert calculations
+  // Get raw daily data for alert calculations (same data, different type view)
   const rawDailyData = dailyData as unknown as DailyPnL[];
 
   // Get brand name for export
@@ -193,12 +197,12 @@ function PnLDashboardContent() {
       {/* Cash Position (Bank Balances from Xero) */}
       <CashPositionCard />
 
-      {/* Charts Row */}
+      {/* Charts Row 1: Channel Revenue + Target Gauge */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Revenue Trend Chart */}
+        {/* Revenue by Channel Chart (NEW) */}
         <div className="lg:col-span-2">
-          <RevenueTrendChart
-            data={trendData}
+          <ChannelRevenueChart
+            data={aggregatedDataWithYoY}
             showYoY={showYoY}
             isLoading={isLoading}
           />
@@ -208,6 +212,23 @@ function PnLDashboardContent() {
         <div>
           <TargetGauge progress={quarterlyProgress} isLoading={isLoading} />
         </div>
+      </div>
+
+      {/* Charts Row 2: Spend vs Revenue + Orders by Channel */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Spend vs Revenue Chart (NEW) */}
+        <SpendVsRevenueChart
+          data={aggregatedDataWithYoY}
+          showYoY={showYoY}
+          isLoading={isLoading}
+        />
+
+        {/* Orders by Channel Chart (NEW) */}
+        <OrderVolumeChart
+          data={aggregatedDataWithYoY}
+          showYoY={showYoY}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* P&L Waterfall (always visible) */}

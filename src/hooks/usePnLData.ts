@@ -23,7 +23,8 @@ import {
 import {
   aggregatePnLByPeriod,
   getYoYDateRange,
-  filterByDateRange,
+  alignYoYPeriods,
+  type AggregatedPnLWithYoY,
 } from '@/lib/pnl/aggregations';
 import { calculateQuarterlyProgress } from '@/lib/pnl/targets';
 import { format, subDays } from 'date-fns';
@@ -31,6 +32,7 @@ import { format, subDays } from 'date-fns';
 interface UsePnLDataResult {
   brands: Brand[];
   dailyData: DailyPnL[];
+  aggregatedDataWithYoY: AggregatedPnLWithYoY[];
   summary: PnLSummaryWithComparison | null;
   trendData: PnLTrendPoint[];
   roasData: ROASByChannel[];
@@ -52,6 +54,7 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
 
   const [brands, setBrands] = useState<Brand[]>([]);
   const [dailyData, setDailyData] = useState<DailyPnL[]>([]);
+  const [yoyData, setYoyData] = useState<DailyPnL[]>([]);
   const [adSpendData, setAdSpendData] = useState<AdSpend[]>([]);
   const [quarterlyGoal, setQuarterlyGoal] = useState<QuarterlyGoal | null>(null);
   const [opexData, setOpexData] = useState<{ periodTotal: number; summary: OpexSummary } | null>(null);
@@ -73,6 +76,13 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
         brand: brandFilter,
       });
 
+      // Add YoY date params if YoY comparison is enabled
+      if (showYoY) {
+        const yoyRange = getYoYDateRange(dateRange);
+        params.set('from_yoy', format(yoyRange.from, 'yyyy-MM-dd'));
+        params.set('to_yoy', format(yoyRange.to, 'yyyy-MM-dd'));
+      }
+
       const response = await fetch(`/api/pnl/data?${params}`);
 
       if (!response.ok) {
@@ -84,6 +94,7 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
 
       setBrands(data.brands || []);
       setDailyData(data.dailyPnl || []);
+      setYoyData(data.dailyPnlYoY || []);
       setAdSpendData(data.adSpend || []);
       setQuarterlyGoal(data.quarterlyGoal);
       setOpexData(data.opex || null);
@@ -94,7 +105,7 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
     } finally {
       setIsLoading(false);
     }
-  }, [brandFilter, dateRange]);
+  }, [brandFilter, dateRange, showYoY]);
 
   useEffect(() => {
     fetchData();
@@ -103,18 +114,21 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
   // Calculate derived data
   const aggregatedData = aggregatePnLByPeriod(dailyData, periodType);
 
-  // Get YoY comparison data if enabled
-  let previousYearData: DailyPnL[] = [];
-  if (showYoY) {
-    const yoyRange = getYoYDateRange(dateRange);
-    previousYearData = filterByDateRange(dailyData, yoyRange);
-  }
+  // Aggregate YoY data and align with current data
+  const aggregatedYoYData = showYoY && yoyData.length > 0
+    ? aggregatePnLByPeriod(yoyData, periodType)
+    : [];
+
+  // Create aligned data with YoY comparisons
+  const aggregatedDataWithYoY: AggregatedPnLWithYoY[] = showYoY && aggregatedYoYData.length > 0
+    ? alignYoYPeriods(aggregatedData, aggregatedYoYData, periodType)
+    : aggregatedData.map(d => ({ ...d, periodKey: d.period }));
 
   // Calculate summary with comparison (including OPEX)
   const summary = dailyData.length > 0
     ? calculatePnLSummaryWithComparison(
         dailyData,
-        showYoY ? previousYearData : dailyData, // Compare to self if no YoY
+        showYoY ? yoyData : dailyData, // Compare to YoY data if enabled
         opexData?.periodTotal || 0,
         opexData?.summary.byCategory || {}
       )
@@ -123,7 +137,7 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
   // Format trend data
   const trendData = formatTrendData(
     dailyData,
-    showYoY ? previousYearData : undefined
+    showYoY ? yoyData : undefined
   );
 
   // Calculate ROAS by channel
@@ -138,6 +152,7 @@ export function usePnLData(options: UsePnLDataOptions): UsePnLDataResult {
   return {
     brands,
     dailyData: aggregatedData as unknown as DailyPnL[], // Aggregated format
+    aggregatedDataWithYoY,
     summary,
     trendData,
     roasData,

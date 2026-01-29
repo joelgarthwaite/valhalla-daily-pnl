@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
     const fromDate = searchParams.get('from');
     const toDate = searchParams.get('to');
     const brandCode = searchParams.get('brand');
+    // YoY comparison parameters (optional)
+    const fromYoY = searchParams.get('from_yoy');
+    const toYoY = searchParams.get('to_yoy');
 
     if (!fromDate || !toDate) {
       return NextResponse.json(
@@ -73,12 +76,15 @@ export async function GET(request: NextRequest) {
       brandId = brand?.id || null;
     }
 
+    // Build YoY query if date range provided
+    const fetchYoYData = fromYoY && toYoY;
+
     // Fetch all data in parallel
-    const [brandsResult, dailyPnlResult, adSpendResult, goalsResult, opexResult] = await Promise.all([
+    const [brandsResult, dailyPnlResult, yoyPnlResult, adSpendResult, goalsResult, opexResult] = await Promise.all([
       // Brands
       supabase.from('brands').select('*'),
 
-      // Daily P&L data
+      // Daily P&L data (current period)
       brandId
         ? supabase
             .from('daily_pnl')
@@ -93,6 +99,24 @@ export async function GET(request: NextRequest) {
             .gte('date', fromDate)
             .lte('date', toDate)
             .order('date', { ascending: true }),
+
+      // Daily P&L data (YoY period - only fetch if requested)
+      fetchYoYData
+        ? (brandId
+            ? supabase
+                .from('daily_pnl')
+                .select('*')
+                .gte('date', fromYoY)
+                .lte('date', toYoY)
+                .eq('brand_id', brandId)
+                .order('date', { ascending: true })
+            : supabase
+                .from('daily_pnl')
+                .select('*')
+                .gte('date', fromYoY)
+                .lte('date', toYoY)
+                .order('date', { ascending: true }))
+        : Promise.resolve({ data: null, error: null }),
 
       // Ad spend data
       brandId
@@ -132,6 +156,7 @@ export async function GET(request: NextRequest) {
 
     if (brandsResult.error) throw brandsResult.error;
     if (dailyPnlResult.error) throw dailyPnlResult.error;
+    if (yoyPnlResult.error) throw yoyPnlResult.error;
     if (adSpendResult.error) throw adSpendResult.error;
 
     // Calculate OPEX for the period
@@ -147,6 +172,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       brands: brandsResult.data || [],
       dailyPnl: dailyPnlResult.data || [],
+      dailyPnlYoY: yoyPnlResult.data || null,
       adSpend: adSpendResult.data || [],
       quarterlyGoal: goalsResult.data || null,
       opex: {
