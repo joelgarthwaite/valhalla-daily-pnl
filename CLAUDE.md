@@ -246,6 +246,8 @@ Match existing B2B orders in the system with Xero invoices using intelligent con
 3. Confirm to link order with invoice
 4. Order's `raw_data.xero_invoice_id` is updated, invoice marked as approved
 
+**Important:** B2B orders are created with the **invoice date** from Xero, not the approval date. Adjust date filters in the Orders page accordingly.
+
 **API Endpoints:**
 - `GET /api/xero/invoices` - List synced invoices (with filters)
 - `POST /api/xero/invoices` - Sync invoices from Xero
@@ -253,9 +255,13 @@ Match existing B2B orders in the system with Xero invoices using intelligent con
   {
     "brandCode": "DC",
     "fromDate": "2025-01-01",
-    "toDate": "2025-01-31"
+    "toDate": "2025-01-31",
+    "status": "ALL",
+    "skipDateFilter": false
   }
   ```
+  - `status`: "PAID" | "AUTHORISED" | "ALL" (default: "ALL")
+  - `skipDateFilter`: true to fetch all invoices ignoring date range
 - `GET /api/xero/invoices/[id]` - Get single invoice details
 - `PATCH /api/xero/invoices/[id]` - Approve or ignore invoice
   ```json
