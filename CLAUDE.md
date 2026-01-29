@@ -971,6 +971,12 @@ If emails aren't arriving at 7am/7pm:
    - `request.url.origin` gives Vercel function URL which has Deployment Protection
    - Code uses `VERCEL_ENV === 'production'` to select correct base URL
 
+6. **Email Safeguard:**
+   - Email is ONLY sent if critical syncs succeed
+   - Critical = P&L Refresh succeeded AND (Shopify OR Etsy sync succeeded)
+   - Prevents sending emails with stale/incomplete data
+   - If syncs fail, email step shows "Skipped - critical syncs failed"
+
 5. **Run Manually from Vercel:**
    - Go to Settings → Cron Jobs
    - Click "Run" button next to the cron job to trigger immediately
