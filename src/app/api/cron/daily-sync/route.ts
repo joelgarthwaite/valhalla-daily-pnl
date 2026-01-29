@@ -76,12 +76,18 @@ export async function GET(request: NextRequest) {
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  console.log(`[Daily Sync] Starting sync for ${startDate} to ${endDate}`);
+  // Use production URL for internal API calls to avoid Vercel Deployment Protection
+  // The request.url gives the Vercel function URL which has protection enabled
+  const baseUrl = process.env.VERCEL_ENV === 'production'
+    ? 'https://pnl.displaychamp.com'
+    : new URL(request.url).origin;
+
+  console.log(`[Daily Sync] Starting sync for ${startDate} to ${endDate} (baseUrl: ${baseUrl})`);
 
   // Step 1: Sync Shopify Orders
   try {
     const shopifyResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(request.url).origin : 'http://localhost:3000'}/api/shopify/sync`,
+      `${baseUrl}/api/shopify/sync`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -107,7 +113,7 @@ export async function GET(request: NextRequest) {
   // Step 2: Sync Etsy Orders
   try {
     const etsyResponse = await fetch(
-      `${new URL(request.url).origin}/api/etsy/sync`,
+      `${baseUrl}/api/etsy/sync`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -219,7 +225,7 @@ export async function GET(request: NextRequest) {
   if (metaAccessToken) {
     try {
       const countryResponse = await fetch(
-        `${new URL(request.url).origin}/api/meta/country-sync`,
+        `${baseUrl}/api/meta/country-sync`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -254,7 +260,7 @@ export async function GET(request: NextRequest) {
   // Step 5: Refresh P&L Calculations
   try {
     const pnlResponse = await fetch(
-      `${new URL(request.url).origin}/api/pnl/refresh`,
+      `${baseUrl}/api/pnl/refresh`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -284,7 +290,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const emailResponse = await fetch(
-      `${new URL(request.url).origin}/api/email/daily-summary?type=${syncType}`,
+      `${baseUrl}/api/email/daily-summary?type=${syncType}`,
       {
         method: 'POST',
         headers: {
