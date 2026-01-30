@@ -67,9 +67,9 @@ export async function PATCH(
     const body = await request.json();
     const { action, tracking_number, notes } = body;
 
-    if (!action || !['approve', 'ignore'].includes(action)) {
+    if (!action || !['approve', 'ignore', 'link_existing'].includes(action)) {
       return NextResponse.json(
-        { error: 'action must be "approve" or "ignore"' },
+        { error: 'action must be "approve", "ignore", or "link_existing"' },
         { status: 400 }
       );
     }
@@ -117,6 +117,96 @@ export async function PATCH(
         success: true,
         message: 'Invoice ignored',
         invoice_number: invoice.invoice_number,
+      });
+    }
+
+    // Action is 'link_existing' - link to an existing order without creating new
+    if (action === 'link_existing') {
+      const { existing_order_id } = body;
+
+      if (!existing_order_id) {
+        return NextResponse.json(
+          { error: 'existing_order_id is required for link_existing action' },
+          { status: 400 }
+        );
+      }
+
+      // Verify the order exists
+      const { data: existingOrder, error: orderFetchError } = await supabase
+        .from('orders')
+        .select('id, order_number, subtotal, total')
+        .eq('id', existing_order_id)
+        .single();
+
+      if (orderFetchError || !existingOrder) {
+        return NextResponse.json(
+          { error: 'Existing order not found' },
+          { status: 404 }
+        );
+      }
+
+      // Update the invoice as approved and linked
+      const { error: updateError } = await supabase
+        .from('xero_invoices')
+        .update({
+          approval_status: 'approved',
+          matched_order_id: existingOrder.id,
+          approved_at: now,
+          notes: notes || `Linked to existing order ${existingOrder.order_number || existingOrder.id}`,
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Optionally update the order's raw_data to include this invoice
+      const { data: currentOrder } = await supabase
+        .from('orders')
+        .select('raw_data')
+        .eq('id', existing_order_id)
+        .single();
+
+      if (currentOrder) {
+        const rawData = (currentOrder.raw_data || {}) as Record<string, unknown>;
+        const linkedInvoices = (rawData.linked_xero_invoices || []) as string[];
+        linkedInvoices.push(invoice.invoice_number);
+
+        await supabase
+          .from('orders')
+          .update({
+            raw_data: {
+              ...rawData,
+              linked_xero_invoices: linkedInvoices,
+            },
+          })
+          .eq('id', existing_order_id);
+      }
+
+      // If tracking number provided, link shipment to the existing order
+      if (tracking_number) {
+        const { data: shipment } = await supabase
+          .from('shipments')
+          .select('id')
+          .eq('tracking_number', tracking_number)
+          .single();
+
+        if (shipment) {
+          await supabase
+            .from('shipments')
+            .update({ order_id: existingOrder.id })
+            .eq('id', shipment.id);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Invoice linked to existing order',
+        invoice_number: invoice.invoice_number,
+        order: {
+          id: existingOrder.id,
+          order_number: existingOrder.order_number,
+        },
       });
     }
 

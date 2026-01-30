@@ -181,6 +181,13 @@ export default function XeroInvoicesPage() {
   const [loadingTrackings, setLoadingTrackings] = useState(false);
   const [showTrackingPicker, setShowTrackingPicker] = useState(false);
   const [trackingSearch, setTrackingSearch] = useState('');
+  const [existingOrderForTracking, setExistingOrderForTracking] = useState<{
+    id: string;
+    order_number: string | null;
+    customer_name: string | null;
+    subtotal: number;
+  } | null>(null);
+  const [checkingTracking, setCheckingTracking] = useState(false);
 
   // Sync dialog states
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
@@ -306,7 +313,7 @@ export default function XeroInvoicesPage() {
     }
   };
 
-  const handleAction = async () => {
+  const handleAction = async (linkToExisting = false) => {
     if (!selectedInvoice || !actionType) return;
 
     setActionLoading(true);
@@ -315,16 +322,19 @@ export default function XeroInvoicesPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: actionType,
+          action: linkToExisting ? 'link_existing' : actionType,
           tracking_number: trackingNumber || undefined,
           notes: notes || undefined,
+          existing_order_id: linkToExisting ? existingOrderForTracking?.id : undefined,
         }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        if (actionType === 'approve') {
+        if (linkToExisting) {
+          toast.success(`Invoice linked to existing order: ${data.order?.order_number}`);
+        } else if (actionType === 'approve') {
           toast.success(`B2B order created: ${data.order?.order_number}`);
         } else {
           toast.success('Invoice ignored');
@@ -379,6 +389,7 @@ export default function XeroInvoicesPage() {
     setShowTrackingPicker(false);
     setUnmatchedTrackings([]);
     setTrackingSearch('');
+    setExistingOrderForTracking(null);
   };
 
   const fetchUnmatchedTrackings = async () => {
@@ -434,9 +445,42 @@ export default function XeroInvoicesPage() {
     }
   };
 
+  // Check if tracking number already belongs to an order
+  const checkTrackingForExistingOrder = async (tracking: string) => {
+    if (!tracking || tracking.length < 5) {
+      setExistingOrderForTracking(null);
+      return;
+    }
+
+    setCheckingTracking(true);
+    try {
+      // Search for shipments with this tracking number that are linked to orders
+      const response = await fetch(`/api/shipments?tracking=${encodeURIComponent(tracking)}&linked=true&limit=1`);
+      const data = await response.json();
+
+      if (data.shipments && data.shipments.length > 0 && data.shipments[0].order) {
+        const order = data.shipments[0].order;
+        setExistingOrderForTracking({
+          id: order.id,
+          order_number: order.order_number,
+          customer_name: order.b2b_customer_name || order.customer_name,
+          subtotal: order.subtotal,
+        });
+      } else {
+        setExistingOrderForTracking(null);
+      }
+    } catch (error) {
+      console.error('Error checking tracking:', error);
+      setExistingOrderForTracking(null);
+    } finally {
+      setCheckingTracking(false);
+    }
+  };
+
   const openActionDialog = (invoice: XeroInvoiceRecord, action: 'approve' | 'ignore') => {
     setSelectedInvoice(invoice);
     setActionType(action);
+    setExistingOrderForTracking(null);
     // Fetch unmatched tracking numbers when approving
     if (action === 'approve') {
       fetchUnmatchedTrackings();
@@ -446,6 +490,8 @@ export default function XeroInvoicesPage() {
   const selectTracking = (tracking: UnmatchedTrackingRecord) => {
     setTrackingNumber(tracking.tracking_number);
     setShowTrackingPicker(false);
+    // Check if this tracking already belongs to an order
+    checkTrackingForExistingOrder(tracking.tracking_number);
   };
 
   const formatDate = (dateString: string | null) => {
@@ -1189,7 +1235,19 @@ export default function XeroInvoicesPage() {
                     id="trackingNumber"
                     placeholder="e.g., JD0123456789GB"
                     value={trackingNumber}
-                    onChange={(e) => setTrackingNumber(e.target.value)}
+                    onChange={(e) => {
+                      setTrackingNumber(e.target.value);
+                      // Clear existing order when typing starts
+                      if (existingOrderForTracking) {
+                        setExistingOrderForTracking(null);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Check for existing order when user finishes typing
+                      if (e.target.value) {
+                        checkTrackingForExistingOrder(e.target.value);
+                      }
+                    }}
                   />
 
                   {/* Unmatched Tracking Picker */}
@@ -1258,11 +1316,43 @@ export default function XeroInvoicesPage() {
                     </div>
                   )}
 
-                  <p className="text-xs text-muted-foreground">
-                    {trackingNumber
-                      ? 'This will link the order to the shipment with this tracking number'
-                      : 'Select from unmatched shipments above or enter manually'}
-                  </p>
+                  {/* Warning if tracking already belongs to an order */}
+                  {existingOrderForTracking && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-medium text-amber-800">
+                            This tracking number is already linked to an order
+                          </p>
+                          <div className="text-amber-700 mt-1 space-y-0.5">
+                            <p><strong>Order:</strong> {existingOrderForTracking.order_number || existingOrderForTracking.id.slice(0, 8)}</p>
+                            <p><strong>Customer:</strong> {existingOrderForTracking.customer_name || 'Unknown'}</p>
+                            <p><strong>Amount:</strong> {formatCurrency(existingOrderForTracking.subtotal)}</p>
+                          </div>
+                          <p className="text-amber-600 text-xs mt-2">
+                            If this invoice is for the same order (e.g., separate shipping charge),
+                            link it to the existing order instead of creating a duplicate.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {checkingTracking && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      Checking tracking number...
+                    </p>
+                  )}
+
+                  {!existingOrderForTracking && !checkingTracking && (
+                    <p className="text-xs text-muted-foreground">
+                      {trackingNumber
+                        ? 'This will link the order to the shipment with this tracking number'
+                        : 'Select from unmatched shipments above or enter manually'}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1289,25 +1379,53 @@ export default function XeroInvoicesPage() {
             <Button variant="outline" onClick={closeDialog} disabled={actionLoading}>
               Cancel
             </Button>
-            <Button
-              onClick={handleAction}
-              disabled={actionLoading || (actionType === 'ignore' && !notes.trim())}
-              variant={actionType === 'approve' ? 'default' : 'secondary'}
-            >
-              {actionLoading ? (
-                'Processing...'
-              ) : actionType === 'approve' ? (
-                <>
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Create B2B Order
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Ignore Invoice
-                </>
-              )}
-            </Button>
+
+            {/* Show different buttons when existing order found */}
+            {actionType === 'approve' && existingOrderForTracking ? (
+              <>
+                <Button
+                  onClick={() => handleAction(false)}
+                  disabled={actionLoading}
+                  variant="outline"
+                >
+                  {actionLoading ? 'Processing...' : 'Create New Order Anyway'}
+                </Button>
+                <Button
+                  onClick={() => handleAction(true)}
+                  disabled={actionLoading}
+                  variant="default"
+                >
+                  {actionLoading ? (
+                    'Processing...'
+                  ) : (
+                    <>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Link to Existing Order
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => handleAction(false)}
+                disabled={actionLoading || (actionType === 'ignore' && !notes.trim())}
+                variant={actionType === 'approve' ? 'default' : 'secondary'}
+              >
+                {actionLoading ? (
+                  'Processing...'
+                ) : actionType === 'approve' ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Create B2B Order
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Ignore Invoice
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

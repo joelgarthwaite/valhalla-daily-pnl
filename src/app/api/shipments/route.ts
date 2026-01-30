@@ -14,23 +14,32 @@ const supabaseAdmin = createClient(
  *
  * Query params:
  *   unlinked: 'true' - Only return shipments without an order_id
+ *   linked: 'true' - Only return shipments WITH an order_id (includes order details)
+ *   tracking: string - Exact match on tracking number
  *   carrier: 'dhl' | 'royalmail' | 'deutschepost' - Filter by carrier
  *   limit: number (default: 100)
  *   offset: number (default: 0)
- *   search: string - Search by tracking number
+ *   search: string - Search by tracking number (partial match)
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const unlinked = searchParams.get('unlinked') === 'true';
+    const linked = searchParams.get('linked') === 'true';
+    const tracking = searchParams.get('tracking'); // Exact match
     const carrier = searchParams.get('carrier');
-    const search = searchParams.get('search');
+    const search = searchParams.get('search'); // Partial match
     const limit = parseInt(searchParams.get('limit') || '100');
     const offset = parseInt(searchParams.get('offset') || '0');
 
+    // Determine select fields - include order details if linked filter is used
+    const selectFields = linked || tracking
+      ? 'id, tracking_number, carrier, shipping_cost, service_type, shipping_date, order_id, brand_id, orders(id, order_number, customer_name, b2b_customer_name, subtotal, total)'
+      : 'id, tracking_number, carrier, shipping_cost, service_type, shipping_date, order_id, brand_id';
+
     let query = supabaseAdmin
       .from('shipments')
-      .select('id, tracking_number, carrier, shipping_cost, service_type, shipping_date, order_id, brand_id', { count: 'exact' })
+      .select(selectFields, { count: 'exact' })
       .order('shipping_date', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -39,12 +48,22 @@ export async function GET(request: NextRequest) {
       query = query.is('order_id', null);
     }
 
+    // Filter for linked shipments (has order_id)
+    if (linked) {
+      query = query.not('order_id', 'is', null);
+    }
+
+    // Exact match on tracking number
+    if (tracking) {
+      query = query.eq('tracking_number', tracking);
+    }
+
     // Filter by carrier
     if (carrier) {
       query = query.eq('carrier', carrier);
     }
 
-    // Search by tracking number
+    // Search by tracking number (partial match)
     if (search) {
       query = query.ilike('tracking_number', `%${search}%`);
     }
@@ -59,8 +78,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Transform data to include order details at top level if available
+    // Cast to unknown[] first to handle dynamic Supabase query types with joins
+    const shipments = ((data || []) as unknown[]).map((shipment) => {
+      const s = shipment as Record<string, unknown>;
+      return {
+        ...s,
+        order: s.orders || null,
+        orders: undefined, // Remove nested key
+      };
+    });
+
     return NextResponse.json({
-      shipments: data || [],
+      shipments,
       total: count || 0,
       limit,
       offset,
