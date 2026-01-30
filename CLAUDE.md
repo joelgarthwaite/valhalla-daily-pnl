@@ -883,6 +883,53 @@ Open [http://localhost:3000](http://localhost:3000)
 | Password | Valhalla |
 | Role | Admin |
 
+### Development Guidelines
+
+#### Number Input Pattern (IMPORTANT)
+
+When creating form inputs for numeric values, **always store as strings in state** to allow proper deletion and editing:
+
+```typescript
+// CORRECT - Store as string, parse on submit
+const [formData, setFormData] = useState({
+  amount: '',  // String, not number
+  quantity: '1',  // Default as string
+});
+
+<Input
+  type="number"
+  value={formData.amount}
+  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+  onBlur={(e) => {
+    // Apply default on blur if empty
+    if (e.target.value === '') {
+      setFormData({ ...formData, amount: '0' });
+    }
+  }}
+/>
+
+// Parse to number only when submitting
+const handleSubmit = () => {
+  const payload = {
+    amount: parseFloat(formData.amount) || 0,
+  };
+};
+```
+
+```typescript
+// WRONG - Causes deletion issues
+const [formData, setFormData] = useState({
+  amount: 0,  // Number in state
+});
+
+onChange={(e) => setFormData({
+  ...formData,
+  amount: parseInt(e.target.value) || 0,  // Immediately converts, blocks deletion
+})}
+```
+
+**Why:** Using `parseInt()` or `parseFloat()` directly in onChange prevents users from clearing prefilled values to enter new ones.
+
 ---
 
 ## Data Flow & Sync Architecture
