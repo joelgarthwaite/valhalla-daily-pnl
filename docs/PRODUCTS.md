@@ -224,7 +224,28 @@ Cases can have UV printing applied. Two types:
 
 ## SKU Structure
 
-### Display Champ Pattern
+### Standardized Format (Current)
+
+Both DC and BI now use the same structured format:
+
+```
+[BASE]-[STYLE]-[WOOD?]-[ACCESSORY]-[CASE]-[DESIGN?][-P][-BALL]
+```
+
+### Display Champ Standardized Examples
+
+| Standardized SKU | Meaning |
+|------------------|---------|
+| `B1-VANT-GT-C1` | Small Vantage + Golf Tee + Small Case |
+| `B1-ICON-GT-C1-HIO` | Small Icon + Golf Tee + HIO print |
+| `B1-PRES-OAK-GT-C1-HIO-P` | Small Prestige Oak + Golf Tee + HIO + Personalized |
+| `B2-VANT-GT-C2-TURNBAILSA` | Medium Vantage + Turnberry Ailsa course |
+| `B2-VANT-GT-C2-CUS` | Medium Vantage + Custom print |
+| `B3-VANT-BS-C3` | Large Vantage + Ball Stem (Baseball/Tennis/Cricket) |
+| `B1-VANT-GT-DS` | Vantage Display Stand |
+| `B1-VANT-GT5-DS` | Vantage 5-ball Display Stand |
+
+### Display Champ Legacy Pattern (Being Phased Out)
 
 ```
 [XL?][SPORT][STYLE][WOOD?][UV?][DESIGN?][P?][-BALL?]
@@ -240,6 +261,14 @@ XLGBCVANTAGECUSTOMBG        = XL Golf Ball Case + Vantage + Custom Background
 ```
 
 **XL Prefix:** Legacy naming for B2 size. Some SKUs still use XL prefix instead of the newer naming convention.
+
+### Display Champ Accessory Codes
+
+| Code | Meaning | Description |
+|------|---------|-------------|
+| `GT` | Golf Tee | Single black golf tee (requires drilled hole) |
+| `GT5` | 5× Golf Tees | Five tees for multi-ball display stands |
+| `BS` | Ball Stem | Acrylic stem for non-golf sports |
 
 ### UV Print Design Codes (Display Champ)
 
@@ -259,6 +288,7 @@ XLGBCVANTAGECUSTOMBG        = XL Golf Ball Case + Vantage + Custom Background
 
 ### Golf Course Prints (DC Only)
 
+**Legacy codes** (in existing SKUs):
 | Code | Course |
 |------|--------|
 | `STANDREWSOLD` | St Andrews Old Course |
@@ -272,6 +302,23 @@ XLGBCVANTAGECUSTOMBG        = XL Golf Ball Case + Vantage + Custom Background
 | `PINEHURSTNO2` | Pinehurst No.2 |
 | `BETHPAGE` | Bethpage Black |
 | `BALLYBUNIONOLD` | Ballybunion Old |
+| `USARYDER25` | Team USA Ryder Cup 2025 |
+| `EURYDER25` | Team Europe Ryder Cup 2025 |
+| `USAEURYDER25` | USA vs Europe Ryder Cup 2025 |
+
+**Standardized codes** (shortened for new SKUs):
+| Code | Course |
+|------|--------|
+| `STANDREWS` | St Andrews Old Course |
+| `PEBBLE` | Pebble Beach Golf Links |
+| `RTROON` | Royal Troon Old Course |
+| `TURNBAILSA` | Turnberry Ailsa |
+| `WENTWORTH` | Wentworth West |
+| `AUGUSTA` | Augusta |
+| `PORTRUSH` | Royal Portrush |
+| `PINEHURST2` | Pinehurst No.2 |
+| `BETHPAGE` | Bethpage Black |
+| `BALLYB` | Ballybunion Old |
 | `USARYDER25` | Team USA Ryder Cup 2025 |
 | `EURYDER25` | Team Europe Ryder Cup 2025 |
 | `USAEURYDER25` | USA vs Europe Ryder Cup 2025 |
@@ -309,13 +356,13 @@ B1-ICON-CS-C1           = B1 Icon + Coin Stand + C1 Case
 
 ### Bright Ivy Accessory Codes
 
-| Code | Accessory | Components Used |
-|------|-----------|-----------------|
+| Code | Accessory | Contents |
+|------|-----------|----------|
 | (none) | Empty case | Customer puts anything they like inside |
 | `RS` | Ring Stand | 1× Ring Stand (only fits B1/C1) |
 | `RS2` | 2 Ring Stands | 2× Ring Stand (only fits B2/C2) |
 | `RS3` | 3 Ring Stands | 3× Ring Stand (only fits B3/C3) |
-| `CS` | Coin Stand Set | 1× Coin Stand Small + 1× Coin Stand Large |
+| `CS` | Coin Stand | 1× Coin Stand Small + 1× Coin Stand Large |
 | `MSP` | Multi Stand Pack | 1× Coin Stand Small + 1× Coin Stand Large + 1× Circular Acrylic Ring |
 | `CS-BTC` | Bitcoin Coin Stand | Coin stand sized for bitcoin + Bitcoin Token |
 
@@ -324,7 +371,11 @@ B1-ICON-CS-C1           = B1 Icon + Coin Stand + C1 Case
 - B2/C2 = 2 ring stands max
 - B3/C3 = 3 ring stands max
 
-**CS vs MSP:** Both include 2 coin stands (small + large). MSP adds a circular acrylic ring (different from ring stand).
+**CS vs MSP:**
+- `CS` (Coin Stand) = 1× Small + 1× Large coin stand
+- `MSP` (Multi Stand Pack) = 1× Small + 1× Large coin stand + 1× Circular Acrylic Ring
+
+The circular acrylic ring in MSP is different from ring stands - it's for displaying items other than rings.
 
 ### SKU Modifiers
 

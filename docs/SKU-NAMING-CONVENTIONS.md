@@ -8,7 +8,43 @@
 
 ## SKU Structure Overview
 
-A typical Display Champ SKU follows this pattern:
+Both Display Champ (DC) and Bright Ivy (BI) use a **standardized B-series SKU format**:
+
+```
+[BASE]-[STYLE]-[WOOD?]-[ACCESSORY]-[CASE]-[DESIGN?][-P][-BALL]
+```
+
+### Display Champ Examples
+| SKU | Meaning |
+|-----|---------|
+| `B1-VANT-GT-C1` | Small Vantage + Golf Tee + Small Case |
+| `B1-ICON-GT-C1-HIO` | Small Icon + Golf Tee + Small Case + Hole in One print |
+| `B1-PRES-OAK-GT-C1-HIO-P` | Small Prestige Oak + Golf Tee + Small Case + HIO + Personalized |
+| `B2-VANT-GT-C2-TURNBAILSA` | Medium Vantage + Golf Tee + Medium Case + Turnberry Ailsa course |
+| `B3-VANT-BS-C3` | Large Vantage + Ball Stem + Large Case (Baseball/Tennis/Cricket) |
+
+### Bright Ivy Examples
+| SKU | Meaning |
+|-----|---------|
+| `B1-ICON-C1` | Small Icon + Small Case (empty) |
+| `B1-HERI-OAK-RS-C1` | Small Heritage Oak + Ring Stand + Small Case |
+| `B2-HERI-AHW-RS2-C2` | Medium Heritage AHW + 2 Ring Stands + Medium Case |
+| `B1-ICON-CS-C1` | Small Icon + Coin Stand + Small Case |
+| `B2-ICON-MSP-C2` | Medium Icon + Multi Stand Pack + Medium Case |
+
+### Key Difference: Accessory Codes
+The accessory code differentiates DC and BI products that otherwise share components:
+
+| Brand | Accessory Codes | Products |
+|-------|-----------------|----------|
+| **Display Champ** | `GT`, `GT5`, `BS` | Sports display cases (Golf Tee, Ball Stem) |
+| **Bright Ivy** | `RS`, `RS2`, `RS3`, `CS`, `MSP`, `CS-BTC`, or empty | Keepsake cases (Ring Stand, Coin Stand, Multi Stand Pack) |
+
+---
+
+## Legacy SKU Format (Display Champ)
+
+Older DC SKUs follow this pattern (being phased out):
 
 ```
 [CATEGORY PREFIX][PRODUCT NAME][MATERIAL?][UV?][BACKGROUND CODE?][VARIANT SUFFIX]
@@ -239,29 +275,98 @@ Example: `XLGBCVANTAGECUSTOMBG` = C2 sized Golf Ball Case Vantage with custom ba
 
 ---
 
-## 9. B-Series SKU Format (New System)
+## 9. Standardized SKU Format (Current System)
 
-The B-series format is a newer, more structured SKU system:
+The standardized B-series format is now used for both Display Champ and Bright Ivy:
 
 ```
-B[base]-[product]-[material?]-C[case]-[options]
+[BASE]-[STYLE]-[WOOD?]-[ACCESSORY]-[CASE]-[DESIGN?][-P][-BALL]
 ```
 
 | Component | Meaning | Values |
 |-----------|---------|--------|
 | `B1`, `B2`, `B3` | Base size | Small, Medium, Large |
-| Product code | Product line | `ICON`, `HERI` (Heritage), `AHW` (African Hardwood base) |
-| Material | Wood type | `OAK`, `AHW` |
+| Style code | Product line | `VANT` (Vantage), `ICON`, `HERI` (Heritage), `PRES` (Prestige) |
+| Wood code | Wood type (if applicable) | `OAK`, `AHW` |
+| Accessory | Internal holder | DC: `GT`, `GT5`, `BS` / BI: `RS`, `RS2`, `RS3`, `CS`, `MSP`, `CS-BTC` |
 | `C1`, `C2`, `C3` | Case size | Small, Medium, Large |
-| `CUS` | Custom | Customer customization |
-| `CS` | Coin Stand | Stand product (not case) |
-| `RS`, `RS2` | Ring Stand | Single or Double ring stand component |
+| Design | Print/background code | `HIO`, `LEG`, `CHAMP`, `GC`, `-CUS`, course codes |
+| `-P` | Personalized | Engraved version (same BOM) |
+| `-BALL` | With ball | Includes golf ball (different BOM) |
 
-Examples:
-- `B1-ICON-C1` = Small base, Icon, Small case
-- `B2-HERI-OAK-C2-CUS` = Medium base, Heritage, Oak, Medium case, Custom
-- `B1-ICON-RS2-C1` = Small base, Icon with Double Ring Stand, Small case
-- `B1-AHW-CS-C1` = Small base, African Hardwood, Coin Stand, Small case
+### Display Champ Accessory Codes
+
+| Code | Meaning | Description |
+|------|---------|-------------|
+| `GT` | Golf Tee | Single black golf tee (requires drilled hole in base) |
+| `GT5` | 5× Golf Tees | Five golf tees for multi-ball display stands |
+| `BS` | Ball Stem | Acrylic stem for non-golf sports (Tennis, Cricket, Baseball, Field Hockey) |
+
+### Bright Ivy Accessory Codes
+
+| Code | Meaning | Contents |
+|------|---------|----------|
+| (empty) | No accessory | Empty case - customer puts anything inside |
+| `RS` | Ring Stand | 1× Ring Stand (fits B1/C1 only) |
+| `RS2` | 2 Ring Stands | 2× Ring Stand (fits B2/C2 only) |
+| `RS3` | 3 Ring Stands | 3× Ring Stand (fits B3/C3 only) |
+| `CS` | Coin Stand | 1× Coin Stand Small + 1× Coin Stand Large |
+| `MSP` | Multi Stand Pack | 1× CS Small + 1× CS Large + 1× Circular Acrylic Ring |
+| `CS-BTC` | Bitcoin Coin Stand | Coin stand sized for bitcoin + Bitcoin Token |
+
+### Design Code Placement
+
+**Design codes come AFTER the case size**, not before:
+- ✅ Correct: `B1-ICON-GT-C1-HIO`
+- ❌ Wrong: `B1-ICON-GT-HIO-C1`
+
+This matches the BI pattern (e.g., `B2-ICON-CS-BTC-C2-BTC`).
+
+### Custom Print Suffix
+
+| Brand | Custom Print Code | Example |
+|-------|-------------------|---------|
+| Display Champ | `-CUS` after case | `B2-VANT-GT-C2-CUS` |
+| Bright Ivy | `-CUS` after case | `B3-ICON-RS3-C3-CUS` |
+
+### Golf Course Design Codes (Shortened)
+
+XL/B2 course-specific cases use shortened course codes:
+
+| Code | Course Name |
+|------|-------------|
+| `TURNBAILSA` | Turnberry Ailsa |
+| `BALLYB` | Ballybunion Old |
+| `PEBBLE` | Pebble Beach Links |
+| `RTROON` | Royal Troon Old |
+| `STANDREWS` | St Andrews Old |
+| `PORTRUSH` | Royal Portrush |
+| `PINEHURST2` | Pinehurst No.2 |
+| `WENTWORTH` | Wentworth West |
+| `AUGUSTA` | Augusta |
+| `BETHPAGE` | Bethpage Black |
+| `USARYDER25` | Team USA Ryder Cup 2025 |
+| `EURYDER25` | Team Europe Ryder Cup 2025 |
+| `USAEURYDER25` | USA vs Europe Ryder Cup 2025 |
+
+### Complete Examples
+
+**Display Champ:**
+- `B1-VANT-GT-C1` = Small Vantage Golf Ball Case
+- `B1-ICON-GT-C1-HIO` = Small Icon with Hole in One print
+- `B1-PRES-OAK-GT-C1-HIO-P` = Small Prestige Oak + HIO + Personalized
+- `B2-VANT-GT-C2-TURNBAILSA` = Medium Vantage with Turnberry Ailsa course
+- `B2-VANT-GT-C2-CUS` = Medium Vantage with Custom print
+- `B3-VANT-BS-C3` = Large Vantage Baseball/Tennis/Cricket Case
+- `B1-VANT-GT5-DS` = Vantage 5-ball Display Stand
+
+**Bright Ivy:**
+- `B1-ICON-C1` = Small Icon empty case
+- `B1-HERI-OAK-RS-C1` = Small Heritage Oak with Ring Stand
+- `B2-HERI-AHW-RS2-C2` = Medium Heritage AHW with 2 Ring Stands
+- `B1-ICON-CS-C1` = Small Icon with Coin Stand
+- `B2-ICON-MSP-C2` = Medium Icon with Multi Stand Pack
+- `B2-ICON-CS-BTC-C2-BTC` = Medium Icon Bitcoin Case
 
 ---
 
@@ -361,11 +466,36 @@ The system SHOULD suggest mappings for:
 
 ## 14. Brand Notes
 
-### Display Champ
-Primary brand. All conventions above apply.
+### Display Champ (DC)
+Primary brand for **sports memorabilia collectors**.
 
-### Bright Ivy
-Secondary brand. **Uses the same SKU methodology** as Display Champ.
+| Aspect | Details |
+|--------|---------|
+| **Target Market** | Sports memorabilia (golf balls, baseballs, cricket balls, etc.) |
+| **Styles Available** | VANT (Vantage), ICON, HERI (Heritage), PRES (Prestige) |
+| **Accessory Codes** | `GT` (Golf Tee), `GT5` (5× Tees), `BS` (Ball Stem) |
+| **Design Codes** | HIO, LEG, CHAMP, GC, course names, `-CUS` |
+| **Suffix** | `-P` (Personalized), `-BALL` (includes golf ball) |
+
+### Bright Ivy (BI)
+Secondary brand for **special memories & keepsakes**.
+
+| Aspect | Details |
+|--------|---------|
+| **Target Market** | Keepsakes (rings, coins, sentimental items) |
+| **Styles Available** | ICON, HERI (Heritage) only - NO Vantage or Prestige |
+| **Accessory Codes** | `RS`/`RS2`/`RS3` (Ring Stands), `CS` (Coin Stand), `MSP` (Multi Stand Pack), `CS-BTC` (Bitcoin), or empty |
+| **Design Codes** | `-CUS` only (custom prints) |
+| **Suffix** | `-CUS` (Custom print) |
+
+### Why No Exact SKU Matches Between Brands
+
+DC and BI SKUs **never match exactly** because:
+1. DC products have `GT` or `BS` accessory codes
+2. BI products have `RS`, `CS`, `MSP`, or no accessory
+3. DC has `VANT` and `PRES` styles that BI doesn't offer
+
+Both brands share the same physical components (bases, cases, etc.) but the accessory code differentiates them.
 
 ---
 
@@ -426,5 +556,82 @@ Secondary brand. **Uses the same SKU methodology** as Display Champ.
 ### All Variant Suffixes
 | Suffix | Meaning | BOM Impact |
 |--------|---------|------------|
-| `P` | Personalized | Same BOM |
+| `-P` | Personalized | Same BOM |
 | `-BALL` | Includes ball | Different BOM |
+| `-CUS` | Custom print | Same BOM |
+
+### All Accessory Codes
+
+#### Display Champ Accessories
+| Code | Meaning | Description |
+|------|---------|-------------|
+| `GT` | Golf Tee | Single black golf tee |
+| `GT5` | 5× Golf Tees | Five tees for multi-ball stands |
+| `BS` | Ball Stem | Acrylic stem for non-golf sports |
+
+#### Bright Ivy Accessories
+| Code | Meaning | Contents |
+|------|---------|----------|
+| (none) | Empty | Customer chooses what to display |
+| `RS` | Ring Stand | 1× Ring Stand |
+| `RS2` | 2 Ring Stands | 2× Ring Stand |
+| `RS3` | 3 Ring Stands | 3× Ring Stand |
+| `CS` | Coin Stand | 1× Small + 1× Large coin stand |
+| `MSP` | Multi Stand Pack | 1× CS Small + 1× CS Large + 1× Circular Acrylic Ring |
+| `CS-BTC` | Bitcoin Stand | Coin stand + Bitcoin Token |
+
+### All Style Codes
+| Code | Full Name | Turf/Grass | Brands |
+|------|-----------|------------|--------|
+| `VANT` | Vantage | ✅ Yes | DC only |
+| `ICON` | Icon | ❌ No | DC, BI |
+| `HERI` | Heritage | ❌ No | DC, BI |
+| `PRES` | Prestige | ✅ Yes | DC only |
+
+### All Course Design Codes (DC XL/B2 Only)
+| Code | Course |
+|------|--------|
+| `TURNBAILSA` | Turnberry Ailsa |
+| `BALLYB` | Ballybunion Old |
+| `PEBBLE` | Pebble Beach Links |
+| `RTROON` | Royal Troon Old |
+| `STANDREWS` | St Andrews Old |
+| `PORTRUSH` | Royal Portrush |
+| `PINEHURST2` | Pinehurst No.2 |
+| `WENTWORTH` | Wentworth West |
+| `AUGUSTA` | Augusta |
+| `BETHPAGE` | Bethpage Black |
+| `USARYDER25` | Team USA Ryder Cup 2025 |
+| `EURYDER25` | Team Europe Ryder Cup 2025 |
+| `USAEURYDER25` | USA vs Europe Ryder Cup 2025 |
+
+---
+
+## 16. Legacy to Standardized SKU Mapping
+
+### Display Champ Mapping Examples
+
+| Legacy SKU | Standardized SKU | Notes |
+|------------|------------------|-------|
+| `GBCVANTAGE` | `B1-VANT-GT-C1` | Standard golf case |
+| `GBCVANTAGEP` | `B1-VANT-GT-C1-P` | + Personalized |
+| `GBCVANTAGE-BALL` | `B1-VANT-GT-C1-BALL` | + With Ball |
+| `GBCICON` | `B1-ICON-GT-C1` | Icon style |
+| `GBCICONUVHIO` | `B1-ICON-GT-C1-HIO` | + Hole in One print |
+| `GBCHERITAGEMAH` | `B1-HERI-AHW-GT-C1` | Heritage AHW |
+| `GBCPRESTIGEMAH` | `B1-PRES-AHW-GT-C1` | Prestige AHW |
+| `GBCPRESTIGEOAK` | `B1-PRES-OAK-GT-C1` | Prestige Oak |
+| `XLGBCVANTAGE-STANDREWSOLD` | `B2-VANT-GT-C2-STANDREWS` | XL = B2/C2 |
+| `XLGBCVANTAGE-TURNBERRYAILSA` | `B2-VANT-GT-C2-TURNBAILSA` | Shortened course name |
+| `BBDCVANTAGE` | `B3-VANT-BS-C3` | Baseball = B3/C3 + Ball Stem |
+| `GBDSVANTAGE` | `B1-VANT-GT-DS` | Display Stand |
+| `GBDSVANTAGEX5` | `B1-VANT-GT5-DS` | 5-ball Display Stand |
+
+### Size Mapping
+| Legacy Indicator | Standardized |
+|------------------|--------------|
+| Standard golf | B1/C1 |
+| XL prefix | B2/C2 |
+| CUSTOMBG | B2/C2 |
+| Course designs | B2/C2 |
+| Baseball/Tennis/Cricket | B3/C3 |
