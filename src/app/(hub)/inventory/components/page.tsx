@@ -449,10 +449,18 @@ export default function ComponentsPage() {
                     <Input
                       type="number"
                       min="0"
-                      value={formData.safety_stock_days}
+                      value={formData.safety_stock_days ?? ''}
                       onChange={(e) =>
-                        setFormData({ ...formData, safety_stock_days: parseInt(e.target.value) || 14 })
+                        setFormData({
+                          ...formData,
+                          safety_stock_days: e.target.value === '' ? undefined : parseInt(e.target.value),
+                        })
                       }
+                      onBlur={(e) => {
+                        if (e.target.value === '' || isNaN(parseInt(e.target.value))) {
+                          setFormData({ ...formData, safety_stock_days: 14 });
+                        }
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -460,10 +468,18 @@ export default function ComponentsPage() {
                     <Input
                       type="number"
                       min="1"
-                      value={formData.min_order_qty}
+                      value={formData.min_order_qty ?? ''}
                       onChange={(e) =>
-                        setFormData({ ...formData, min_order_qty: parseInt(e.target.value) || 1 })
+                        setFormData({
+                          ...formData,
+                          min_order_qty: e.target.value === '' ? undefined : parseInt(e.target.value),
+                        })
                       }
+                      onBlur={(e) => {
+                        if (e.target.value === '' || isNaN(parseInt(e.target.value))) {
+                          setFormData({ ...formData, min_order_qty: 1 });
+                        }
+                      }}
                     />
                   </div>
                   <div className="space-y-2">
@@ -472,11 +488,11 @@ export default function ComponentsPage() {
                       type="number"
                       min="0"
                       placeholder="From supplier"
-                      value={formData.lead_time_days || ''}
+                      value={formData.lead_time_days ?? ''}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          lead_time_days: e.target.value ? parseInt(e.target.value) : undefined,
+                          lead_time_days: e.target.value === '' ? undefined : parseInt(e.target.value),
                         })
                       }
                     />

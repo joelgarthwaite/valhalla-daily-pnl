@@ -7,8 +7,7 @@
  * - Stock status (ok, warning, critical, out_of_stock)
  * - Reorder points
  *
- * Phase A: Basic calculations with placeholder velocity
- * Phase B: Full BOM-based velocity calculation from order history
+ * Phase B Complete: Full BOM-based velocity calculation from order history
  */
 
 import type { StockStatus } from '@/types';
@@ -30,14 +29,88 @@ export interface ForecastResult {
 }
 
 /**
+ * Data needed for velocity calculation (fetched from API)
+ */
+export interface VelocityData {
+  bomEntries: Array<{
+    product_sku: string;
+    quantity: number;
+  }>;
+  skuMappings: Array<{
+    old_sku: string;
+    current_sku: string;
+  }>;
+  orderLineItems: Array<{
+    sku: string;
+    quantity: number;
+    order_date: string;
+  }>;
+}
+
+/**
+ * Calculate daily velocity (units sold per day) from pre-fetched data
+ *
+ * This is a pure calculation function - data fetching happens in the API route.
+ *
+ * @param data - Pre-fetched BOM entries, SKU mappings, and order line items
+ * @param days - Number of days in the period
+ * @returns VelocityResult with units per day
+ */
+export function calculateVelocityFromData(
+  data: VelocityData,
+  days: number = 30
+): VelocityResult {
+  const { bomEntries, skuMappings, orderLineItems } = data;
+
+  // Build a map of SKU -> BOM quantity for this component
+  // Key is product SKU, value is how many of this component it needs
+  const skuToBomQty = new Map<string, number>();
+  for (const bom of bomEntries) {
+    skuToBomQty.set(bom.product_sku.toUpperCase(), bom.quantity);
+  }
+
+  // Build a map of old SKU -> current SKU for legacy SKU resolution
+  const skuMap = new Map<string, string>();
+  for (const mapping of skuMappings) {
+    skuMap.set(mapping.old_sku.toUpperCase(), mapping.current_sku.toUpperCase());
+  }
+
+  // Calculate total component units consumed
+  let totalUnits = 0;
+  const seenOrders = new Set<string>();
+
+  for (const item of orderLineItems) {
+    if (!item.sku) continue;
+
+    // Resolve SKU (check mapping for legacy SKUs)
+    let resolvedSku = item.sku.toUpperCase();
+    const mappedSku = skuMap.get(resolvedSku);
+    if (mappedSku) {
+      resolvedSku = mappedSku;
+    }
+
+    // Check if this SKU uses this component
+    const bomQty = skuToBomQty.get(resolvedSku);
+    if (bomQty) {
+      // Units consumed = order quantity × BOM quantity
+      totalUnits += item.quantity * bomQty;
+      seenOrders.add(item.order_date);
+    }
+  }
+
+  return {
+    unitsPerDay: days > 0 ? totalUnits / days : 0,
+    periodDays: days,
+    totalUnitsSold: totalUnits,
+    ordersCount: seenOrders.size,
+  };
+}
+
+/**
  * Calculate daily velocity (units sold per day)
  *
- * Phase A: Returns 0 (placeholder)
- * Phase B: Will calculate from BOM + order history
- *
- * @param componentId - The component to calculate velocity for
- * @param days - Number of days to look back (default 30)
- * @returns VelocityResult with units per day
+ * @deprecated Use calculateVelocityFromData with pre-fetched data instead
+ * This function is kept for backwards compatibility but returns 0.
  */
 export function calculateVelocity(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -45,14 +118,8 @@ export function calculateVelocity(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _days: number = 30
 ): VelocityResult {
-  // Phase A: Return placeholder velocity
-  // Phase B will implement:
-  // 1. Get BOM entries for this component
-  // 2. Get orders from last N days with matching product SKUs
-  // 3. Apply SKU mapping for legacy SKUs
-  // 4. Sum (line_item.quantity × bom.quantity)
-  // 5. Return total / days = daily_velocity
-
+  // This function cannot fetch data directly (no async in pure module)
+  // Use calculateVelocityFromData with pre-fetched data instead
   return {
     unitsPerDay: 0,
     periodDays: 30,

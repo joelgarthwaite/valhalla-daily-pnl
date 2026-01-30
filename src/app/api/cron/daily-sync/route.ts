@@ -10,7 +10,7 @@ export const maxDuration = 120;
  * Daily Cron Job - Syncs all data and refreshes P&L
  *
  * Runs automatically via Vercel Cron at configured times:
- * - 7:00 AM UTC (type=morning): Full sync + Yesterday's P&L summary email
+ * - 7:00 AM UTC (type=morning): Full sync + Yesterday's P&L summary email + Low stock alert
  * - 7:00 PM UTC (type=evening): Full sync + Today's "so far" P&L email
  *
  * Can also be triggered manually with the correct CRON_SECRET
@@ -22,6 +22,7 @@ export const maxDuration = 120;
  * 4. Sync country-level ad spend from Meta (for Country Analysis GP3)
  * 5. Refresh P&L calculations
  * 6. Send P&L summary email (morning=yesterday, evening=today so far)
+ * 7. Send low stock alert email (morning only, when items need attention)
  */
 
 const BRAND_AD_ACCOUNTS: Record<string, string> = {
@@ -335,6 +336,47 @@ export async function GET(request: NextRequest) {
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
+  }
+
+  // Step 7: Send Low Stock Alert Email (morning sync only)
+  // Only send on morning sync so operations team can action it during the day
+  if (syncType === 'morning') {
+    try {
+      const stockAlertResponse = await fetch(
+        `${baseUrl}/api/email/low-stock-alert`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${cronSecret}`,
+          },
+        }
+      );
+      const stockAlertData = await stockAlertResponse.json();
+
+      results.push({
+        step: 'Low Stock Alert',
+        success: stockAlertResponse.ok,
+        message: stockAlertResponse.ok
+          ? stockAlertData.emailSent
+            ? `Alert sent: ${stockAlertData.data?.total || 0} items need attention`
+            : 'No low stock items - email not sent'
+          : stockAlertData.error,
+        details: stockAlertData.data,
+      });
+    } catch (error) {
+      results.push({
+        step: 'Low Stock Alert',
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  } else {
+    results.push({
+      step: 'Low Stock Alert',
+      success: true,
+      message: 'Skipped - only runs on morning sync',
+    });
   }
 
   const duration = Date.now() - startTime;

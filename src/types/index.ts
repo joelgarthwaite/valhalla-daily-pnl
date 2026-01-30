@@ -1048,6 +1048,26 @@ export interface Supplier {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  // Computed (from API)
+  componentCount?: number;
+  activePOCount?: number;
+}
+
+export interface SupplierFormData {
+  name: string;
+  code?: string;
+  contact_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  address?: string;
+  country?: string;
+  default_lead_time_days?: number;
+  min_order_qty?: number;
+  min_order_value?: number;
+  payment_terms?: string;
+  currency?: string;
+  is_active?: boolean;
+  notes?: string;
 }
 
 export interface ComponentSupplier {

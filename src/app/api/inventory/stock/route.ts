@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { calculateVelocityFromData, type VelocityData, type VelocityResult } from '@/lib/inventory/forecast';
 
 /**
  * GET /api/inventory/stock
@@ -9,12 +10,14 @@ import { createClient } from '@supabase/supabase-js';
  * - brand: Brand ID to filter by
  * - category: Category ID to filter by
  * - status: 'ok' | 'warning' | 'critical' | 'out_of_stock' | 'all'
+ * - days: Number of days for velocity calculation (default 30)
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const brand = searchParams.get('brand');
   const category = searchParams.get('category');
   const status = searchParams.get('status') || 'all';
+  const velocityDays = parseInt(searchParams.get('days') || '30', 10);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -57,16 +60,120 @@ export async function GET(request: NextRequest) {
 
     if (componentError) throw componentError;
 
-    // Calculate velocity for each component (from last 30 days of orders)
-    // For Phase A, we'll use a simple approach - this will be enhanced with BOM in Phase B
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // ====================================
+    // VELOCITY CALCULATION (Phase B)
+    // ====================================
 
-    // For now, return components with basic stock info
-    // Velocity calculation will be added when BOM is set up
+    // Get component IDs
+    const componentIds = (components || []).map(c => c.id);
+
+    // Fetch all BOM entries for these components
+    const { data: allBomEntries, error: bomError } = await supabase
+      .from('bom')
+      .select('component_id, product_sku, quantity')
+      .in('component_id', componentIds.length > 0 ? componentIds : ['__none__']);
+
+    if (bomError) throw bomError;
+
+    // Get unique product SKUs from BOM
+    const productSkus = [...new Set((allBomEntries || []).map(b => b.product_sku.toUpperCase()))];
+
+    // Fetch SKU mappings (old SKUs that map to these product SKUs)
+    let skuMappings: Array<{ old_sku: string; current_sku: string }> = [];
+    if (productSkus.length > 0) {
+      const { data: mappings, error: mappingError } = await supabase
+        .from('sku_mapping')
+        .select('old_sku, current_sku')
+        .in('current_sku', productSkus);
+
+      if (mappingError) throw mappingError;
+      skuMappings = mappings || [];
+    }
+
+    // Build set of all SKUs to look for (current + mapped old SKUs)
+    const allSkusToFind = new Set(productSkus);
+    for (const mapping of skuMappings) {
+      allSkusToFind.add(mapping.old_sku.toUpperCase());
+    }
+
+    // Fetch orders with line items from the velocity period
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - velocityDays);
+    const startDateStr = startDate.toISOString().split('T')[0];
+
+    interface OrderLineItem {
+      sku: string;
+      quantity: number;
+      order_date: string;
+    }
+
+    const orderLineItems: OrderLineItem[] = [];
+
+    if (allSkusToFind.size > 0) {
+      const { data: orders, error: ordersError } = await supabase
+        .from('orders')
+        .select('id, order_date, line_items')
+        .gte('order_date', startDateStr)
+        .is('excluded_at', null)
+        .order('order_date', { ascending: false });
+
+      if (ordersError) throw ordersError;
+
+      // Extract relevant line items
+      for (const order of orders || []) {
+        const lineItems = order.line_items as Array<{ sku?: string; quantity?: number }> | null;
+        if (!lineItems || !Array.isArray(lineItems)) continue;
+
+        for (const item of lineItems) {
+          if (item.sku && allSkusToFind.has(item.sku.toUpperCase())) {
+            orderLineItems.push({
+              sku: item.sku,
+              quantity: item.quantity || 1,
+              order_date: order.order_date,
+            });
+          }
+        }
+      }
+    }
+
+    // Group BOM entries by component
+    const bomByComponent = new Map<string, Array<{ product_sku: string; quantity: number }>>();
+    for (const bom of allBomEntries || []) {
+      const existing = bomByComponent.get(bom.component_id) || [];
+      existing.push({ product_sku: bom.product_sku, quantity: bom.quantity });
+      bomByComponent.set(bom.component_id, existing);
+    }
+
+    // Calculate velocity for each component
+    const velocities = new Map<string, VelocityResult>();
+    for (const component of components || []) {
+      const componentBom = bomByComponent.get(component.id) || [];
+
+      if (componentBom.length === 0) {
+        velocities.set(component.id, {
+          unitsPerDay: 0,
+          periodDays: velocityDays,
+          totalUnitsSold: 0,
+          ordersCount: 0,
+        });
+        continue;
+      }
+
+      const velocityData: VelocityData = {
+        bomEntries: componentBom,
+        skuMappings,
+        orderLineItems,
+      };
+
+      velocities.set(component.id, calculateVelocityFromData(velocityData, velocityDays));
+    }
+
+    // ====================================
+    // BUILD STOCK DATA WITH VELOCITY
+    // ====================================
+
     const stockData = (components || []).map((component) => {
       // Handle both array (legacy) and object (one-to-one) stock responses
-      // Supabase returns an object for one-to-one relationships (UNIQUE constraint)
       const rawStock = component.stock;
       const stock = (Array.isArray(rawStock) ? rawStock[0] : rawStock) || {
         on_hand: 0,
@@ -84,8 +191,15 @@ export async function GET(request: NextRequest) {
         leadTime = preferredSupplier.lead_time_days || preferredSupplier.supplier?.default_lead_time_days || 14;
       }
 
-      // Calculate status (placeholder velocity = 0 until BOM is set up)
-      const velocity = 0; // TODO: Calculate from BOM + orders
+      // Get velocity for this component
+      const velocityResult = velocities.get(component.id) || {
+        unitsPerDay: 0,
+        periodDays: velocityDays,
+        totalUnitsSold: 0,
+        ordersCount: 0,
+      };
+      const velocity = velocityResult.unitsPerDay;
+
       const safetyDays = component.safety_stock_days || 14;
       const reorderPoint = Math.ceil(velocity * (leadTime + safetyDays));
 
@@ -114,6 +228,9 @@ export async function GET(request: NextRequest) {
           reorderPoint,
           leadTime,
           safetyDays,
+          totalUnitsSold: velocityResult.totalUnitsSold,
+          ordersCount: velocityResult.ordersCount,
+          velocityPeriodDays: velocityResult.periodDays,
         },
       };
     });
@@ -132,6 +249,7 @@ export async function GET(request: NextRequest) {
       critical: stockData.filter((s) => s.statusInfo.status === 'critical').length,
       outOfStock: stockData.filter((s) => s.statusInfo.status === 'out_of_stock').length,
       onOrder: stockData.filter((s) => s.stock.on_order > 0).length,
+      velocityPeriod: velocityDays,
     };
 
     // Fetch categories and brands for filters

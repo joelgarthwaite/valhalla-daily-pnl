@@ -56,6 +56,9 @@ interface StockStatusInfo {
   reorderPoint: number;
   leadTime: number;
   safetyDays: number;
+  totalUnitsSold?: number;
+  ordersCount?: number;
+  velocityPeriodDays?: number;
 }
 
 interface ComponentWithStock {
@@ -525,10 +528,15 @@ export default function InventoryPage() {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-center text-muted-foreground">
-                      {item.statusInfo.velocity > 0
-                        ? `${item.statusInfo.velocity.toFixed(1)}/day`
-                        : '-'}
+                    <TableCell className="text-center">
+                      {item.statusInfo.velocity > 0 ? (
+                        <div title={`${item.statusInfo.totalUnitsSold || 0} units used in ${item.statusInfo.velocityPeriodDays || 30} days (${item.statusInfo.ordersCount || 0} orders)`}>
+                          <span className="font-medium">{item.statusInfo.velocity.toFixed(1)}</span>
+                          <span className="text-muted-foreground text-xs">/day</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground" title="No BOM entries or no matching orders in the period">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       {item.statusInfo.daysRemaining !== null ? (

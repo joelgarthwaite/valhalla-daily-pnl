@@ -72,6 +72,7 @@ export default function HubHomePage() {
   const [cashPosition, setCashPosition] = useState<number | null>(null);
   const [unmatchedCount, setUnmatchedCount] = useState<number>(0);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -105,6 +106,19 @@ export default function HubHomePage() {
         // Process yesterday's data
         if (yesterdayRes.ok) {
           const data = await yesterdayRes.json();
+
+          // Extract last sync time from the updated_at timestamps
+          if (data.dailyPnl && data.dailyPnl.length > 0) {
+            const maxUpdatedAt = data.dailyPnl.reduce((max: string | null, record: { updated_at?: string }) => {
+              if (!record.updated_at) return max;
+              if (!max) return record.updated_at;
+              return record.updated_at > max ? record.updated_at : max;
+            }, null);
+            if (maxUpdatedAt) {
+              setLastSyncTime(new Date(maxUpdatedAt));
+            }
+          }
+
           if (data.dailyPnl && data.dailyPnl.length > 0) {
             // Aggregate all brand data for the day
             // Note: API returns net_profit (which is GP3 = GP2 - Ad Spend)
@@ -161,6 +175,20 @@ export default function HubHomePage() {
         if (wtdRes.ok) {
           const data = await wtdRes.json();
           if (data.dailyPnl && data.dailyPnl.length > 0) {
+            // Also check WTD data for more recent sync times
+            const wtdMaxUpdatedAt = data.dailyPnl.reduce((max: string | null, record: { updated_at?: string }) => {
+              if (!record.updated_at) return max;
+              if (!max) return record.updated_at;
+              return record.updated_at > max ? record.updated_at : max;
+            }, null);
+            if (wtdMaxUpdatedAt) {
+              setLastSyncTime(prev => {
+                if (!prev) return new Date(wtdMaxUpdatedAt);
+                const wtdDate = new Date(wtdMaxUpdatedAt);
+                return wtdDate > prev ? wtdDate : prev;
+              });
+            }
+
             // Aggregate all brand data for the WTD period
             // Note: API returns net_profit (which is GP3 = GP2 - Ad Spend)
             const totals = data.dailyPnl.reduce(
@@ -231,6 +259,34 @@ export default function HubHomePage() {
     if (change === undefined || isNaN(change)) return '';
     const sign = change >= 0 ? '+' : '';
     return `${sign}${change.toFixed(1)}%`;
+  };
+
+  // Format last sync time for display
+  const formatSyncTime = (date: Date | null): string => {
+    if (!date) return 'Unknown';
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const syncDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const timeStr = date.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+
+    if (syncDay.getTime() === today.getTime()) {
+      return `Today ${timeStr}`;
+    } else if (syncDay.getTime() === yesterday.getTime()) {
+      return `Yesterday ${timeStr}`;
+    } else {
+      return date.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+      }) + ` ${timeStr}`;
+    }
   };
 
   const quickStats: QuickStat[] = [
@@ -579,10 +635,19 @@ export default function HubHomePage() {
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Last Data Sync</span>
-              <span className="flex items-center gap-1 text-green-600">
-                <CheckCircle2 className="h-3 w-3" />
-                Today 6:00 PM
-              </span>
+              {isLoading ? (
+                <Skeleton className="h-4 w-24" />
+              ) : lastSyncTime ? (
+                <span className="flex items-center gap-1 text-green-600">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {formatSyncTime(lastSyncTime)}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  Unknown
+                </span>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Meta Ads Connection</span>

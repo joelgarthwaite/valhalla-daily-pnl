@@ -114,7 +114,7 @@ export default function BomEditorPage() {
 
   // Form state
   const [formComponentId, setFormComponentId] = useState<string>('');
-  const [formQuantity, setFormQuantity] = useState<number>(1);
+  const [formQuantity, setFormQuantity] = useState<number | ''>(1);
   const [formNotes, setFormNotes] = useState<string>('');
   const [componentSearch, setComponentSearch] = useState('');
 
@@ -254,7 +254,7 @@ export default function BomEditorPage() {
           product_sku: selectedProduct.sku,
           brand_id: selectedProduct.brand_id,
           component_id: formComponentId,
-          quantity: formQuantity,
+          quantity: typeof formQuantity === 'number' ? formQuantity : 1,
           notes: formNotes || undefined,
         }),
       });
@@ -288,7 +288,7 @@ export default function BomEditorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editingEntry.id,
-          quantity: formQuantity,
+          quantity: typeof formQuantity === 'number' ? formQuantity : 1,
           notes: formNotes || undefined,
         }),
       });
@@ -740,7 +740,12 @@ export default function BomEditorPage() {
                     type="number"
                     min="1"
                     value={formQuantity}
-                    onChange={(e) => setFormQuantity(parseInt(e.target.value) || 1)}
+                    onChange={(e) => setFormQuantity(e.target.value === '' ? '' : parseInt(e.target.value))}
+                    onBlur={(e) => {
+                      if (e.target.value === '' || isNaN(parseInt(e.target.value))) {
+                        setFormQuantity(1);
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -785,7 +790,12 @@ export default function BomEditorPage() {
                   type="number"
                   min="1"
                   value={formQuantity}
-                  onChange={(e) => setFormQuantity(parseInt(e.target.value) || 1)}
+                  onChange={(e) => setFormQuantity(e.target.value === '' ? '' : parseInt(e.target.value))}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || isNaN(parseInt(e.target.value))) {
+                      setFormQuantity(1);
+                    }
+                  }}
                 />
               </div>
 

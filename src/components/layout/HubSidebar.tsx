@@ -21,6 +21,8 @@ import {
   Tag,
   FileText,
   Layers,
+  Building2,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -129,6 +131,18 @@ const navSections: NavSection[] = [
         href: '/inventory/sku-mapping',
         icon: Link2,
         description: 'Legacy SKU mapping',
+      },
+      {
+        label: 'Suppliers',
+        href: '/inventory/suppliers',
+        icon: Building2,
+        description: 'Vendor management',
+      },
+      {
+        label: 'Purchase Orders',
+        href: '/inventory/po',
+        icon: ClipboardList,
+        description: 'PO management',
       },
     ],
   },
