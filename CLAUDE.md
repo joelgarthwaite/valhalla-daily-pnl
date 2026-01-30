@@ -152,6 +152,71 @@ The CSP allows:
 
 ---
 
+## Standardized SKU Format
+
+Both DC and BI use a unified B-series SKU format:
+
+```
+[BASE]-[STYLE]-[WOOD?]-[ACCESSORY]-[CASE]-[DESIGN?][-P][-BALL]
+```
+
+### Display Champ Examples
+| SKU | Meaning |
+|-----|---------|
+| `B1-VANT-GT-C1` | Small Vantage + Golf Tee + Small Case |
+| `B1-ICON-GT-C1-HIO` | Small Icon + Golf Tee + Small Case + Hole in One print |
+| `B2-VANT-GT-C2-TURNBAILSA` | Medium Vantage + Golf Tee + Medium Case + Turnberry Ailsa |
+| `B3-VANT-BS-C3` | Large Vantage + Ball Stem + Large Case (Baseball/Tennis/Cricket) |
+
+### Bright Ivy Examples
+| SKU | Meaning |
+|-----|---------|
+| `B1-ICON-C1` | Small Icon + Small Case (empty) |
+| `B1-HERI-OAK-RS-C1` | Small Heritage Oak + Ring Stand + Small Case |
+| `B2-ICON-MSP-C2` | Medium Icon + Multi Stand Pack + Medium Case |
+
+### Accessory Codes (Key Difference Between Brands)
+
+| Brand | Codes | Description |
+|-------|-------|-------------|
+| **Display Champ** | `GT`, `GT5`, `BS` | Golf Tee, 5× Golf Tees, Ball Stem |
+| **Bright Ivy** | `RS`, `RS2`, `RS3`, `CS`, `MSP`, `CS-BTC` | Ring Stands, Coin Stand, Multi Stand Pack, Bitcoin Stand |
+
+**MSP = Multi Stand Pack** (1× Coin Stand Small + 1× Coin Stand Large + 1× Circular Acrylic Ring)
+
+### Style Codes
+| Code | Full Name | Turf/Grass | Brands |
+|------|-----------|------------|--------|
+| `VANT` | Vantage | ✅ Yes | DC only |
+| `ICON` | Icon | ❌ No | DC, BI |
+| `HERI` | Heritage | ❌ No | DC, BI |
+| `PRES` | Prestige | ✅ Yes | DC only |
+
+### Size Codes
+| Base | Case | Size | Use Case |
+|------|------|------|----------|
+| B1 | C1 | Small | Standard golf |
+| B2 | C2 | Medium | XL/course designs, custom prints |
+| B3 | C3 | Large | Baseball, Tennis, Cricket |
+
+### Design Codes (After Case Size)
+| Code | Design |
+|------|--------|
+| `HIO` | Hole in One |
+| `LEG` | Legendary |
+| `CHAMP` | Champion |
+| `GC` | Golf Course |
+| `-CUS` | Custom print |
+| `TURNBAILSA` | Turnberry Ailsa |
+| `BALLYB` | Ballybunion Old |
+| `PEBBLE` | Pebble Beach |
+| `RTROON` | Royal Troon |
+| `STANDREWS` | St Andrews |
+
+**Full documentation:** See `docs/SKU-NAMING-CONVENTIONS.md` and `docs/PRODUCTS.md`
+
+---
+
 ## Ad Platform Integrations
 
 ### Meta (Facebook/Instagram) - ACTIVE
