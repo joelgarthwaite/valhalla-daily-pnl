@@ -43,6 +43,43 @@ All projects share the same Supabase database and are planned for consolidation 
 
 ---
 
+## Security
+
+**Security Headers Score: A** (via securityheaders.com)
+
+Security headers are configured in `next.config.ts` and applied to all routes.
+
+### Headers Implemented
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| **X-Frame-Options** | `SAMEORIGIN` | Prevents clickjacking attacks |
+| **X-Content-Type-Options** | `nosniff` | Prevents MIME type sniffing |
+| **Referrer-Policy** | `strict-origin-when-cross-origin` | Controls referrer information |
+| **Permissions-Policy** | `camera=(), microphone=(), geolocation=()` | Restricts browser APIs |
+| **X-XSS-Protection** | `1; mode=block` | Legacy XSS protection |
+| **Content-Security-Policy** | See below | XSS and injection protection |
+
+### Content Security Policy
+
+The CSP allows:
+- **Scripts**: Self, inline (required for Next.js), Vercel
+- **Styles**: Self, inline (required for Tailwind)
+- **Images**: Self, data URIs, blobs, any HTTPS
+- **Fonts**: Self, data URIs
+- **Connections**: Self + all integrated services (Supabase, Meta, Google, Etsy, Xero, ShipStation, Resend, Vercel)
+- **Frames**: Self, Vercel Live
+- **Objects**: None (blocks Flash, etc.)
+
+### Notes
+
+- Grade capped at A (not A+) due to `'unsafe-inline'` and `'unsafe-eval'` in script-src
+- These are **required** for Next.js hydration and runtime features
+- Achieving A+ would require CSP nonces, adding significant complexity
+- A rating is the recommended balance for Next.js applications
+
+---
+
 ## Supabase Database
 
 **Project URL:** `https://pbfaoshmaogrsgatfojs.supabase.co`
@@ -1763,28 +1800,23 @@ CREATE INDEX idx_sku_mapping_current_sku ON sku_mapping(current_sku);
 
 ---
 
-## Inventory Management (Phase A)
+## Inventory Management
 
 ### Overview
 
-A demand forecasting and inventory management system for tracking component stock levels, managing Bill of Materials (BOM), and triggering reorder alerts.
+A complete inventory management system for tracking component stock levels, managing Bill of Materials (BOM), suppliers, purchase orders, and automated low stock alerts.
 
-### Current Features (Phase A)
+### Features
 
 | Feature | Status | Description |
 |---------|--------|-------------|
 | **Components CRUD** | ✅ Complete | Create/edit/delete components with categories, materials, variants |
 | **Stock Dashboard** | ✅ Complete | View stock levels with status badges (OK, Warning, Critical, Out of Stock) |
 | **Stock Adjustments** | ✅ Complete | Manual stock count, add, and remove with audit trail |
-| **Basic Forecasting** | ✅ Complete | Status calculation based on available stock (velocity TBD with BOM) |
-
-### Future Phases
-
-| Phase | Features |
-|-------|----------|
-| **Phase B** | Suppliers CRUD, BOM editor, velocity calculation from orders |
-| **Phase C** | Purchase orders workflow, receiving stock |
-| **Phase D** | Email alerts for low stock, reorder notifications |
+| **Velocity Forecasting** | ✅ Complete | Real velocity calculation from BOM + order history |
+| **Suppliers** | ✅ Complete | Supplier management with lead times, MOQ, payment terms |
+| **Purchase Orders** | ✅ Complete | Full PO workflow (draft → sent → partial → received) |
+| **Low Stock Alerts** | ✅ Complete | Automated email alerts for items needing attention |
 
 ### Navigation
 
@@ -1792,12 +1824,40 @@ A demand forecasting and inventory management system for tracking component stoc
 |------|------|-------------|
 | Stock Levels | `/inventory` | Main dashboard showing all component stock status |
 | Components | `/inventory/components` | CRUD for managing components |
-| SKU Mapping | `/inventory/sku-mapping` | Map old SKUs to current SKUs |
+| Product SKUs | `/inventory/product-skus` | Master SKU catalog |
+| BOM Editor | `/inventory/bom` | Bill of Materials management |
+| SKU Mapping | `/inventory/sku-mapping` | Map legacy SKUs to current SKUs |
+| Suppliers | `/inventory/suppliers` | Supplier management |
+| Purchase Orders | `/inventory/po` | PO list, create, and management |
+
+### Purchase Order Workflow
+
+```
+draft → sent → confirmed → partial → received
+  ↓                         ↓
+cancelled ←─────────────────┘
+```
+
+**Status Transitions:**
+- `draft` → Can be edited, deleted, or sent
+- `sent` → Updates stock "on order" quantities
+- `confirmed` → Supplier confirmed order
+- `partial` → Some items received
+- `received` → All items received (terminal state)
+- `cancelled` → Removes unreceived items from "on order"
+
+**Receiving Items:**
+- Click "Receive Items" on a sent/confirmed/partial PO
+- Enter quantities received per line item
+- System updates `stock_levels.on_hand` and `stock_levels.on_order`
+- Creates `stock_transactions` audit records
 
 ### Stock Status Logic
 
 ```
-days_remaining = available / daily_velocity
+velocity = units_sold_last_30_days / 30
+days_remaining = available / velocity
+reorder_point = velocity * (lead_time + safety_days)
 
 if available <= 0:
     status = OUT_OF_STOCK
@@ -1807,6 +1867,31 @@ elif days_remaining <= lead_time + safety_days + 7:
     status = WARNING
 else:
     status = OK
+```
+
+### Low Stock Alert Email
+
+Automated email sent daily at 7am (morning sync) when items need attention.
+
+**Trigger Conditions:**
+- Out of Stock: `available <= 0`
+- Critical: `days_remaining <= lead_time + safety_days`
+- Warning: `days_remaining <= lead_time + safety_days + 7`
+
+**Email Contents:**
+- Summary cards (Out of Stock, Critical, Warning counts)
+- Tables for each category with component details
+- Velocity, days remaining, reorder point info
+- Links to Stock Levels and Create PO pages
+
+**Manual Trigger:**
+```bash
+# Test mode (preview without sending)
+curl "https://pnl.displaychamp.com/api/email/low-stock-alert?test=true"
+
+# Send alert
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  "https://pnl.displaychamp.com/api/email/low-stock-alert"
 ```
 
 ### API Endpoints
@@ -1819,9 +1904,27 @@ else:
 - `DELETE /api/inventory/components/[id]` - Delete component
 
 **Stock:**
-- `GET /api/inventory/stock` - List stock levels with status
+- `GET /api/inventory/stock` - List stock levels with status and velocity
 - `POST /api/inventory/stock/adjust` - Adjust stock (count, add, remove)
 - `GET /api/inventory/stock/adjust?component_id=uuid` - Transaction history
+- `GET /api/inventory/velocity` - Calculate velocity for components
+
+**Suppliers:**
+- `GET /api/inventory/suppliers` - List suppliers with component/PO counts
+- `POST /api/inventory/suppliers` - Create supplier
+- `GET /api/inventory/suppliers/[id]` - Get supplier with related data
+- `PATCH /api/inventory/suppliers/[id]` - Update supplier
+- `DELETE /api/inventory/suppliers/[id]` - Delete/deactivate supplier
+
+**Purchase Orders:**
+- `GET /api/inventory/po` - List POs with filters and summary stats
+- `POST /api/inventory/po` - Create new PO with line items
+- `GET /api/inventory/po/[id]` - Get PO with all details
+- `PATCH /api/inventory/po/[id]` - Update PO (status, receive items, etc.)
+- `DELETE /api/inventory/po/[id]` - Delete PO (draft/cancelled only)
+
+**Alerts:**
+- `POST /api/email/low-stock-alert` - Send low stock alert email
 
 ### Database Tables
 
@@ -1829,14 +1932,14 @@ else:
 -- Core tables created in 015_inventory_schema.sql
 component_categories   -- cases, bases, accessories, packaging, display_accessories
 components            -- Component master data
-suppliers             -- Supplier info (future use)
-component_suppliers   -- Component-supplier relationships (future use)
-bom                   -- Bill of Materials (future use)
-stock_levels          -- Current inventory levels
-stock_transactions    -- Audit trail of movements
-purchase_orders       -- PO headers (future use)
-purchase_order_items  -- PO line items (future use)
-inventory_notification_prefs  -- User alert settings (future use)
+suppliers             -- Supplier info with lead times, MOQ, terms
+component_suppliers   -- Component-supplier relationships with pricing
+bom                   -- Bill of Materials (product_sku → component_id + quantity)
+stock_levels          -- Current inventory (on_hand, reserved, on_order, available)
+stock_transactions    -- Audit trail of all movements
+purchase_orders       -- PO header (supplier, status, dates, totals)
+purchase_order_items  -- PO line items (component, qty ordered/received, price)
+inventory_notification_prefs  -- Per-user email settings
 ```
 
 ### Files
@@ -1845,11 +1948,18 @@ inventory_notification_prefs  -- User alert settings (future use)
 |------|---------|
 | `src/app/(hub)/inventory/page.tsx` | Stock levels dashboard |
 | `src/app/(hub)/inventory/components/page.tsx` | Components CRUD page |
-| `src/app/api/inventory/components/route.ts` | Components list/create API |
-| `src/app/api/inventory/components/[id]/route.ts` | Component get/update/delete API |
+| `src/app/(hub)/inventory/suppliers/page.tsx` | Suppliers management page |
+| `src/app/(hub)/inventory/po/page.tsx` | Purchase orders list |
+| `src/app/(hub)/inventory/po/new/page.tsx` | Create new PO |
+| `src/app/(hub)/inventory/po/[id]/page.tsx` | PO detail with receiving |
+| `src/app/api/inventory/components/route.ts` | Components API |
 | `src/app/api/inventory/stock/route.ts` | Stock levels API |
-| `src/app/api/inventory/stock/adjust/route.ts` | Stock adjustment API |
+| `src/app/api/inventory/velocity/route.ts` | Velocity calculation API |
+| `src/app/api/inventory/suppliers/route.ts` | Suppliers API |
+| `src/app/api/inventory/po/route.ts` | Purchase orders API |
+| `src/app/api/email/low-stock-alert/route.ts` | Low stock alert email API |
 | `src/lib/inventory/forecast.ts` | Velocity and status calculations |
+| `src/lib/email/low-stock-alert.ts` | Low stock email template |
 | `supabase/migrations/015_inventory_schema.sql` | Database migration |
 
 ---
