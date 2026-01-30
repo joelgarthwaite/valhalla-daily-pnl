@@ -1081,7 +1081,19 @@ Two automated emails are sent daily to key stakeholders with different purposes:
 4. **Key Metrics Row** - Revenue, Orders, Net Margin with change indicators
 5. **Profit Breakdown** - Waterfall: Revenue → GP1 → GP2 → GP3 → OPEX → Net Profit
 6. **Brand Performance** - Per-brand breakdown with channel details (Shopify/Etsy/B2B Revenue, Orders, AOV)
-7. **Marketing** - Ad Spend, MER, POAS (when ad spend > 0)
+7. **Marketing** - Per-brand breakdown + group totals (Ad Spend, MER, POAS)
+
+**Marketing Section Format:**
+
+| Brand | Ad Spend | MER | POAS |
+|-------|----------|-----|------|
+| Display Champ | £200.00 | 3.50x | 150% |
+| Bright Ivy | £82.95 | 1.20x | -20% |
+| **Valhalla Group** | **£282.95** | **2.57x** | **49%** |
+
+- Only brands with ad spend > 0 are shown
+- MER highlighted green when ≥ 3x
+- POAS highlighted green when ≥ 100%, red otherwise
 
 **Auto-Generated Insights:**
 

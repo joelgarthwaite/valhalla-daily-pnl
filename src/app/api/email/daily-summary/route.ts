@@ -137,6 +137,9 @@ export async function POST(request: NextRequest) {
       gp3: number;
       opex: number;
       netProfit: number;
+      adSpend: number;
+      mer: number;
+      poas: number;
     }> = {};
 
     for (const brand of brands) {
@@ -152,6 +155,11 @@ export async function POST(request: NextRequest) {
       const brandOpex = todayOpex * revenueShare;
       const brandNetProfit = brandSummary.gp3 - brandOpex;
 
+      // Calculate brand-level marketing metrics
+      const brandAdSpend = brandSummary.totalAdSpend;
+      const brandMer = brandAdSpend > 0 ? brandSummary.totalRevenue / brandAdSpend : 0;
+      const brandPoas = brandAdSpend > 0 ? (brandSummary.gp3 / brandAdSpend) * 100 : 0;
+
       brandSummaries[brand.code] = {
         code: brand.code,
         name: brand.name,
@@ -166,6 +174,9 @@ export async function POST(request: NextRequest) {
         gp3: brandSummary.gp3,
         opex: brandOpex,
         netProfit: brandNetProfit,
+        adSpend: brandAdSpend,
+        mer: brandMer,
+        poas: brandPoas,
       };
     }
 

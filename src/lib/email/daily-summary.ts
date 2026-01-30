@@ -74,6 +74,10 @@ export interface BrandSummary {
   gp3: number;
   opex: number;
   netProfit: number;
+  // Marketing metrics
+  adSpend: number;
+  mer: number;  // Revenue / Ad Spend
+  poas: number; // (GP3 / Ad Spend) * 100
 }
 
 export interface DailySummaryData {
@@ -558,6 +562,34 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
   ${data.totalAdSpend > 0 ? `
   <div style="background: ${COLORS.white}; border: 1px solid ${COLORS.border}; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
     <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: ${COLORS.secondary}; margin-bottom: 16px;">Marketing</div>
+
+    ${data.brands && Object.keys(data.brands).length > 0 ? `
+    <!-- Marketing by Brand Table -->
+    <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid ${COLORS.border};">
+        <td style="padding: 8px 0; font-weight: 600; color: ${COLORS.muted};">Brand</td>
+        <td style="padding: 8px 0; text-align: right; font-weight: 600; color: ${COLORS.muted};">Ad Spend</td>
+        <td style="padding: 8px 0; text-align: right; font-weight: 600; color: ${COLORS.muted};">MER</td>
+        <td style="padding: 8px 0; text-align: right; font-weight: 600; color: ${COLORS.muted};">POAS</td>
+      </tr>
+      ${Object.values(data.brands).filter(b => b.adSpend > 0).map(brand => `
+      <tr>
+        <td style="padding: 10px 0; color: ${COLORS.primary}; font-weight: 500;">${brand.name}</td>
+        <td style="padding: 10px 0; text-align: right; font-variant-numeric: tabular-nums;">${formatCurrency(brand.adSpend)}</td>
+        <td style="padding: 10px 0; text-align: right; font-weight: 500; color: ${brand.mer >= 3 ? COLORS.success : COLORS.secondary};">${brand.mer.toFixed(2)}x</td>
+        <td style="padding: 10px 0; text-align: right; font-weight: 500; color: ${brand.poas >= 100 ? COLORS.success : COLORS.danger};">${brand.poas.toFixed(0)}%</td>
+      </tr>
+      `).join('')}
+      <!-- Group Total Row -->
+      <tr style="background: ${COLORS.primary}; border-radius: 6px;">
+        <td style="padding: 12px 10px; color: ${COLORS.white}; font-weight: 600; border-radius: 6px 0 0 6px;">Valhalla Group</td>
+        <td style="padding: 12px 10px; text-align: right; color: ${COLORS.white}; font-weight: 500; font-variant-numeric: tabular-nums;">${formatCurrency(data.totalAdSpend)}</td>
+        <td style="padding: 12px 10px; text-align: right; color: ${data.mer >= 3 ? '#86efac' : '#fca5a5'}; font-weight: 600;">${data.mer.toFixed(2)}x</td>
+        <td style="padding: 12px 10px; text-align: right; color: ${data.poas >= 100 ? '#86efac' : '#fca5a5'}; font-weight: 600; border-radius: 0 6px 6px 0;">${data.poas.toFixed(0)}%</td>
+      </tr>
+    </table>
+    ` : `
+    <!-- Fallback: Simple table when no brand data -->
     <table style="width: 100%; font-size: 14px;">
       <tr>
         <td style="padding: 8px 0; color: ${COLORS.secondary};">Ad Spend</td>
@@ -572,6 +604,7 @@ export function generateDailySummaryHTML(data: DailySummaryData): string {
         <td style="padding: 8px 0; text-align: right; font-weight: 500; color: ${data.poas >= 100 ? COLORS.success : COLORS.danger};">${data.poas.toFixed(0)}%</td>
       </tr>
     </table>
+    `}
   </div>
   ` : ''}
 
@@ -648,9 +681,16 @@ B2B: ${formatCurrency(data.b2bRevenue)}`}
 ${data.totalAdSpend > 0 ? `
 MARKETING
 ─────────
+${data.brands && Object.keys(data.brands).length > 0
+  ? Object.values(data.brands).filter(b => b.adSpend > 0).map(brand =>
+      `${brand.name}: ${formatCurrency(brand.adSpend)} · MER ${brand.mer.toFixed(2)}x · POAS ${brand.poas.toFixed(0)}%`
+    ).join('\n') + `\n\nValhalla Group Total:
 Ad Spend: ${formatCurrency(data.totalAdSpend)}
 MER: ${data.mer.toFixed(2)}x
-POAS: ${data.poas.toFixed(0)}%
+POAS: ${data.poas.toFixed(0)}%`
+  : `Ad Spend: ${formatCurrency(data.totalAdSpend)}
+MER: ${data.mer.toFixed(2)}x
+POAS: ${data.poas.toFixed(0)}%`}
 ` : ''}
 ───
 View dashboard: https://pnl.displaychamp.com
