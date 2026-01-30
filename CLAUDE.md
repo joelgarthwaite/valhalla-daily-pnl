@@ -263,6 +263,7 @@ Sync PAID invoices from Xero and approve them to create B2B orders.
 - De-duplicates on sync (won't create duplicates)
 - Invoice number used as order_number for easy reference
 - **Tracking number picker** - Select from unmatched invoice records (DHL) OR unlinked shipments (Royal Mail, etc.), or enter manually
+- **Duplicate invoice detection** - When a tracking number already belongs to an existing order (e.g., separate invoices for product and shipping), shows warning and offers "Link to Existing Order" instead of creating duplicate
 - Status tracking: pending → approved/ignored
 
 **Required Migration:** `018_b2b_orders_platform.sql` - Drops the platform check constraint to allow `b2b` as a platform type. Run in Supabase SQL Editor if you get "orders_platform_check" constraint errors.
@@ -304,14 +305,18 @@ Match existing B2B orders in the system with Xero invoices using intelligent con
   - `status`: "PAID" | "AUTHORISED" | "ALL" (default: "ALL")
   - `skipDateFilter`: true to fetch all invoices ignoring date range
 - `GET /api/xero/invoices/[id]` - Get single invoice details
-- `PATCH /api/xero/invoices/[id]` - Approve or ignore invoice
+- `PATCH /api/xero/invoices/[id]` - Approve, ignore, or link invoice
   ```json
   {
-    "action": "approve",
+    "action": "approve | ignore | link_existing",
     "tracking_number": "optional",
+    "existing_order_id": "required for link_existing",
     "notes": "optional"
   }
   ```
+  - `approve`: Creates new B2B order from invoice
+  - `ignore`: Dismisses invoice with optional reason
+  - `link_existing`: Links invoice to existing order (for duplicate invoices on same tracking number)
 - `DELETE /api/xero/invoices/[id]` - Delete pending invoice
 - `GET /api/xero/invoices/reconcile` - Get unreconciled B2B orders with match suggestions
   ```
@@ -335,6 +340,7 @@ Match existing B2B orders in the system with Xero invoices using intelligent con
 - `xero_invoice_id`: The Xero invoice ID
 - `xero_invoice_number`: The invoice number
 - `reconciled_at`: Timestamp when reconciled
+- `linked_xero_invoices`: Array of invoice numbers linked via `link_existing` action (for orders with multiple invoices)
 
 ---
 
