@@ -213,6 +213,17 @@ Both DC and BI use a unified B-series SKU format:
 | `RTROON` | Royal Troon |
 | `STANDREWS` | St Andrews |
 
+### Limited Edition Base Codes
+
+LE products use **unique base codes** that include the edition name AND ball type (because different balls have different colored bases):
+
+| Edition | Ball Type | Base Code | Full SKU |
+|---------|-----------|-----------|----------|
+| Pirate | TP5 | `B2-PIRTP5` | `B2-PIRTP5-GT-C2` |
+| Pirate | TP5X | `B2-PIRTP5X` | `B2-PIRTP5X-GT-C2` |
+
+**Pattern:** `B2-[EDITION][BALL]-GT-C2[-P][-BALL]`
+
 **Full documentation:** See `docs/SKU-NAMING-CONVENTIONS.md` and `docs/PRODUCTS.md`
 
 ---

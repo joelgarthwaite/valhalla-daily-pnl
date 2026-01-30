@@ -189,7 +189,7 @@ Cases can have UV printing applied. Two types:
 | **GBDCB** | Golf Ball Display Case Base | - | Component SKU (internal) |
 | **GBMS** | Golf Ball Marker Stand | - | 4×4 magnetic display |
 | **GBPS** | Golf Pencil Stand | - | Pencil display |
-| **LEGBDC** | Limited Edition Golf Ball Display Case | Tee | Special editions (e.g., TP5 Pirate) |
+| **LEGBDC** | Limited Edition Golf Ball Display Case | Tee | Special editions (e.g., TP5/TP5X Pirate - uses B2-PIRTP5/B2-PIRTP5X base) |
 
 ### Golf Accessory Product Components
 
@@ -219,6 +219,25 @@ Cases can have UV printing applied. Two types:
 |---------|-------|-------------|-------|
 | **Tennis Ball Case with Ball** | DC | TBDC...-BALL | Ball optional on request, custom printed |
 | **Bitcoin Case** | BI | B2-ICON-CS-BTC-C2-BTC | Etsy only, includes bitcoin token (shipped in envelope) |
+
+### Limited Edition Products
+
+LE products have custom-printed bases that are unique to each edition and ball type. The ball type (TP5/TP5X) is part of the base code because they have different colored prints.
+
+| Edition | Ball Type | Base Code | Full SKU | Notes |
+|---------|-----------|-----------|----------|-------|
+| Pirate | TP5 | `B2-PIRTP5` | `B2-PIRTP5-GT-C2` | Pirate-themed base, TP5 colorway |
+| Pirate | TP5X | `B2-PIRTP5X` | `B2-PIRTP5X-GT-C2` | Pirate-themed base, TP5X colorway |
+
+**With suffixes:**
+| Variant | TP5 SKU | TP5X SKU |
+|---------|---------|----------|
+| Base | `B2-PIRTP5-GT-C2` | `B2-PIRTP5X-GT-C2` |
+| Personalized | `B2-PIRTP5-GT-C2-P` | `B2-PIRTP5X-GT-C2-P` |
+| With Ball | `B2-PIRTP5-GT-C2-BALL` | `B2-PIRTP5X-GT-C2-BALL` |
+| Personalized + Ball | `B2-PIRTP5-GT-C2-P-BALL` | `B2-PIRTP5X-GT-C2-P-BALL` |
+
+**Future LE products** follow the same pattern: `B2-[EDITION][BALL]-GT-C2`
 
 ---
 

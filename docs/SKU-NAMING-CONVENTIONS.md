@@ -635,3 +635,30 @@ Both brands share the same physical components (bases, cases, etc.) but the acce
 | CUSTOMBG | B2/C2 |
 | Course designs | B2/C2 |
 | Baseball/Tennis/Cricket | B3/C3 |
+
+### Limited Edition Products
+
+Limited Edition cases use **unique base codes** that combine the edition name with ball type:
+
+| Edition | Ball | Base Code | Example SKU |
+|---------|------|-----------|-------------|
+| Pirate | TP5 | `B2-PIRTP5` | `B2-PIRTP5-GT-C2` |
+| Pirate | TP5X | `B2-PIRTP5X` | `B2-PIRTP5X-GT-C2` |
+
+**Why separate base codes?** TP5 and TP5X editions have different colored bases (custom printed in-house), so they require distinct base SKUs for BOM tracking.
+
+**Legacy Mapping:**
+| Legacy SKU | Standardized SKU |
+|------------|------------------|
+| `LEGBDCTP5PIRATE` | `B2-PIRTP5-GT-C2` |
+| `LEGBDCTP5PIRATEP` | `B2-PIRTP5-GT-C2-P` |
+| `LEGBDCTP5PIRATEBALL` | `B2-PIRTP5-GT-C2-BALL` |
+| `LEGBDCTP5PIRATEBALLP` | `B2-PIRTP5-GT-C2-P-BALL` |
+| `LEGBDCTP5XPIRATE` | `B2-PIRTP5X-GT-C2` |
+| `LEGBDCTP5XPIRATEP` | `B2-PIRTP5X-GT-C2-P` |
+| `LEGBDCTP5XPIRATEBALL` | `B2-PIRTP5X-GT-C2-BALL` |
+| `LEGBDCTP5XPIRATEBALLP` | `B2-PIRTP5X-GT-C2-P-BALL` |
+
+**Future LE Products:** Follow the same pattern: `B2-[EDITION][BALL]-GT-C2`
+- Pacman TP5: `B2-PACTP5-GT-C2`
+- Pacman TP5X: `B2-PACTP5X-GT-C2`
