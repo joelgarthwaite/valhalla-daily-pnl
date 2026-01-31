@@ -26,6 +26,7 @@ import {
   CountryTable,
   CountryRevenueChart,
 } from '@/components/country';
+import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import { useFilterParams } from '@/hooks/useFilterParams';
 import type { CountryPnL, CountrySummary } from '@/lib/pnl/country-calculations';
 import type { BrandFilter } from '@/types';
@@ -159,15 +160,16 @@ function CountryAnalysisContent() {
   };
 
   return (
+    <PullToRefresh onRefresh={async () => { await fetchData(); }}>
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Globe className="h-6 w-6" />
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Globe className="h-5 w-5 sm:h-6 sm:w-6" />
             Country Analysis
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
             P&L breakdown by shipping destination
           </p>
         </div>
@@ -177,11 +179,12 @@ function CountryAnalysisContent() {
             size="sm"
             onClick={() => fetchData()}
             disabled={isLoading}
+            className="h-9 sm:h-8"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`h-4 w-4 sm:mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button variant="outline" size="sm" disabled>
+          <Button variant="outline" size="sm" disabled className="hidden sm:flex h-8">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
@@ -342,6 +345,7 @@ function CountryAnalysisContent() {
         </CardContent>
       </Card>
     </div>
+    </PullToRefresh>
   );
 }
 
