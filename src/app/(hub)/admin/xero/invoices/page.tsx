@@ -44,9 +44,55 @@ import {
   Link2,
   Unlink,
   ArrowRight,
+  ArrowRightLeft,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, subDays } from 'date-fns';
+import type { InterCompanyCategory } from '@/types';
+import { IC_CATEGORY_LABELS } from '@/types';
+
+// IC detection patterns - matches customer names that suggest inter-company transactions
+const IC_PATTERNS = ['bright ivy', 'brightivy', 'display champ', 'displaychamp', 'valhalla'];
+
+// Check if a contact name suggests an inter-company transaction
+function isInterCompanyContact(contactName: string): boolean {
+  const nameLower = contactName.toLowerCase();
+  return IC_PATTERNS.some(pattern => nameLower.includes(pattern));
+}
+
+// Determine the IC direction based on invoice brand and contact name
+function getICDirection(brandCode: string | undefined, contactName: string): { from: 'DC' | 'BI'; to: 'DC' | 'BI' } | null {
+  const nameLower = contactName.toLowerCase();
+
+  // If invoice is from DC's Xero and customer is BI-related, DC is selling to BI
+  if (brandCode === 'DC' && (nameLower.includes('bright ivy') || nameLower.includes('brightivy'))) {
+    return { from: 'DC', to: 'BI' };
+  }
+
+  // If invoice is from BI's Xero and customer is DC-related, BI is selling to DC
+  if (brandCode === 'BI' && (nameLower.includes('display champ') || nameLower.includes('displaychamp'))) {
+    return { from: 'BI', to: 'DC' };
+  }
+
+  // If customer mentions valhalla, default based on invoice source
+  if (nameLower.includes('valhalla')) {
+    if (brandCode === 'DC') return { from: 'DC', to: 'BI' };
+    if (brandCode === 'BI') return { from: 'BI', to: 'DC' };
+  }
+
+  return null;
+}
+
+const IC_CATEGORIES: InterCompanyCategory[] = [
+  'manufacturing',
+  'materials',
+  'labor',
+  'overhead',
+  'services',
+  'logistics',
+  'other',
+];
 
 interface XeroInvoiceLineItem {
   Description: string;
@@ -189,6 +235,18 @@ export default function XeroInvoicesPage() {
   } | null>(null);
   const [checkingTracking, setCheckingTracking] = useState(false);
 
+  // IC Approval state
+  const [icDialogOpen, setIcDialogOpen] = useState(false);
+  const [icInvoice, setIcInvoice] = useState<XeroInvoiceRecord | null>(null);
+  const [icForm, setIcForm] = useState({
+    from_brand: 'DC' as 'DC' | 'BI',
+    to_brand: 'BI' as 'DC' | 'BI',
+    category: 'manufacturing' as InterCompanyCategory,
+    description: '',
+  });
+  const [icLoading, setIcLoading] = useState(false);
+  const [brands, setBrands] = useState<{ id: string; code: string; name: string }[]>([]);
+
   // Sync dialog states
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [syncBrand, setSyncBrand] = useState('DC');
@@ -211,7 +269,21 @@ export default function XeroInvoicesPage() {
 
   useEffect(() => {
     setMounted(true);
+    // Fetch brands for IC form
+    fetchBrands();
   }, []);
+
+  const fetchBrands = async () => {
+    try {
+      const response = await fetch('/api/intercompany');
+      const data = await response.json();
+      if (data.brands) {
+        setBrands(data.brands);
+      }
+    } catch (error) {
+      console.error('Error fetching brands:', error);
+    }
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -390,6 +462,89 @@ export default function XeroInvoicesPage() {
     setUnmatchedTrackings([]);
     setTrackingSearch('');
     setExistingOrderForTracking(null);
+  };
+
+  // Open IC approval dialog
+  const openIcDialog = (invoice: XeroInvoiceRecord) => {
+    setIcInvoice(invoice);
+
+    // Auto-detect direction based on invoice brand and contact
+    const direction = getICDirection(invoice.brand?.code, invoice.contact_name);
+
+    setIcForm({
+      from_brand: direction?.from || 'DC',
+      to_brand: direction?.to || 'BI',
+      category: 'manufacturing',
+      description: '',
+    });
+    setIcDialogOpen(true);
+  };
+
+  // Handle IC approval
+  const handleIcApproval = async () => {
+    if (!icInvoice) return;
+
+    if (icForm.from_brand === icForm.to_brand) {
+      toast.error('From and To brands must be different');
+      return;
+    }
+
+    setIcLoading(true);
+    try {
+      // Find brand IDs
+      const fromBrand = brands.find(b => b.code === icForm.from_brand);
+      const toBrand = brands.find(b => b.code === icForm.to_brand);
+
+      if (!fromBrand || !toBrand) {
+        toast.error('Could not find brand IDs');
+        return;
+      }
+
+      // Create IC transaction
+      const icResponse = await fetch('/api/intercompany', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from_brand_id: fromBrand.id,
+          to_brand_id: toBrand.id,
+          transaction_date: icInvoice.invoice_date || format(new Date(), 'yyyy-MM-dd'),
+          description: icForm.description || `Xero Invoice: ${icInvoice.invoice_number} - ${icInvoice.contact_name}`,
+          category: icForm.category,
+          subtotal: icInvoice.subtotal,
+          tax: icInvoice.tax_total,
+          notes: `Auto-created from Xero Invoice ${icInvoice.invoice_number}`,
+        }),
+      });
+
+      const icData = await icResponse.json();
+      if (!icResponse.ok) {
+        throw new Error(icData.error || 'Failed to create IC transaction');
+      }
+
+      // Mark the Xero invoice as approved (but link it to IC, not B2B order)
+      const approveResponse = await fetch(`/api/xero/invoices/${icInvoice.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ignore', // Mark as "ignored" since we're using IC workflow
+          notes: `Approved as IC Transaction: ${icData.transaction?.id?.slice(0, 8)}`,
+        }),
+      });
+
+      if (!approveResponse.ok) {
+        console.warn('Could not mark invoice as processed');
+      }
+
+      toast.success(`IC Transaction created: ${icForm.from_brand} → ${icForm.to_brand} for ${formatCurrency(icInvoice.subtotal)}`);
+      setIcDialogOpen(false);
+      setIcInvoice(null);
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error creating IC transaction:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create IC transaction');
+    } finally {
+      setIcLoading(false);
+    }
   };
 
   const fetchUnmatchedTrackings = async () => {
@@ -710,9 +865,17 @@ export default function XeroInvoicesPage() {
                             {formatCurrency(invoice.subtotal)}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">
-                              {invoice.brand?.code || 'Unknown'}
-                            </Badge>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline">
+                                {invoice.brand?.code || 'Unknown'}
+                              </Badge>
+                              {isInterCompanyContact(invoice.contact_name) && (
+                                <Badge className="bg-purple-100 text-purple-800 border-purple-200">
+                                  <ArrowRightLeft className="h-3 w-3 mr-1" />
+                                  IC
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge
@@ -726,14 +889,36 @@ export default function XeroInvoicesPage() {
                           <TableCell className="text-right">
                             {invoice.approval_status === 'pending' && (
                               <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => openActionDialog(invoice, 'approve')}
-                                >
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Approve
-                                </Button>
+                                {isInterCompanyContact(invoice.contact_name) ? (
+                                  <>
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => openIcDialog(invoice)}
+                                      className="bg-purple-600 hover:bg-purple-700"
+                                    >
+                                      <ArrowRightLeft className="h-3 w-3 mr-1" />
+                                      Approve as IC
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openActionDialog(invoice, 'approve')}
+                                      title="Approve as regular B2B order"
+                                    >
+                                      B2B
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => openActionDialog(invoice, 'approve')}
+                                  >
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Approve
+                                  </Button>
+                                )}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -1524,6 +1709,155 @@ export default function XeroInvoicesPage() {
                 <>
                   <Link2 className="h-4 w-4 mr-2" />
                   Confirm & Link
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* IC Approval Dialog */}
+      <Dialog open={icDialogOpen} onOpenChange={(open) => { if (!open) { setIcDialogOpen(false); setIcInvoice(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-purple-600" />
+              Approve as Inter-Company Transaction
+            </DialogTitle>
+            <DialogDescription>
+              This invoice appears to be between DC and BI. Create an IC transaction instead of a B2B order.
+            </DialogDescription>
+          </DialogHeader>
+
+          {icInvoice && (
+            <div className="space-y-4 py-4">
+              {/* Invoice Summary */}
+              <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Invoice:</span>
+                    <span className="font-mono font-medium">{icInvoice.invoice_number}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Amount:</span>
+                    <span className="font-mono font-bold">{formatCurrency(icInvoice.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Customer:</span>
+                    <span className="truncate ml-2">{icInvoice.contact_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Date:</span>
+                    <span>{formatDate(icInvoice.invoice_date)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* IC Direction */}
+              <div className="grid grid-cols-5 gap-2 items-end">
+                <div className="col-span-2 space-y-2">
+                  <Label>From (Provider)</Label>
+                  <Select
+                    value={icForm.from_brand}
+                    onValueChange={(v) => setIcForm({ ...icForm, from_brand: v as 'DC' | 'BI' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DC">Display Champ (DC)</SelectItem>
+                      <SelectItem value="BI">Bright Ivy (BI)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-center pb-2">
+                  <ArrowRightLeft className="h-5 w-5 text-purple-600" />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label>To (Receiver)</Label>
+                  <Select
+                    value={icForm.to_brand}
+                    onValueChange={(v) => setIcForm({ ...icForm, to_brand: v as 'DC' | 'BI' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DC">Display Champ (DC)</SelectItem>
+                      <SelectItem value="BI">Bright Ivy (BI)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Category */}
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select
+                  value={icForm.category}
+                  onValueChange={(v) => setIcForm({ ...icForm, category: v as InterCompanyCategory })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {IC_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {IC_CATEGORY_LABELS[cat]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label>Description (optional)</Label>
+                <Input
+                  placeholder={`Xero Invoice: ${icInvoice.invoice_number}`}
+                  value={icForm.description}
+                  onChange={(e) => setIcForm({ ...icForm, description: e.target.value })}
+                />
+              </div>
+
+              {/* P&L Impact */}
+              <div className="bg-muted/50 rounded-lg p-4 text-sm">
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  P&L Impact
+                </h4>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span>{icForm.from_brand === 'DC' ? 'Display Champ' : 'Bright Ivy'}:</span>
+                    <span className="text-green-600 font-medium">+{formatCurrency(icInvoice.subtotal)} IC Revenue</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{icForm.to_brand === 'DC' ? 'Display Champ' : 'Bright Ivy'}:</span>
+                    <span className="text-red-600 font-medium">+{formatCurrency(icInvoice.subtotal)} IC Expense</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIcDialogOpen(false); setIcInvoice(null); }} disabled={icLoading}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleIcApproval}
+              disabled={icLoading || icForm.from_brand === icForm.to_brand}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {icLoading ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                  Create IC Transaction
                 </>
               )}
             </Button>

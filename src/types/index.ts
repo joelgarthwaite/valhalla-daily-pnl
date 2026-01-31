@@ -233,6 +233,10 @@ export interface DailyPnL {
   b2b_revenue: number;
   total_revenue: number;
 
+  // Inter-Company (IC)
+  ic_revenue: number;    // Services provided TO sister company
+  ic_expense: number;    // Services received FROM sister company
+
   // Refunds
   total_refunds: number;
   net_revenue: number;
@@ -348,6 +352,10 @@ export interface PnLSummary {
   totalAdSpend: number;
   platformFees: number;
   totalDiscounts: number;
+
+  // Inter-Company (IC)
+  icRevenue: number;     // Services provided TO sister company (adds to GP2)
+  icExpense: number;     // Services received FROM sister company (subtracts from GP2)
 
   // Gross Profit Tiers
   gp1: number; // Revenue - COGS
@@ -1297,4 +1305,74 @@ export const XERO_INVOICE_STATUS_LABELS: Record<XeroInvoiceApprovalStatus, strin
   pending: 'Pending Approval',
   approved: 'Approved',
   ignored: 'Ignored',
+};
+
+// ============================================
+// Inter-Company Transaction Types
+// ============================================
+
+export type InterCompanyCategory =
+  | 'manufacturing'   // Manufacturing services
+  | 'materials'       // Raw materials, components
+  | 'labor'          // Labor/staffing services
+  | 'overhead'       // Overhead allocation
+  | 'services'       // General services
+  | 'logistics'      // Warehousing, shipping
+  | 'other';         // Miscellaneous
+
+export type InterCompanyStatus = 'pending' | 'approved' | 'voided';
+
+export interface InterCompanyTransaction {
+  id: string;
+  from_brand_id: string;    // Service provider (gets IC Revenue)
+  to_brand_id: string;      // Service receiver (gets IC Expense)
+  transaction_date: string;
+  description: string;
+  category: InterCompanyCategory;
+  subtotal: number;
+  tax: number;
+  total: number;
+  xero_invoice_id: string | null;
+  xero_invoice_number: string | null;
+  status: InterCompanyStatus;
+  approved_at: string | null;
+  approved_by: string | null;
+  pricing_notes: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  from_brand?: Brand;
+  to_brand?: Brand;
+}
+
+export interface InterCompanyTransactionFormData {
+  from_brand_id: string;
+  to_brand_id: string;
+  transaction_date: string;
+  description: string;
+  category: InterCompanyCategory;
+  subtotal: number;
+  tax?: number;
+  pricing_notes?: string;
+  notes?: string;
+}
+
+// Category labels for display
+export const IC_CATEGORY_LABELS: Record<InterCompanyCategory, string> = {
+  manufacturing: 'Manufacturing',
+  materials: 'Materials',
+  labor: 'Labor',
+  overhead: 'Overhead',
+  services: 'Services',
+  logistics: 'Logistics',
+  other: 'Other',
+};
+
+// Status labels for display
+export const IC_STATUS_LABELS: Record<InterCompanyStatus, string> = {
+  pending: 'Pending Approval',
+  approved: 'Approved',
+  voided: 'Voided',
 };

@@ -127,10 +127,16 @@ export function calculateGP2(
 }
 
 /**
- * Calculate GP3 (Gross Profit 3): GP2 - Ad Spend (True Profit)
+ * Calculate GP3 (Gross Profit 3): GP2 + IC Revenue - IC Expense - Ad Spend (True Profit)
+ * IC amounts are now positioned between GP2 and Ad Spend per the updated waterfall
  */
-export function calculateGP3(gp2: number, adSpend: number): number {
-  return gp2 - adSpend;
+export function calculateGP3(
+  gp2: number,
+  adSpend: number,
+  icRevenue: number = 0,
+  icExpense: number = 0
+): number {
+  return gp2 + icRevenue - icExpense - adSpend;
 }
 
 /**
@@ -411,6 +417,9 @@ export function calculateDailyPnL(input: DailyDataInput): Omit<DailyPnL, 'id' | 
     etsy_fees: etsyFees,
     total_platform_fees: totalPlatformFees,
     total_discounts: 0, // TODO: Calculate from promotions
+    // Inter-Company (IC) - default to 0, set by refresh route
+    ic_revenue: 0,
+    ic_expense: 0,
     gp1,
     gp2,
     gp3,
@@ -483,6 +492,10 @@ export function calculatePnLSummary(
   const pickPackCost = dbPickPackCost > 0 ? dbPickPackCost : calculatePickPackCost(netRevenue || totalRevenue);
   const logisticsCost = dbLogisticsCost > 0 ? dbLogisticsCost : calculateLogisticsCost(netRevenue || totalRevenue);
 
+  // Inter-Company (IC) amounts
+  const icRevenue = dailyData.reduce((sum, d) => sum + Number(d.ic_revenue || 0), 0);
+  const icExpense = dailyData.reduce((sum, d) => sum + Number(d.ic_expense || 0), 0);
+
   // Gross Profit Tiers - calculate fallbacks if DB columns don't exist
   const dbGp1 = dailyData.reduce((sum, d) => sum + Number(d.gp1 || 0), 0);
   const dbGp2 = dailyData.reduce((sum, d) => sum + Number(d.gp2 || 0), 0);
@@ -494,7 +507,7 @@ export function calculatePnLSummary(
   // which is different from no GP columns existing (old schema fallback)
   const gp1 = dbGp1 !== 0 ? dbGp1 : calculateGP1(netRevenue, cogs);
   const gp2 = dbGp2 !== 0 ? dbGp2 : calculateGP2(gp1, pickPackCost, platformFees, logisticsCost);
-  const gp3 = dbGp3 !== 0 ? dbGp3 : calculateGP3(gp2, totalAdSpend);
+  const gp3 = dbGp3 !== 0 ? dbGp3 : calculateGP3(gp2, totalAdSpend, icRevenue, icExpense);
 
   // Legacy (backwards compatibility)
   const grossProfit = dailyData.reduce((sum, d) => sum + Number(d.gross_profit || 0), 0) || gp1;
@@ -542,6 +555,9 @@ export function calculatePnLSummary(
     totalAdSpend,
     platformFees,
     totalDiscounts,
+    // Inter-Company (IC)
+    icRevenue,         // Services provided TO sister company
+    icExpense,         // Services received FROM sister company
     // Profit tiers
     gp1,
     gp2,
@@ -615,9 +631,10 @@ export function calculatePnLSummaryWithComparison(
 
 /**
  * Generate waterfall chart data from P&L summary
- * Shows: Product Revenue → Refunds → Net Revenue → COGS → GP1 → Ops → GP2 → Ads → GP3 → OPEX → True Net
+ * Shows: Product Revenue → Refunds → Net Revenue → COGS → GP1 → Ops → GP2 → IC → Ads → GP3 → OPEX → True Net
  * Note: Product Revenue = subtotals only (excludes shipping charged to customers)
  * Shipping margin is tracked separately and not included in this P&L flow
+ * IC (Inter-Company) amounts appear between GP2 and Ad Spend
  */
 export function generateWaterfallData(summary: PnLSummary): WaterfallDataPoint[] {
   const data: WaterfallDataPoint[] = [
@@ -630,9 +647,20 @@ export function generateWaterfallData(summary: PnLSummary): WaterfallDataPoint[]
     { name: 'Platform Fees', value: -summary.platformFees, isSubtraction: true },
     { name: 'Logistics', value: -summary.logisticsCost, isSubtraction: true },
     { name: 'GP2', value: summary.gp2, isTotal: true },
+  ];
+
+  // Add IC amounts if they exist (after GP2, before Ad Spend)
+  if (summary.icRevenue > 0) {
+    data.push({ name: 'IC Revenue', value: summary.icRevenue, isSubtraction: false });
+  }
+  if (summary.icExpense > 0) {
+    data.push({ name: 'IC Expense', value: -summary.icExpense, isSubtraction: true });
+  }
+
+  data.push(
     { name: 'Ad Spend', value: -summary.totalAdSpend, isSubtraction: true },
     { name: 'GP3 (Contribution)', value: summary.gp3, isTotal: true },
-  ];
+  );
 
   // Add OPEX and True Net Profit if OPEX exists
   if (summary.totalOpex > 0) {

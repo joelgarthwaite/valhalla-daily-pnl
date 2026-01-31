@@ -108,6 +108,7 @@ The CSP allows:
 - `country_ad_spend` - Ad spend by country from Meta API (for GP3 in Country Analysis)
 - `excluded_orders` - Permanently excluded orders (prevents re-sync)
 - `sku_mapping` - SKU mappings for inventory forecasting (old_sku → current_sku)
+- `inter_company_transactions` - Inter-company transactions between DC and BI
 
 ### Inventory Tables
 - `component_categories` - Categories lookup (cases, bases, accessories, packaging, display_accessories)
@@ -138,6 +139,7 @@ The CSP allows:
 - `supabase/migrations/015_inventory_schema.sql` - Full inventory management schema (Phase A)
 - `supabase/migrations/018_b2b_orders_platform.sql` - Allow 'b2b' as platform type for orders
 - `supabase/migrations/019_xero_invoices.sql` - Xero invoice sync for B2B orders
+- `supabase/migrations/020_inter_company_transactions.sql` - Inter-company transactions (DC ↔ BI)
 
 ---
 
@@ -341,6 +343,33 @@ Sync PAID invoices from Xero and approve them to create B2B orders.
 - **Tracking number picker** - Select from unmatched invoice records (DHL) OR unlinked shipments (Royal Mail, etc.), or enter manually
 - **Duplicate invoice detection** - When a tracking number already belongs to an existing order (e.g., separate invoices for product and shipping), shows warning and offers "Link to Existing Order" instead of creating duplicate
 - Status tracking: pending → approved/ignored
+- **Inter-Company Detection** - Automatically detects IC invoices (see below)
+
+#### Inter-Company Invoice Detection
+
+When approving Xero invoices, the system automatically detects inter-company transactions based on customer name patterns:
+
+**Detection Patterns:**
+- "Bright Ivy" / "BrightIvy" → DC invoicing BI
+- "Display Champ" / "DisplayChamp" → BI invoicing DC
+- "Valhalla" → Cross-brand transaction
+
+**UI Indicators:**
+- Purple "IC" badge appears on detected inter-company invoices
+- "Approve as IC" button replaces standard "Approve as B2B" button
+- IC Approval Dialog shows P&L impact preview for both brands
+
+**IC Approval Flow:**
+1. Invoice detected as inter-company (purple IC badge)
+2. Click "Approve as IC" to open IC-specific dialog
+3. Select category (manufacturing, materials, labor, overhead, services, logistics, other)
+4. Optionally add pricing notes for transfer pricing audit trail
+5. Confirm to create IC transaction (not B2B order)
+
+**P&L Impact Preview:**
+The IC dialog shows exactly how the transaction will affect each brand:
+- **From Brand** (provider): +IC Revenue → increases GP3
+- **To Brand** (receiver): +IC Expense → decreases GP3
 
 **Required Migration:** `018_b2b_orders_platform.sql` - Drops the platform check constraint to allow `b2b` as a platform type. Run in Supabase SQL Editor if you get "orders_platform_check" constraint errors.
 
@@ -675,7 +704,7 @@ Net Revenue = Product Revenue - Refunds
               (used for all margin calculations)
 ```
 
-### Profit Tiers (GP1 → GP2 → GP3 → True Net)
+### Profit Tiers (GP1 → GP2 → IC → GP3 → True Net)
 
 ```
 GP1 = Net Revenue - COGS
@@ -684,12 +713,45 @@ GP1 = Net Revenue - COGS
 GP2 = GP1 - Pick&Pack - Payment Fees - Logistics
       (Operating profit after fulfillment costs)
 
-GP3 = GP2 - Ad Spend
-      (Contribution Margin after Ads)
+GP3 = GP2 + IC Revenue - IC Expense - Ad Spend
+      (Contribution Margin after Inter-Company and Ads)
 
 True Net Profit = GP3 - OPEX
       (THE BOTTOM LINE - after all operating expenses)
 ```
+
+### Inter-Company (IC) Transactions
+
+Inter-company transactions track services provided between Display Champ and Bright Ivy under their arms-length agreement. DC provides manufacturing, materials, labor, and overhead services to BI.
+
+**How IC affects P&L:**
+
+| Transaction | DC's P&L | BI's P&L |
+|-------------|----------|----------|
+| DC → BI (service) | +IC Revenue | +IC Expense |
+| BI → DC (service) | +IC Expense | +IC Revenue |
+
+**Position in Waterfall:**
+IC amounts appear **after GP2, before Ad Spend**:
+```
+GP2
++ IC Revenue     ← Services TO sister company (income)
+- IC Expense     ← Services FROM sister company (cost)
+- Ad Spend
+= GP3
+```
+
+**Example - DC provides £10,000 manufacturing to BI:**
+- DC shows +£10,000 IC Revenue (increases GP3)
+- BI shows +£10,000 IC Expense (decreases GP3)
+- Net group impact: £0 (eliminates on consolidation)
+
+**Manage IC:** Admin > Inter-Company (`/admin/intercompany`)
+
+**Migration Note:** Historic IC transactions that were previously recorded as B2B revenue should be:
+1. Created as IC transactions with the correct dates
+2. Original B2B orders excluded from P&L to avoid double-counting
+3. P&L refreshed after changes
 
 ### Operating Expenses (OPEX)
 
@@ -1276,6 +1338,40 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?type=morning&test=tru
   ]
 }
 ```
+
+### Inter-Company Transactions
+- `GET /api/intercompany` - List IC transactions with filters
+  - Query params: `from`, `to`, `status`, `from_brand_id`, `to_brand_id`
+  - Returns: transactions array, brands, summary stats
+- `POST /api/intercompany` - Create IC transaction
+  ```json
+  {
+    "from_brand_id": "uuid",
+    "to_brand_id": "uuid",
+    "transaction_date": "2026-01-31",
+    "description": "Manufacturing services Q1 2026",
+    "category": "manufacturing",
+    "subtotal": 10000,
+    "tax": 0,
+    "pricing_notes": "Arms-length rate per agreement"
+  }
+  ```
+- `PATCH /api/intercompany` - Update/approve/void transaction
+  ```json
+  // Approve
+  { "id": "uuid", "action": "approve" }
+  // Void
+  { "id": "uuid", "action": "void" }
+  // Reopen
+  { "id": "uuid", "action": "reopen" }
+  // Edit fields
+  { "id": "uuid", "subtotal": 12000 }
+  ```
+- `DELETE /api/intercompany?id=uuid` - Delete pending transaction
+
+**IC Categories:** `manufacturing`, `materials`, `labor`, `overhead`, `services`, `logistics`, `other`
+
+**IC Statuses:** `pending` → `approved` / `voided`
 
 ### Meta Ads
 - `GET /api/meta/token` - Check token status and expiration

@@ -266,6 +266,37 @@ export async function POST(request: NextRequest) {
         day.b2b_orders += 1;
       }
 
+      // Fetch approved inter-company transactions for this brand
+      const { data: icTransactions } = await supabase
+        .from('inter_company_transactions')
+        .select('transaction_date, from_brand_id, to_brand_id, subtotal')
+        .eq('status', 'approved')
+        .or(`from_brand_id.eq.${brand.id},to_brand_id.eq.${brand.id}`)
+        .gte('transaction_date', fromDate)
+        .lte('transaction_date', toDate);
+
+      // Process IC transactions - aggregate by date
+      // If this brand is the sender (from_brand_id), it's IC revenue
+      // If this brand is the receiver (to_brand_id), it's IC expense
+      const icByDate = new Map<string, { ic_revenue: number; ic_expense: number }>();
+      for (const ic of icTransactions || []) {
+        const date = ic.transaction_date;
+        if (!date) continue;
+
+        if (!icByDate.has(date)) {
+          icByDate.set(date, { ic_revenue: 0, ic_expense: 0 });
+        }
+        const icData = icByDate.get(date)!;
+
+        if (ic.from_brand_id === brand.id) {
+          // This brand provided the service - IC Revenue
+          icData.ic_revenue += Number(ic.subtotal) || 0;
+        } else if (ic.to_brand_id === brand.id) {
+          // This brand received the service - IC Expense
+          icData.ic_expense += Number(ic.subtotal) || 0;
+        }
+      }
+
       // Build records for batch upsert
       const baseRecords: Record<string, unknown>[] = [];
       const extendedRecords: Record<string, unknown>[] = [];
@@ -275,6 +306,11 @@ export async function POST(request: NextRequest) {
         const netRevenue = totalRevenue - data.total_refunds;
         const totalAdSpend = data.meta_spend + data.google_spend + data.microsoft_spend + data.etsy_ads_spend;
         const totalOrders = data.shopify_orders + data.etsy_orders + data.b2b_orders;
+
+        // Get IC amounts for this date
+        const icData = icByDate.get(date) || { ic_revenue: 0, ic_expense: 0 };
+        const icRevenue = icData.ic_revenue;
+        const icExpense = icData.ic_expense;
 
         // Calculate COGS based on net revenue (after refunds)
         const cogsEstimated = netRevenue * cogsRate;
@@ -288,10 +324,10 @@ export async function POST(request: NextRequest) {
         const etsyFees = data.etsy_revenue * ETSY_FEE_RATE;
         const totalPlatformFees = shopifyFees + etsyFees;
 
-        // Calculate GP1, GP2, GP3
+        // Calculate GP1, GP2, GP3 (GP3 now includes IC amounts)
         const gp1 = calculateGP1(netRevenue, cogsEstimated);
         const gp2 = calculateGP2(gp1, pickPackCost, totalPlatformFees, logisticsCost);
-        const gp3 = calculateGP3(gp2, totalAdSpend);
+        const gp3 = calculateGP3(gp2, totalAdSpend, icRevenue, icExpense);
 
         // Legacy margins (GP1 = gross profit, GP3 = net profit)
         const grossProfit = gp1;
@@ -341,7 +377,7 @@ export async function POST(request: NextRequest) {
           last_calculated_at: new Date().toISOString(),
         };
 
-        // Extended record (with migration 003 fields)
+        // Extended record (with migration 003 + IC fields)
         const extendedRecord = {
           ...baseRecord,
           total_refunds: data.total_refunds,
@@ -358,6 +394,9 @@ export async function POST(request: NextRequest) {
           cop,
           mer,
           marketing_cost_ratio: marketingCostRatio,
+          // Inter-Company amounts (migration 020)
+          ic_revenue: icRevenue,
+          ic_expense: icExpense,
         };
 
         baseRecords.push(baseRecord);

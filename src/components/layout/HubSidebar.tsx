@@ -23,6 +23,7 @@ import {
   Layers,
   Building2,
   ClipboardList,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -166,6 +167,12 @@ const navSections: NavSection[] = [
         href: '/admin/xero/invoices',
         icon: FileText,
         description: 'B2B invoice approval',
+      },
+      {
+        label: 'Inter-Company',
+        href: '/admin/intercompany',
+        icon: ArrowRightLeft,
+        description: 'DC ↔ BI transactions',
       },
       {
         label: 'Admin Settings',
