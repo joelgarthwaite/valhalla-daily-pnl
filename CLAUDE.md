@@ -934,7 +934,13 @@ valhalla-daily-pnl/
 │   │   │       └── metrics/route.ts    # Investor metrics API (M&A data room)
 │   │   └── layout.tsx                  # Root layout
 │   ├── components/
-│   │   ├── ui/                         # shadcn/ui components
+│   │   ├── ui/                         # shadcn/ui components + custom UI
+│   │   │   └── pull-to-refresh.tsx     # Pull-to-refresh gesture wrapper
+│   │   ├── layout/                     # Layout components
+│   │   │   ├── HubSidebar.tsx          # Collapsible sidebar with swipe gestures
+│   │   │   ├── HubHeader.tsx           # Top header with menu toggle
+│   │   │   ├── MobileBottomNav.tsx     # Fixed bottom navigation for mobile
+│   │   │   └── index.ts                # Barrel export
 │   │   ├── dashboard/                  # Dashboard components
 │   │   │   ├── DashboardFilters.tsx    # Date/brand filters with mode toggle
 │   │   │   ├── WeekPicker.tsx          # ISO week selection component
@@ -1653,10 +1659,23 @@ The dashboard is a Progressive Web App (PWA) that can be installed on your iPhon
 
 ### Mobile Features
 
+- **Pull-to-refresh** - Swipe down from top to refresh data on all key pages
+- **Bottom navigation** - Fixed nav bar for quick access to main sections
 - **Responsive layout** - Sidebar collapses to hamburger menu on mobile
-- **Touch-friendly** - Larger tap targets, swipe to close sidebar
+- **Touch gestures** - Swipe from left edge to open sidebar, swipe left to close
+- **2-column KPI grids** - Compact card layouts optimized for mobile screens
+- **Touch-friendly buttons** - Larger tap targets (44px minimum), icon-only on mobile
+- **Responsive charts** - Reduced heights and compact legends on mobile
 - **Full-screen mode** - No browser chrome when launched from home screen
-- **Compact header** - Icon-only buttons on small screens
+- **Safe area support** - Proper insets for iOS home indicator
+
+### Mobile Components
+
+| Component | Purpose |
+|-----------|---------|
+| `src/components/ui/pull-to-refresh.tsx` | Pull-to-refresh gesture wrapper |
+| `src/components/layout/MobileBottomNav.tsx` | Fixed bottom navigation bar |
+| `src/components/layout/HubSidebar.tsx` | Swipe-to-close sidebar |
 
 ### PWA Files
 
