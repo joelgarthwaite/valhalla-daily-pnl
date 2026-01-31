@@ -30,25 +30,25 @@ function SummaryCard({
 }: SummaryCardProps) {
   return (
     <Card className={cn('transition-shadow hover:shadow-md', className)}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
           {title}
         </CardTitle>
-        <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
+        <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
           {icon}
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
         {isLoading ? (
           <div className="space-y-2">
-            <div className="h-8 w-24 bg-muted rounded animate-pulse" />
-            {subtitle && <div className="h-4 w-32 bg-muted rounded animate-pulse" />}
+            <div className="h-6 sm:h-8 w-20 sm:w-24 bg-muted rounded animate-pulse" />
+            {subtitle && <div className="h-4 w-24 sm:w-32 bg-muted rounded animate-pulse" />}
           </div>
         ) : (
           <>
-            <div className="text-2xl font-bold">{value}</div>
+            <div className="text-lg sm:text-2xl font-bold truncate">{value}</div>
             {subtitle && (
-              <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">{subtitle}</p>
             )}
           </>
         )}
@@ -59,7 +59,7 @@ function SummaryCard({
 
 export function CountrySummaryCards({ summary, isLoading = false }: CountrySummaryCardsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
       <SummaryCard
         title="Countries Served"
         value={summary ? summary.totalCountries.toString() : '0'}
