@@ -18,6 +18,7 @@ import {
   PnLTable,
   CashPositionCard,
 } from '@/components/dashboard';
+import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import {
   WaterfallChart,
   TargetGauge,
@@ -115,12 +116,13 @@ function PnLDashboardContent() {
   };
 
   return (
+    <PullToRefresh onRefresh={async () => { await refetch(); }}>
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">P&L Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold">P&L Dashboard</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
             Daily profit & loss analysis for Display Champ & Bright Ivy
           </p>
         </div>
@@ -131,15 +133,16 @@ function PnLDashboardContent() {
             onClick={() => refetch()}
             disabled={isLoading}
             title="Reload data from database"
+            className="h-9 sm:h-8"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`h-4 w-4 sm:mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={isExporting || !summary}>
-                <Download className={`h-4 w-4 mr-2 ${isExporting ? 'animate-pulse' : ''}`} />
-                {isExporting ? 'Exporting...' : 'Export'}
+              <Button variant="outline" size="sm" disabled={isExporting || !summary} className="h-9 sm:h-8">
+                <Download className={`h-4 w-4 sm:mr-2 ${isExporting ? 'animate-pulse' : ''}`} />
+                <span className="hidden sm:inline">{isExporting ? 'Exporting...' : 'Export'}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -264,6 +267,7 @@ function PnLDashboardContent() {
         </Card>
       </Collapsible>
     </div>
+    </PullToRefresh>
   );
 }
 
