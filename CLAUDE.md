@@ -941,8 +941,10 @@ valhalla-daily-pnl/
 │   │   │   │   ├── route.ts            # List/update orders (B2B tagging)
 │   │   │   │   ├── exclude/route.ts    # Exclude/restore orders from P&L
 │   │   │   │   └── sync/route.ts       # Sync from all platforms
-│   │   │   └── investor/
-│   │   │       └── metrics/route.ts    # Investor metrics API (M&A data room)
+│   │   │   ├── investor/
+│   │   │   │   └── metrics/route.ts    # Investor metrics API (M&A data room)
+│   │   │   └── help/
+│   │   │       └── chat/route.ts       # AI Help Bot API (Claude Haiku)
 │   │   └── layout.tsx                  # Root layout
 │   ├── components/
 │   │   ├── ui/                         # shadcn/ui components + custom UI
@@ -966,16 +968,23 @@ valhalla-daily-pnl/
 │   │   │   ├── CountryTable.tsx        # P&L breakdown table by country
 │   │   │   ├── CountryRevenueChart.tsx # Revenue bar chart by country
 │   │   │   └── index.ts                # Barrel export
-│   │   ├── help/                       # Help guide components
+│   │   ├── help/                       # Help guide components + AI chat
 │   │   │   ├── TableOfContents.tsx     # Sticky sidebar navigation
 │   │   │   ├── HelpWaterfall.tsx       # Interactive P&L flow chart
 │   │   │   ├── KPIDefinitionsTable.tsx # Metric definition tables
 │   │   │   ├── WorkedExample.tsx       # Step-by-step calculation
 │   │   │   ├── PlatformBreakdown.tsx   # Platform fees & sources
 │   │   │   ├── AdminFunctionsGuide.tsx # Admin capabilities guide
-│   │   │   ├── ShippingInvoicesGuide.tsx # Shipping analytics, invoice processing, unmatched records
+│   │   │   ├── ShippingInvoicesGuide.tsx # Shipping analytics, invoice processing
 │   │   │   ├── XeroOrdersGuide.tsx     # Xero integration, order management
 │   │   │   ├── CountryAnalysisGuide.tsx # Country P&L breakdown guide
+│   │   │   ├── InventoryGuide.tsx      # Inventory management guide
+│   │   │   ├── InvestorMetricsGuide.tsx # M&A metrics, LTV:CAC, cohorts
+│   │   │   ├── InterCompanyGuide.tsx   # DC ↔ BI transactions guide
+│   │   │   ├── PWAGuide.tsx            # Mobile app installation guide
+│   │   │   ├── MicrosoftAdsGuide.tsx   # Bing Ads integration guide
+│   │   │   ├── HelpChatWidget.tsx      # AI chat floating button
+│   │   │   ├── HelpChatDialog.tsx      # AI chat dialog interface
 │   │   │   └── index.ts                # Barrel export
 │   │   └── forms/                      # Form components
 │   ├── hooks/
@@ -1004,6 +1013,8 @@ valhalla-daily-pnl/
 │   │   │   └── client.ts               # REST API, receipt fetch/transform
 │   │   ├── calendar/                   # Calendar utilities
 │   │   │   └── standard-events.ts      # UK/US holidays, eCommerce dates
+│   │   ├── help/                       # AI Help Bot
+│   │   │   └── context.ts              # Condensed help context + system prompt
 │   │   └── utils/
 │   │       └── export.ts               # Excel/PDF export
 │   └── types/
@@ -1084,6 +1095,9 @@ CRON_SECRET=<random-secret-for-manual-trigger>
 
 # Email Notifications (Resend)
 RESEND_API_KEY=<resend-api-key>
+
+# AI Help Bot (Claude Haiku)
+ANTHROPIC_API_KEY=<anthropic-api-key>
 
 # Xero Integration (Bank Balances)
 XERO_CLIENT_ID=<from-xero-developer-portal>
@@ -2435,6 +2449,69 @@ inventory_notification_prefs  -- Per-user email settings
 | `src/lib/inventory/forecast.ts` | Velocity and status calculations |
 | `src/lib/email/low-stock-alert.ts` | Low stock email template |
 | `supabase/migrations/015_inventory_schema.sql` | Database migration |
+
+---
+
+## AI Help Bot
+
+An in-app AI assistant powered by Claude Haiku that answers questions about the P&L dashboard, metrics, and features.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Floating Widget** | Chat button in bottom-right corner (above mobile nav on phones) |
+| **Claude Haiku** | Fast, low-cost responses using `claude-3-haiku-20240307` |
+| **Context Stuffing** | ~5-8K tokens of condensed help documentation |
+| **Rate Limiting** | 10 requests/minute per IP address |
+| **Session History** | Conversation persists within browser session |
+| **Suggested Questions** | Quick-start questions on first open |
+
+### Location
+
+- **Widget**: Floating button on all hub pages (bottom-right corner)
+- **API**: `/api/help/chat`
+
+### How It Works
+
+```
+User Question → /api/help/chat → Claude Haiku API
+                      ↓
+              System prompt with condensed docs
+                      ↓
+              Response streamed to chat UI
+```
+
+### Cost Estimate
+
+| Usage Level | Monthly Cost |
+|-------------|--------------|
+| Light (50 questions/day) | ~$6-7 |
+| Medium (200 questions/day) | ~$25-30 |
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `src/app/api/help/chat/route.ts` | API endpoint with rate limiting |
+| `src/components/help/HelpChatWidget.tsx` | Floating button component |
+| `src/components/help/HelpChatDialog.tsx` | Chat dialog with messages |
+| `src/lib/help/context.ts` | Condensed help context + system prompt |
+
+### Environment Variable
+
+```bash
+ANTHROPIC_API_KEY=<your-anthropic-api-key>
+```
+
+Get your API key from [console.anthropic.com](https://console.anthropic.com)
+
+### Example Questions
+
+- "What is GP2?"
+- "How do I exclude a test order?"
+- "What is MER?"
+- "How do I sync orders?"
 
 ---
 
