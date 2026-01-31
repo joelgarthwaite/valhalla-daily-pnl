@@ -6,7 +6,7 @@
  */
 
 const MS_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0';
-const MS_REPORTING_URL = 'https://reporting.api.bingads.microsoft.com/Reporting/v13';
+const MS_REPORTING_URL = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport';
 
 export interface MicrosoftAdSpendData {
   date: string;
@@ -95,6 +95,7 @@ export async function getAccessToken(
       client_secret: clientSecret,
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
+      scope: 'https://ads.microsoft.com/msads.manage offline_access',
     }),
   });
 
@@ -162,13 +163,13 @@ export async function fetchMicrosoftAdSpend(
     },
   };
 
-  const submitResponse = await fetch(`${MS_REPORTING_URL}/SubmitGenerateReport`, {
+  const submitResponse = await fetch(`${MS_REPORTING_URL}/Submit`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'DeveloperToken': developerToken,
       'CustomerId': customerId,
-      'AccountId': accountId,
+      'CustomerAccountId': accountId,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(reportRequestBody),
@@ -195,13 +196,13 @@ export async function fetchMicrosoftAdSpend(
   while (reportStatus === 'Pending' && attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
 
-    const pollResponse = await fetch(`${MS_REPORTING_URL}/PollGenerateReport`, {
+    const pollResponse = await fetch(`${MS_REPORTING_URL}/Poll`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'DeveloperToken': developerToken,
         'CustomerId': customerId,
-        'AccountId': accountId,
+        'CustomerAccountId': accountId,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ ReportRequestId: reportRequestId }),
@@ -223,8 +224,42 @@ export async function fetchMicrosoftAdSpend(
   }
 
   // Download and parse the report
+  // Microsoft returns reports as ZIP files, need to decompress
   const reportResponse = await fetch(reportDownloadUrl);
-  const csvContent = await reportResponse.text();
+  const arrayBuffer = await reportResponse.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+
+  // Check if it's a ZIP file (starts with PK)
+  const isZip = uint8Array[0] === 0x50 && uint8Array[1] === 0x4B;
+
+  let csvContent: string;
+  if (isZip) {
+    // Use pako to decompress
+    const pako = await import('pako');
+    try {
+      // ZIP files have local file headers
+      // Skip to the actual deflated data (after the local file header)
+      // Local file header: 4 (signature) + 26 (fixed) + fileNameLen + extraFieldLen
+      const fileNameLen = uint8Array[26] + (uint8Array[27] << 8);
+      const extraFieldLen = uint8Array[28] + (uint8Array[29] << 8);
+      const dataStart = 30 + fileNameLen + extraFieldLen;
+
+      // Find the compressed size from the header (bytes 18-21)
+      const compressedSize = uint8Array[18] + (uint8Array[19] << 8) +
+                             (uint8Array[20] << 16) + (uint8Array[21] << 24);
+
+      const compressedData = uint8Array.slice(dataStart, dataStart + compressedSize);
+
+      // Use inflateRaw for raw DEFLATE data (ZIP uses raw DEFLATE)
+      const decompressed = pako.inflateRaw(compressedData);
+      csvContent = new TextDecoder().decode(decompressed);
+    } catch {
+      // If pako fails, try reading as text (might not be compressed)
+      csvContent = new TextDecoder().decode(uint8Array);
+    }
+  } else {
+    csvContent = new TextDecoder().decode(uint8Array);
+  }
 
   return parseMicrosoftReportCsv(csvContent);
 }
@@ -247,11 +282,20 @@ function parseMicrosoftReportCsv(csvContent: string): MicrosoftAdSpendData[] {
   const conversionsIdx = headers.findIndex(h => h === 'Conversions');
   const revenueIdx = headers.findIndex(h => h === 'Revenue');
 
+  // If we can't find the date column, the format is unexpected
+  if (dateIdx === -1) {
+    console.error('Microsoft Report - Unexpected CSV format. Headers:', headers);
+    console.error('Microsoft Report - First 500 chars:', csvContent.substring(0, 500));
+    return [];
+  }
+
   for (let i = 1; i < lines.length; i++) {
     const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
     if (values.length < headers.length) continue;
 
     const dateValue = values[dateIdx];
+    if (!dateValue) continue;
+
     // Microsoft formats dates as MM/DD/YYYY, convert to YYYY-MM-DD
     const dateParts = dateValue.split('/');
     const formattedDate = dateParts.length === 3
@@ -260,11 +304,11 @@ function parseMicrosoftReportCsv(csvContent: string): MicrosoftAdSpendData[] {
 
     results.push({
       date: formattedDate,
-      spend: parseFloat(values[spendIdx]) || 0,
-      impressions: parseInt(values[impressionsIdx]) || 0,
-      clicks: parseInt(values[clicksIdx]) || 0,
-      conversions: parseFloat(values[conversionsIdx]) || 0,
-      conversionValue: parseFloat(values[revenueIdx]) || 0,
+      spend: spendIdx >= 0 ? parseFloat(values[spendIdx]) || 0 : 0,
+      impressions: impressionsIdx >= 0 ? parseInt(values[impressionsIdx]) || 0 : 0,
+      clicks: clicksIdx >= 0 ? parseInt(values[clicksIdx]) || 0 : 0,
+      conversions: conversionsIdx >= 0 ? parseFloat(values[conversionsIdx]) || 0 : 0,
+      conversionValue: revenueIdx >= 0 ? parseFloat(values[revenueIdx]) || 0 : 0,
     });
   }
 

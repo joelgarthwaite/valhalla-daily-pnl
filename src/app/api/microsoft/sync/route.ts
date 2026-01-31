@@ -16,12 +16,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function GET() {
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const refreshToken = process.env.MICROSOFT_REFRESH_TOKEN;
-  const developerToken = process.env.MICROSOFT_DEVELOPER_TOKEN;
-  const accountId = process.env.MICROSOFT_ACCOUNT_ID_DC;
-  const customerId = process.env.MICROSOFT_CUSTOMER_ID;
+  const clientId = process.env.MICROSOFT_CLIENT_ID?.trim();
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET?.trim();
+  const refreshToken = process.env.MICROSOFT_REFRESH_TOKEN?.trim();
+  const developerToken = process.env.MICROSOFT_DEVELOPER_TOKEN?.trim();
+  const accountId = process.env.MICROSOFT_ACCOUNT_ID_DC?.trim();
+  const customerId = process.env.MICROSOFT_CUSTOMER_ID?.trim();
 
   const missingVars = [];
   if (!clientId) missingVars.push('MICROSOFT_CLIENT_ID');
@@ -52,15 +52,15 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const refreshToken = process.env.MICROSOFT_REFRESH_TOKEN;
-  const developerToken = process.env.MICROSOFT_DEVELOPER_TOKEN;
-  const customerId = process.env.MICROSOFT_CUSTOMER_ID;
+  const clientId = process.env.MICROSOFT_CLIENT_ID?.trim();
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET?.trim();
+  const refreshToken = process.env.MICROSOFT_REFRESH_TOKEN?.trim();
+  const developerToken = process.env.MICROSOFT_DEVELOPER_TOKEN?.trim();
+  const customerId = process.env.MICROSOFT_CUSTOMER_ID?.trim();
 
   // Account IDs for each brand
-  const accountIdDC = process.env.MICROSOFT_ACCOUNT_ID_DC;
-  const accountIdBI = process.env.MICROSOFT_ACCOUNT_ID_BI;
+  const accountIdDC = process.env.MICROSOFT_ACCOUNT_ID_DC?.trim();
+  const accountIdBI = process.env.MICROSOFT_ACCOUNT_ID_BI?.trim();
 
   if (!clientId || !clientSecret || !refreshToken || !developerToken || !customerId) {
     return NextResponse.json(

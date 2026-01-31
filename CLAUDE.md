@@ -248,31 +248,33 @@ LE products use **unique base codes** that include the edition name AND ball typ
   - Display Champ: `281-641-2476`
 - **Data to Sync:** Daily spend, impressions, clicks, conversions, conversion value
 
-### Microsoft Advertising (Bing Ads) - SETUP REQUIRED
-- **Status:** API integration built, needs OAuth setup
+### Microsoft Advertising (Bing Ads) - ACTIVE
+- **Status:** Connected and syncing (Display Champ)
 - **API Version:** v13 (Reporting API)
-- **Account IDs:** Not yet configured
-- **Data to Sync:** Daily spend, impressions, clicks, conversions, conversion value
+- **Customer ID:** `254166858`
+- **Ad Accounts:**
+  - Display Champ: `151932843`
+  - Bright Ivy: `G120P2K6` (pending setup - no spend yet)
+- **Data Synced:** Daily spend, impressions, clicks, conversions, revenue attributed
 
-#### Setup Steps
+#### Azure AD App Registration
 
-1. **Register App** in [Microsoft Advertising Developer Portal](https://developers.ads.microsoft.com/)
-   - Create an app registration
-   - Get Client ID and Client Secret
-   - Set redirect URI: `https://pnl.displaychamp.com/api/microsoft/callback`
+| Setting | Value |
+|---------|-------|
+| App Name | Display Champ Advertising Integration |
+| Application (Client) ID | `6a631e6c-6754-4209-b0b2-8c809e2273d4` |
+| Directory (Tenant) ID | `1bce9817-7232-429c-8719-c03e07c1fe2d` |
+| Redirect URI | `https://pnl.displaychamp.com/api/microsoft/callback` |
+| Supported Account Types | Multi-tenant + personal Microsoft accounts |
+| Client Secret Expires | 31/01/2028 |
 
-2. **Get Developer Token** from the Developer Portal
-   - Required for all API calls
+#### OAuth Flow (If Token Expires)
 
-3. **OAuth Flow**:
-   - Visit `/api/microsoft/auth` to start OAuth
-   - Authorize in Microsoft account
-   - Callback returns refresh token
-   - Save as `MICROSOFT_REFRESH_TOKEN` in environment
-
-4. **Find Account/Customer IDs**:
-   - After OAuth, account IDs can be retrieved via the API
-   - Customer ID is the top-level manager ID
+1. Visit `/api/microsoft/auth` to start OAuth
+2. Authorize with Microsoft account (microsoft@displaychamp.com)
+3. Callback returns new refresh token
+4. Update `MICROSOFT_REFRESH_TOKEN` in Vercel environment variables
+5. Redeploy to apply changes
 
 #### API Endpoints
 - `GET /api/microsoft/auth` - Start OAuth flow
@@ -282,10 +284,15 @@ LE products use **unique base codes** that include the edition name AND ball typ
   ```json
   {
     "brandCode": "DC | BI | all",
-    "startDate": "2025-01-01",
-    "endDate": "2025-01-31"
+    "startDate": "2026-01-01",
+    "endDate": "2026-01-31"
   }
   ```
+
+#### Token Management
+- Access tokens expire in ~1 hour (auto-refreshed using refresh token)
+- Refresh tokens are long-lived but may need re-authorization if revoked
+- Client secret expires 31/01/2028 (regenerate in Azure Portal before expiry)
 
 ---
 
