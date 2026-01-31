@@ -308,7 +308,7 @@ export function ChannelRevenueChart({
       tick: { fontSize: isMobile ? 9 : 11 },
       tickLine: false,
       axisLine: false,
-      interval: isMobile ? 'preserveStartEnd' : 0,
+      interval: (isMobile ? 'preserveStartEnd' : 0) as 'preserveStartEnd' | number,
     };
 
     const yAxisProps = {

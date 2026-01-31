@@ -150,7 +150,18 @@ The CSP allows:
 | Display Champ | DC | Sports memorabilia display cases (all sports) | Active, stores connected |
 | Bright Ivy | BI | Display cases for special memories & keepsakes | In database (Google Ads suspended) |
 
-**Note:** Both brands share the same physical component parts (bases, domes, etc.) - they are marketed to different audiences but use common inventory.
+**Note:** Both brands share the same physical component parts (bases, cases, etc.) - they are marketed to different audiences but use common inventory.
+
+### Terminology (IMPORTANT)
+
+**DO NOT use the word "domes"** - we use **cases** (C1, C2, C3 - the clear acrylic covers). The correct component terms are:
+
+| Component | Description |
+|-----------|-------------|
+| **Bases** | B1 (Small), B2 (Medium), B3 (Large) - the wooden/turf bases |
+| **Cases** | C1, C2, C3 - the clear acrylic covers (NOT "domes") |
+| **Accessories** | Golf Tees, Ball Stems, Ring Stands, Coin Stands, etc. |
+| **Packaging** | Boxes, inserts, etc. |
 
 ---
 
