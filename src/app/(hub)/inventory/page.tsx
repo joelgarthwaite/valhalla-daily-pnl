@@ -48,6 +48,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import type { ComponentCategory, Brand, StockLevel, StockStatus, StockAdjustmentType } from '@/types';
 import { COMPONENT_CATEGORY_LABELS, STOCK_STATUS_CONFIG, ComponentCategoryName } from '@/types';
+import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 
 interface StockStatusInfo {
   status: StockStatus;
@@ -274,23 +275,24 @@ export default function InventoryPage() {
   };
 
   return (
+    <PullToRefresh onRefresh={async () => { await fetchData(); }}>
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">Stock Levels</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-xl sm:text-2xl font-bold">Stock Levels</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
             Monitor inventory levels, velocity, and reorder status
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={fetchData} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+          <Button variant="outline" onClick={fetchData} disabled={isLoading} size="sm" className="h-9 sm:h-8">
+            <RefreshCw className={`h-4 w-4 sm:mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Link href="/inventory/components">
-            <Button variant="outline">
-              <Package className="h-4 w-4 mr-2" />
-              Manage Components
+            <Button variant="outline" size="sm" className="h-9 sm:h-8">
+              <Package className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Manage Components</span>
             </Button>
           </Link>
         </div>
@@ -760,5 +762,6 @@ export default function InventoryPage() {
         </CardContent>
       </Card>
     </div>
+    </PullToRefresh>
   );
 }
