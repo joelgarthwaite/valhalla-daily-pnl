@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
  * Query params:
  * - product_sku: Filter to a specific product SKU
  * - brand: Filter by brand ID
+ * - status: Filter by product status (active, historic, discontinued)
  *
  * If product_sku is provided: Returns all BOM entries for that product with joined component data
  * If no product_sku: Returns all BOM entries grouped by product SKU with summary counts
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const productSku = searchParams.get('product_sku');
   const brand = searchParams.get('brand');
+  const status = searchParams.get('status');
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -60,14 +62,38 @@ export async function GET(request: NextRequest) {
     if (bomError) throw bomError;
 
     // Fetch product SKUs for the products list
-    const { data: productSkus, error: productError } = await supabase
+    let productQuery = supabase
       .from('product_skus')
       .select(`
         *,
         brand:brands(id, name, code)
       `)
       .order('sku', { ascending: true });
+
+    if (status && status !== 'all') {
+      productQuery = productQuery.eq('status', status);
+    }
+
+    const { data: productSkus, error: productError } = await productQuery;
     if (productError) throw productError;
+
+    // Get counts for all statuses (unfiltered)
+    const { data: allProductSkus } = await supabase
+      .from('product_skus')
+      .select('status');
+
+    const statusCounts = {
+      active: 0,
+      historic: 0,
+      discontinued: 0,
+      total: allProductSkus?.length || 0,
+    };
+
+    (allProductSkus || []).forEach((p) => {
+      if (p.status in statusCounts) {
+        statusCounts[p.status as keyof typeof statusCounts]++;
+      }
+    });
 
     // Fetch all components for the "Add Component" dropdown
     const { data: components, error: componentsError } = await supabase
@@ -122,6 +148,7 @@ export async function GET(request: NextRequest) {
         productsWithoutBom,
         totalBomEntries,
       },
+      statusCounts,
     });
   } catch (error) {
     console.error('Error fetching BOM data:', error);

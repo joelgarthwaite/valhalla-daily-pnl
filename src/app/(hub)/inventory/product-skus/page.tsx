@@ -425,9 +425,14 @@ export default function ProductSkusPage() {
         )}
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards - Clickable Filters */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            filterStatus === 'all' ? 'ring-2 ring-primary bg-primary/5' : ''
+          }`}
+          onClick={() => setFilterStatus('all')}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Total Product SKUs
@@ -441,7 +446,12 @@ export default function ProductSkusPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            filterStatus === 'active' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950/20' : ''
+          }`}
+          onClick={() => setFilterStatus('active')}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
               <ShoppingCart className="h-4 w-4 text-green-600" />
@@ -456,7 +466,12 @@ export default function ProductSkusPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            filterStatus === 'historic' ? 'ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-950/20' : ''
+          }`}
+          onClick={() => setFilterStatus('historic')}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
               <Archive className="h-4 w-4 text-amber-600" />
@@ -471,7 +486,12 @@ export default function ProductSkusPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            filterStatus === 'discontinued' ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20' : ''
+          }`}
+          onClick={() => setFilterStatus('discontinued')}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
               <XCircle className="h-4 w-4 text-red-600" />

@@ -12,6 +12,9 @@ import {
   Layers,
   AlertCircle,
   Check,
+  ShoppingCart,
+  Archive,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -98,12 +101,19 @@ export default function BomEditorPage() {
     productsWithoutBom: 0,
     totalBomEntries: 0,
   });
+  const [statusCounts, setStatusCounts] = useState({
+    active: 0,
+    historic: 0,
+    discontinued: 0,
+    total: 0,
+  });
 
   const [isLoading, setIsLoading] = useState(true);
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBrand, setFilterBrand] = useState<string>('all');
   const [filterBomStatus, setFilterBomStatus] = useState<string>('all');
+  const [filterProductStatus, setFilterProductStatus] = useState<string>('active');
   const [mounted, setMounted] = useState(false);
 
   // Dialog state
@@ -123,6 +133,7 @@ export default function BomEditorPage() {
     try {
       const params = new URLSearchParams();
       if (filterBrand !== 'all') params.set('brand', filterBrand);
+      if (filterProductStatus !== 'all') params.set('status', filterProductStatus);
 
       const response = await fetch(`/api/inventory/bom?${params}`);
       const data = await response.json();
@@ -138,6 +149,12 @@ export default function BomEditorPage() {
         productsWithBom: 0,
         productsWithoutBom: 0,
         totalBomEntries: 0,
+      });
+      setStatusCounts(data.statusCounts || {
+        active: 0,
+        historic: 0,
+        discontinued: 0,
+        total: 0,
       });
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -156,7 +173,7 @@ export default function BomEditorPage() {
     if (mounted) {
       fetchData();
     }
-  }, [filterBrand]);
+  }, [filterBrand, filterProductStatus]);
 
   // Filter products based on search and BOM status
   const filteredProducts = useMemo(() => {
@@ -346,61 +363,97 @@ export default function BomEditorPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Status Filter Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Products
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary.totalProducts}</div>
-            <p className="text-xs text-muted-foreground mt-1">In catalog</p>
-          </CardContent>
-        </Card>
-
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            filterProductStatus === 'active' ? 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950/20' : ''
+          }`}
+          onClick={() => setFilterProductStatus('active')}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <Check className="h-4 w-4 text-green-600" />
-              With BOM
+              <ShoppingCart className="h-4 w-4 text-green-600" />
+              Active
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {summary.productsWithBom}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Components defined</p>
+            <div className="text-2xl font-bold text-green-600">{statusCounts.active}</div>
+            <p className="text-xs text-muted-foreground mt-1">Currently selling</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            filterProductStatus === 'historic' ? 'ring-2 ring-amber-500 bg-amber-50 dark:bg-amber-950/20' : ''
+          }`}
+          onClick={() => setFilterProductStatus('historic')}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              Missing BOM
+              <Archive className="h-4 w-4 text-amber-600" />
+              Historic
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-600">
-              {summary.productsWithoutBom}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Need attention</p>
+            <div className="text-2xl font-bold text-amber-600">{statusCounts.historic}</div>
+            <p className="text-xs text-muted-foreground mt-1">Legacy SKUs</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            filterProductStatus === 'discontinued' ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20' : ''
+          }`}
+          onClick={() => setFilterProductStatus('discontinued')}
+        >
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Entries
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              <XCircle className="h-4 w-4 text-red-600" />
+              Discontinued
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary.totalBomEntries}</div>
-            <p className="text-xs text-muted-foreground mt-1">Component links</p>
+            <div className="text-2xl font-bold text-red-600">{statusCounts.discontinued}</div>
+            <p className="text-xs text-muted-foreground mt-1">Removed</p>
           </CardContent>
         </Card>
+
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            filterProductStatus === 'all' ? 'ring-2 ring-primary bg-primary/5' : ''
+          }`}
+          onClick={() => setFilterProductStatus('all')}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              All Products
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{statusCounts.total}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total catalog</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* BOM Summary */}
+      <div className="flex items-center gap-6 text-sm">
+        <div className="flex items-center gap-2">
+          <Check className="h-4 w-4 text-green-600" />
+          <span className="text-muted-foreground">With BOM:</span>
+          <span className="font-semibold text-green-600">{summary.productsWithBom}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <span className="text-muted-foreground">Missing BOM:</span>
+          <span className="font-semibold text-amber-600">{summary.productsWithoutBom}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-muted-foreground" />
+          <span className="text-muted-foreground">Total Entries:</span>
+          <span className="font-semibold">{summary.totalBomEntries}</span>
+        </div>
       </div>
 
       {/* Filters */}
@@ -438,9 +491,21 @@ export default function BomEditorPage() {
                 <SelectValue placeholder="BOM Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Products</SelectItem>
+                <SelectItem value="all">All BOM Status</SelectItem>
                 <SelectItem value="with-bom">With BOM</SelectItem>
                 <SelectItem value="missing-bom">Missing BOM</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterProductStatus} onValueChange={setFilterProductStatus}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Product Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active Only</SelectItem>
+                <SelectItem value="historic">Historic Only</SelectItem>
+                <SelectItem value="discontinued">Discontinued Only</SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -457,6 +522,7 @@ export default function BomEditorPage() {
                 <TableHead>Product SKU</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Brand</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-center">Components</TableHead>
                 <TableHead className="w-[100px]"></TableHead>
               </TableRow>
@@ -464,13 +530,13 @@ export default function BomEditorPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {searchQuery
                       ? 'No products match your search'
                       : 'No products found. Add products in the Product SKUs page first.'}
@@ -512,6 +578,24 @@ export default function BomEditorPage() {
                             <span className="text-muted-foreground text-sm">All</span>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {product.status === 'active' ? (
+                            <Badge className="bg-green-100 text-green-700 gap-1">
+                              <ShoppingCart className="h-3 w-3" />
+                              Active
+                            </Badge>
+                          ) : product.status === 'historic' ? (
+                            <Badge className="bg-amber-100 text-amber-700 gap-1">
+                              <Archive className="h-3 w-3" />
+                              Historic
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-700 gap-1">
+                              <XCircle className="h-3 w-3" />
+                              Discontinued
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-center">
                           {product.bomCount > 0 ? (
                             <Badge className="bg-green-100 text-green-700">
@@ -539,7 +623,7 @@ export default function BomEditorPage() {
                       {/* Expanded BOM entries */}
                       {isExpanded && (
                         <TableRow className="bg-muted/30">
-                          <TableCell colSpan={6} className="p-0">
+                          <TableCell colSpan={7} className="p-0">
                             <div className="px-8 py-4">
                               {productBomEntries.length === 0 ? (
                                 <div className="text-sm text-muted-foreground italic">
