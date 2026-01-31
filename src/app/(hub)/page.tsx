@@ -73,6 +73,7 @@ export default function HubHomePage() {
   const [unmatchedCount, setUnmatchedCount] = useState<number>(0);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [yesterdayDate, setYesterdayDate] = useState<string>('');
 
   useEffect(() => {
     async function fetchData() {
@@ -93,6 +94,9 @@ export default function HubHomePage() {
         const yesterdayStr = yesterday.toISOString().split('T')[0];
         const dayBeforeStr = dayBefore.toISOString().split('T')[0];
         const weekStartStr = weekStart.toISOString().split('T')[0];
+
+        // Format yesterday's date for display (e.g., "30 Jan")
+        setYesterdayDate(yesterday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }));
 
         // Fetch yesterday's and day-before-yesterday's P&L data in parallel
         const [yesterdayRes, dayBeforeRes, wtdRes, xeroRes, unmatchedRes] = await Promise.all([
@@ -291,7 +295,7 @@ export default function HubHomePage() {
 
   const quickStats: QuickStat[] = [
     {
-      label: "Yesterday's Revenue",
+      label: `Yesterday${yesterdayDate ? ` (${yesterdayDate})` : ''}`,
       value: pnlData ? formatCurrency(pnlData.revenue) : '-',
       change: pnlData?.revenueChange,
       changeLabel: 'vs prev day',
