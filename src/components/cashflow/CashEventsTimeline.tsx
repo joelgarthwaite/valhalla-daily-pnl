@@ -162,6 +162,22 @@ export function CashEventsTimeline({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium truncate">{event.description}</span>
+                      {/* Brand Label */}
+                      {event.brand_code === 'DC' && (
+                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          DC
+                        </Badge>
+                      )}
+                      {event.brand_code === 'BI' && (
+                        <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                          BI
+                        </Badge>
+                      )}
+                      {!event.brand_code && (
+                        <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-gray-800">
+                          All
+                        </Badge>
+                      )}
                       {event.is_recurring && (
                         <Badge variant="outline" className="text-xs">Recurring</Badge>
                       )}

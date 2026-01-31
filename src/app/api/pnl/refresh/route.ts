@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { CostConfig } from '@/types';
 import {
   calculateGP1,
@@ -12,6 +12,7 @@ import {
   calculateGrossAOV,
   calculateNetAOV,
 } from '@/lib/pnl/calculations';
+import { getBaseSku } from '@/lib/inventory/sku-utils';
 
 // Allow up to 120 seconds for P&L refresh (Pro plan allows up to 300s)
 export const maxDuration = 120;
@@ -23,6 +24,232 @@ const DEFAULT_LOGISTICS_RATE = 0.03; // 3% logistics
 const SHOPIFY_FEE_RATE = 0.029; // 2.9%
 const SHOPIFY_FEE_FIXED = 0.30; // £0.30 per transaction
 const ETSY_FEE_RATE = 0.065; // ~6.5% total Etsy fees
+
+// ============================================
+// Actual COGS Types and Helpers
+// ============================================
+
+interface BOMEntry {
+  product_sku: string;
+  component_id: string;
+  quantity: number;
+}
+
+interface ComponentCost {
+  id: string;
+  sku: string;
+  unit_cost: number | null;
+}
+
+interface SKUMapping {
+  old_sku: string;
+  current_sku: string;
+}
+
+interface LineItem {
+  sku?: string;
+  quantity: number;
+  price: number;
+}
+
+interface COGSDataCache {
+  bomBySku: Map<string, BOMEntry[]>;
+  componentById: Map<string, ComponentCost>;
+  skuMappingByOld: Map<string, string>;
+  isLoaded: boolean;
+  hasActualData: boolean;
+}
+
+/**
+ * Load COGS reference data (BOM, component costs, SKU mappings) once for batch processing.
+ */
+async function loadCOGSData(supabase: SupabaseClient): Promise<COGSDataCache> {
+  const cache: COGSDataCache = {
+    bomBySku: new Map(),
+    componentById: new Map(),
+    skuMappingByOld: new Map(),
+    isLoaded: false,
+    hasActualData: false,
+  };
+
+  try {
+    const [bomResult, componentResult, mappingResult] = await Promise.all([
+      supabase.from('bom').select('product_sku, component_id, quantity'),
+      supabase.from('components').select(`
+        id,
+        sku,
+        component_suppliers!inner (
+          unit_cost,
+          is_preferred
+        )
+      `).eq('is_active', true),
+      supabase.from('sku_mapping').select('old_sku, current_sku'),
+    ]);
+
+    // Process BOM data
+    for (const entry of bomResult.data || []) {
+      const sku = entry.product_sku;
+      const entries = cache.bomBySku.get(sku) || [];
+      entries.push(entry);
+      cache.bomBySku.set(sku, entries);
+      // Also store uppercase version
+      const upperSku = sku.toUpperCase();
+      if (upperSku !== sku) {
+        const upperEntries = cache.bomBySku.get(upperSku) || [];
+        upperEntries.push(entry);
+        cache.bomBySku.set(upperSku, upperEntries);
+      }
+    }
+
+    // Process component costs (get preferred supplier cost)
+    for (const comp of componentResult.data || []) {
+      const suppliers = comp.component_suppliers as Array<{ unit_cost: number; is_preferred: boolean }>;
+      const preferredSupplier = suppliers.find(s => s.is_preferred) || suppliers[0];
+      cache.componentById.set(comp.id, {
+        id: comp.id,
+        sku: comp.sku,
+        unit_cost: preferredSupplier?.unit_cost || null,
+      });
+    }
+
+    // Process SKU mappings
+    for (const mapping of mappingResult.data || []) {
+      cache.skuMappingByOld.set(mapping.old_sku.toLowerCase(), mapping.current_sku);
+    }
+
+    cache.isLoaded = true;
+    cache.hasActualData = cache.bomBySku.size > 0 && cache.componentById.size > 0;
+
+    console.log(`COGS data loaded: ${cache.bomBySku.size} BOMs, ${cache.componentById.size} components, ${cache.skuMappingByOld.size} mappings`);
+  } catch (error) {
+    console.error('Error loading COGS data:', error);
+    // Return empty cache - will use fallback percentages
+  }
+
+  return cache;
+}
+
+/**
+ * Calculate actual COGS for an order's line items using BOM and component costs.
+ * Returns null if data is unavailable (will use fallback percentage).
+ */
+function calculateOrderActualCOGS(
+  lineItems: LineItem[] | null,
+  cogsCache: COGSDataCache
+): { actualCOGS: number; coverage: 'full' | 'partial' | 'none' } | null {
+  if (!lineItems || lineItems.length === 0 || !cogsCache.hasActualData) {
+    return null;
+  }
+
+  let totalCOGS = 0;
+  let itemsWithCOGS = 0;
+  let itemsWithoutCOGS = 0;
+
+  for (const item of lineItems) {
+    let sku = item.sku || '';
+    const quantity = item.quantity || 1;
+    const price = item.price || 0;
+
+    if (!sku) {
+      // No SKU - can't calculate actual COGS
+      itemsWithoutCOGS++;
+      continue;
+    }
+
+    // Resolve SKU through mappings
+    const normalized = sku.toLowerCase();
+    const mapped = cogsCache.skuMappingByOld.get(normalized);
+    if (mapped) sku = mapped;
+
+    // Get base SKU (handles P suffix)
+    const baseSku = getBaseSku(sku);
+
+    // Look up BOM
+    let bomEntries = cogsCache.bomBySku.get(sku)
+      || cogsCache.bomBySku.get(baseSku)
+      || cogsCache.bomBySku.get(sku.toUpperCase())
+      || cogsCache.bomBySku.get(baseSku.toUpperCase());
+
+    if (!bomEntries || bomEntries.length === 0) {
+      itemsWithoutCOGS++;
+      continue;
+    }
+
+    // Calculate component costs
+    let unitCost = 0;
+    let hasAllCosts = true;
+
+    for (const bomEntry of bomEntries) {
+      const component = cogsCache.componentById.get(bomEntry.component_id);
+      if (!component || component.unit_cost === null) {
+        hasAllCosts = false;
+        continue;
+      }
+      unitCost += bomEntry.quantity * component.unit_cost;
+    }
+
+    if (unitCost > 0) {
+      totalCOGS += unitCost * quantity;
+      itemsWithCOGS++;
+      if (!hasAllCosts) {
+        itemsWithoutCOGS++;
+      }
+    } else {
+      itemsWithoutCOGS++;
+    }
+  }
+
+  const totalItems = itemsWithCOGS + itemsWithoutCOGS;
+  if (totalItems === 0) return null;
+
+  const coverage = itemsWithoutCOGS === 0 ? 'full'
+    : itemsWithCOGS === 0 ? 'none'
+    : 'partial';
+
+  return { actualCOGS: totalCOGS, coverage };
+}
+
+/**
+ * Extract line items from order raw_data.
+ */
+function extractLineItems(rawData: Record<string, unknown> | null): LineItem[] {
+  if (!rawData) return [];
+
+  // Shopify GraphQL format: lineItems.edges[].node
+  const lineItemsData = rawData.lineItems as { edges?: Array<{ node: unknown }> } | undefined;
+  if (lineItemsData?.edges) {
+    return lineItemsData.edges.map(edge => {
+      const node = edge.node as {
+        sku?: string;
+        quantity?: number;
+        priceSet?: { shopMoney?: { amount?: string } };
+        originalUnitPriceSet?: { shopMoney?: { amount?: string } };
+      };
+      const price = parseFloat(node.priceSet?.shopMoney?.amount || node.originalUnitPriceSet?.shopMoney?.amount || '0');
+      return {
+        sku: node.sku || '',
+        quantity: node.quantity || 1,
+        price,
+      };
+    });
+  }
+
+  // Shopify REST format: line_items array
+  const restLineItems = rawData.line_items as Array<{
+    sku?: string;
+    quantity?: number;
+    price?: string;
+  }> | undefined;
+  if (Array.isArray(restLineItems)) {
+    return restLineItems.map(item => ({
+      sku: item.sku || '',
+      quantity: item.quantity || 1,
+      price: parseFloat(item.price || '0'),
+    }));
+  }
+
+  return [];
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,6 +290,8 @@ export async function POST(request: NextRequest) {
     }
 
     let totalRecordsProcessed = 0;
+    let totalOrdersWithActualCOGS = 0;
+    let totalOrdersWithFallback = 0;
 
     for (const brand of brands) {
       // Fetch cost config for the brand
@@ -79,9 +308,10 @@ export async function POST(request: NextRequest) {
 
       // Fetch orders within date range (extract refunds from raw_data)
       // Exclude orders that have been manually excluded
+      // Include line_items for actual COGS calculation
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
-        .select('order_date, platform, subtotal, shipping_charged, total, raw_data')
+        .select('order_date, platform, subtotal, shipping_charged, total, raw_data, line_items')
         .eq('brand_id', brand.id)
         .is('excluded_at', null)  // Only include non-excluded orders
         .gte('order_date', fromDate)
@@ -136,6 +366,10 @@ export async function POST(request: NextRequest) {
         b2b_orders: number;
         total_refunds: number;
         refund_count: number;
+        // Actual COGS tracking
+        actual_cogs: number;
+        actual_cogs_orders: number;  // Orders with actual COGS calculated
+        fallback_cogs_orders: number;  // Orders using percentage fallback
       }>();
 
       const getOrCreateDay = (date: string) => {
@@ -155,10 +389,17 @@ export async function POST(request: NextRequest) {
             b2b_orders: 0,
             total_refunds: 0,
             refund_count: 0,
+            // Actual COGS tracking
+            actual_cogs: 0,
+            actual_cogs_orders: 0,
+            fallback_cogs_orders: 0,
           });
         }
         return dailyDataMap.get(date)!;
       };
+
+      // Load COGS reference data once for this batch
+      const cogsCache = await loadCOGSData(supabase);
 
       // Process orders
       for (const order of orders || []) {
@@ -206,6 +447,21 @@ export async function POST(request: NextRequest) {
         if (refundAmount > 0) {
           day.total_refunds += refundAmount;
           day.refund_count += 1;
+        }
+
+        // Calculate actual COGS from BOM if available
+        // Try line_items first, then fall back to extracting from raw_data
+        let lineItems = order.line_items as LineItem[] | null;
+        if (!lineItems && order.raw_data) {
+          lineItems = extractLineItems(order.raw_data as Record<string, unknown>);
+        }
+
+        const cogsResult = calculateOrderActualCOGS(lineItems, cogsCache);
+        if (cogsResult && cogsResult.coverage !== 'none') {
+          day.actual_cogs += cogsResult.actualCOGS;
+          day.actual_cogs_orders += 1;
+        } else {
+          day.fallback_cogs_orders += 1;
         }
 
         if (order.platform === 'shopify') {
@@ -312,8 +568,29 @@ export async function POST(request: NextRequest) {
         const icRevenue = icData.ic_revenue;
         const icExpense = icData.ic_expense;
 
-        // Calculate COGS based on net revenue (after refunds)
-        const cogsEstimated = netRevenue * cogsRate;
+        // Calculate COGS - use actual COGS from BOM when available
+        // For orders without actual COGS data, use percentage-based fallback
+        let cogsEstimated: number;
+        if (data.actual_cogs_orders > 0 && data.actual_cogs > 0) {
+          // We have some actual COGS data
+          // For orders with actual COGS: use the calculated amount
+          // For orders with fallback: use percentage-based estimation
+          const totalOrderCount = data.actual_cogs_orders + data.fallback_cogs_orders;
+          if (data.fallback_cogs_orders === 0) {
+            // All orders have actual COGS - use it directly
+            cogsEstimated = data.actual_cogs;
+          } else {
+            // Mix of actual and fallback - blend them
+            // Estimate revenue per order for fallback portion
+            const avgRevenuePerOrder = totalRevenue / (totalOrderCount || 1);
+            const fallbackRevenue = avgRevenuePerOrder * data.fallback_cogs_orders;
+            const fallbackCOGS = fallbackRevenue * cogsRate;
+            cogsEstimated = data.actual_cogs + fallbackCOGS;
+          }
+        } else {
+          // No actual COGS data - use percentage-based fallback
+          cogsEstimated = netRevenue * cogsRate;
+        }
 
         // Calculate operational costs
         const pickPackCost = netRevenue * pickPackRate;
@@ -401,6 +678,10 @@ export async function POST(request: NextRequest) {
 
         baseRecords.push(baseRecord);
         extendedRecords.push(extendedRecord);
+
+        // Track COGS statistics
+        totalOrdersWithActualCOGS += data.actual_cogs_orders;
+        totalOrdersWithFallback += data.fallback_cogs_orders;
       }
 
       // Batch upsert - try extended schema first, fall back to base
@@ -426,11 +707,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const totalOrders = totalOrdersWithActualCOGS + totalOrdersWithFallback;
+    const cogsAccuracy = totalOrders > 0
+      ? Math.round((totalOrdersWithActualCOGS / totalOrders) * 100)
+      : 0;
+
     return NextResponse.json({
       success: true,
       message: `P&L data refreshed for ${fromDate} to ${toDate}`,
       recordsProcessed: totalRecordsProcessed,
       dateRange: { from: fromDate, to: toDate },
+      cogsStats: {
+        ordersWithActualCOGS: totalOrdersWithActualCOGS,
+        ordersWithFallback: totalOrdersWithFallback,
+        totalOrders,
+        accuracyPercentage: cogsAccuracy,
+        note: cogsAccuracy === 100
+          ? 'All orders have actual COGS from BOM'
+          : cogsAccuracy > 0
+            ? `${cogsAccuracy}% of orders have actual COGS, rest use ${(DEFAULT_COGS_RATE * 100).toFixed(0)}% fallback`
+            : 'Using percentage-based COGS (no BOM data available)',
+      },
     });
 
   } catch (error) {

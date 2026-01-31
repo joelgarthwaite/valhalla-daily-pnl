@@ -353,8 +353,20 @@ export async function GET(request: NextRequest) {
     }));
     allEvents.push(...manualEvents);
 
+    // Build brand lookup map
+    const brandMap = new Map<string, string>();
+    (brandsResult.data || []).forEach(b => {
+      brandMap.set(b.id, b.code);
+    });
+
+    // Add brand_code to all events
+    const eventsWithBrandCode = allEvents.map(event => ({
+      ...event,
+      brand_code: event.brand_id ? brandMap.get(event.brand_id) || null : null,
+    }));
+
     // Sort and separate events
-    const sortedEvents = sortEventsByDate(allEvents);
+    const sortedEvents = sortEventsByDate(eventsWithBrandCode);
     const upcomingEvents = getUpcomingEvents(sortedEvents, forecastDays);
     const { inflows, outflows } = separateEventsByFlow(upcomingEvents);
 

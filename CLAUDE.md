@@ -647,7 +647,7 @@ POST /api/invoices/royalmail
 ### Costs
 | Cost Type | Method |
 |-----------|--------|
-| COGS | Configurable % of revenue (default 30%) |
+| COGS | Actual from BOM × component costs, or 30% fallback |
 | Pick & Pack | Configurable % of revenue (default 5%) |
 | Logistics | Configurable % of revenue (default 3%) |
 | Shipping | Automated from `shipments` table |
@@ -655,6 +655,37 @@ POST /api/invoices/royalmail
 | Shopify Fees | Calculated (~2.9% + £0.30/txn) |
 | Etsy Fees | Calculated (~6.5%) |
 | Discounts | Manual tracking via promotions |
+
+### Actual COGS Calculation
+
+When BOM (Bill of Materials) data is available, COGS is calculated from actual component costs:
+
+**Formula:**
+```
+Order COGS = Σ (component_cost × bom_quantity × order_quantity)
+```
+
+**How it works:**
+1. Extract line item SKUs from each order
+2. Look up BOM for each SKU (component_id + quantity)
+3. Get component costs from `component_suppliers` (preferred supplier)
+4. Calculate total COGS per order
+5. Aggregate for daily P&L
+
+**Fallback behavior:**
+- When BOM data is unavailable for a product: Use 30% of revenue
+- Mixed coverage: Blend actual COGS (for products with BOM) + fallback (for products without)
+- `cogsStats` in P&L refresh response shows accuracy percentage
+
+**SKU Resolution:**
+- Direct match: Product SKU → BOM
+- SKU mapping: Legacy SKU → Current SKU → BOM (via `sku_mapping` table)
+
+**Check COGS coverage:**
+```
+GET /api/cogs/stats
+```
+Returns: `componentsWithCosts`, `productsWithBOM`, `recommendations`
 
 ---
 
@@ -922,6 +953,8 @@ valhalla-daily-pnl/
 │   │   │   │   ├── data/route.ts       # Fast P&L data fetch (bypasses RLS)
 │   │   │   │   ├── country/route.ts    # Country P&L data (GP2/GP3 by shipping destination)
 │   │   │   │   └── refresh/route.ts    # Refresh P&L calculations
+│   │   │   ├── cogs/
+│   │   │   │   └── stats/route.ts      # COGS data coverage statistics
 │   │   │   ├── calendar/seed/route.ts  # Import standard events
 │   │   │   ├── b2b/import/route.ts     # Bulk import B2B revenue
 │   │   │   ├── meta/                   # Meta API integration
@@ -1001,6 +1034,7 @@ valhalla-daily-pnl/
 │   │   ├── supabase/                   # Supabase client config
 │   │   ├── pnl/                        # P&L calculation engine
 │   │   │   ├── calculations.ts         # GP1/GP2/GP3/True Net Profit, POAS, MER, AOV
+│   │   │   ├── actual-cogs.ts          # Actual COGS from BOM × component costs
 │   │   │   ├── opex.ts                 # OPEX calculations (daily allocation, period totals)
 │   │   │   ├── country-calculations.ts # Country P&L calculations (GP1/GP2/GP3)
 │   │   │   ├── aggregations.ts         # Time period rollups
@@ -1459,6 +1493,10 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?type=morning&test=tru
 - `POST /api/pnl/refresh` - Recalculate daily P&L records
   - Body: `{ "days": 90 }` or `{ "startDate": "2025-01-01", "endDate": "2025-01-25" }`
   - Defaults to last 90 days if no params provided
+  - Response includes `cogsStats`: actual COGS coverage percentage
+- `GET /api/cogs/stats` - Get COGS data coverage statistics
+  - Returns: `componentsWithCosts`, `componentsWithoutCosts`, `productsWithBOM`, `skuMappingsCount`
+  - Also returns `recommendations` for improving coverage
 
 ### Operating Expenses (OPEX)
 - `GET /api/opex` - Fetch OPEX data and calculate totals

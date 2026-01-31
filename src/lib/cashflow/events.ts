@@ -10,6 +10,7 @@ import { addDays, format, startOfMonth, endOfMonth, addMonths, getDate } from 'd
 export interface CashEvent {
   id: string;
   brand_id: string | null;
+  brand_code?: string | null;  // DC, BI, or null for cross-brand
   event_date: string;
   event_type: CashEventType;
   amount: number;  // positive = inflow, negative = outflow

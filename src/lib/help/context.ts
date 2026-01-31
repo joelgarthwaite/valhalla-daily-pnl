@@ -20,7 +20,7 @@ You are an AI assistant for the Valhalla Daily P&L dashboard. This dashboard tra
 
 \`\`\`
 Net Revenue
-- COGS (30% of revenue)
+- COGS (actual from BOM, or 30% fallback)
 = GP1 (Gross Profit 1)
 
 GP1
@@ -39,6 +39,11 @@ GP3
 - OPEX (operating expenses)
 = True Net Profit (THE BOTTOM LINE)
 \`\`\`
+
+### COGS Calculation
+- **Actual COGS**: When BOM data is available, COGS = sum of (component cost × BOM quantity × order quantity)
+- **Fallback**: When BOM data is unavailable, COGS = 30% of revenue
+- **Check coverage**: GET /api/cogs/stats shows how many products have BOM data
 
 ## Key Metrics
 
@@ -133,6 +138,19 @@ GP3
 - **Headline Metrics**: Always TTM (Revenue, Gross Margin, LTV:CAC)
 - **Filters**: All Time, TTM, YTD, specific Year
 
+### Cash Flow Forecasting
+- **Location**: Finance → Cash Flow
+- **Purpose**: Real-time cash position visibility with forecasting
+- **Features**:
+  - Net Position Hero: Current cash vs credit with status indicator
+  - KPI Cards: Cash Balance, Credit Used, Burn Rate, Runway
+  - Balance History: 30/60/90 day trend chart
+  - Inflows/Outflows: Breakdown by category (platform payouts, OPEX, PO payments, ad invoices)
+  - 12-Week Projection: Baseline, Optimistic (+20% revenue, -10% costs), Pessimistic scenarios
+  - Upcoming Events Timeline: Shows cash events with DC/BI/All brand labels
+- **Data Sources**: Xero bank balances, OPEX payments, PO due dates, ad spend patterns
+- **Alerts**: Low cash (<£5K), runway warnings (<8 weeks), large upcoming payments
+
 ### Shipping Analytics
 - **Location**: Shipping → Analytics
 - **Shows**: Shipping costs, margins, carrier breakdown
@@ -180,6 +198,7 @@ GP3
 - **Country** (/country) - P&L by shipping destination
 - **Shipping** (/shipping) - Carrier costs and analytics
 - **Finance** (/finance/investor) - Investor metrics
+- **Cash Flow** (/finance/cashflow) - Cash position and forecasting
 
 ### Admin Pages
 - /admin/sync - Order sync
@@ -226,6 +245,15 @@ Automatically at 7am and 7pm UTC. You can also manually sync anytime via Admin �
 
 **What is Inter-Company?**
 IC transactions track services between DC and BI. When DC manufactures for BI, DC records IC Revenue and BI records IC Expense. These net to zero at group level.
+
+**How does COGS work?**
+COGS (Cost of Goods Sold) is calculated from actual component costs when BOM data is available. Each product's BOM defines which components are used and in what quantity. COGS = sum of (component cost × quantity × order quantity). When BOM data is unavailable, a 30% fallback is used. Check coverage at GET /api/cogs/stats.
+
+**What is Cash Flow forecasting?**
+The Cash Flow page (Finance → Cash Flow) shows real-time cash position, burn rate, and runway. It includes 30/60/90 day balance history, forecasted inflows/outflows, and 12-week projections with three scenarios (Baseline, Optimistic +20% revenue/-10% costs, Pessimistic -20% revenue/+10% costs).
+
+**What is runway?**
+Runway is how long your cash will last at the current burn rate. Calculated as: Current Balance ÷ Daily Burn Rate. Displayed in weeks on the Cash Flow page. If your balance is growing (positive cash flow), runway shows as "Sustainable".
 `;
 
 /**
@@ -253,7 +281,7 @@ export const SUGGESTED_QUESTIONS = [
   "What is MER?",
   "How do I exclude a test order?",
   "What's the difference between GP1, GP2, and GP3?",
-  "How do I add a B2B sale?",
-  "What is POAS?",
-  "How do I install the mobile app?",
+  "How does COGS work?",
+  "What is Cash Flow forecasting?",
+  "What is runway?",
 ];
