@@ -480,7 +480,7 @@ export default function XeroInvoicesPage() {
     setIcDialogOpen(true);
   };
 
-  // Handle IC approval
+  // Handle IC approval (including conversion from existing B2B order)
   const handleIcApproval = async () => {
     if (!icInvoice) return;
 
@@ -500,6 +500,9 @@ export default function XeroInvoicesPage() {
         return;
       }
 
+      // Check if this invoice was already approved as B2B (has matched_order_id)
+      const isConversion = icInvoice.approval_status !== 'pending' && icInvoice.matched_order_id;
+
       // Create IC transaction
       const icResponse = await fetch('/api/intercompany', {
         method: 'POST',
@@ -512,7 +515,7 @@ export default function XeroInvoicesPage() {
           category: icForm.category,
           subtotal: icInvoice.subtotal,
           tax: icInvoice.tax_total,
-          notes: `Auto-created from Xero Invoice ${icInvoice.invoice_number}`,
+          notes: `Auto-created from Xero Invoice ${icInvoice.invoice_number}${isConversion ? ' (converted from B2B)' : ''}`,
         }),
       });
 
@@ -521,21 +524,42 @@ export default function XeroInvoicesPage() {
         throw new Error(icData.error || 'Failed to create IC transaction');
       }
 
-      // Mark the Xero invoice as approved (but link it to IC, not B2B order)
-      const approveResponse = await fetch(`/api/xero/invoices/${icInvoice.id}`, {
+      // If converting from B2B, exclude the original order from P&L
+      if (isConversion && icInvoice.matched_order_id) {
+        const excludeResponse = await fetch('/api/orders/exclude', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: icInvoice.matched_order_id,
+            reason: `Converted to IC Transaction: ${icData.transaction?.id?.slice(0, 8)} (Invoice: ${icInvoice.invoice_number})`,
+          }),
+        });
+
+        if (!excludeResponse.ok) {
+          console.warn('Could not exclude the original B2B order');
+          toast.warning('IC created but could not exclude original B2B order - please exclude manually');
+        }
+      }
+
+      // Update the Xero invoice notes to indicate it's been converted to IC
+      const updateResponse = await fetch(`/api/xero/invoices/${icInvoice.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'ignore', // Mark as "ignored" since we're using IC workflow
-          notes: `Approved as IC Transaction: ${icData.transaction?.id?.slice(0, 8)}`,
+          action: icInvoice.approval_status === 'pending' ? 'ignore' : undefined,
+          notes: `${isConversion ? 'Converted to' : 'Approved as'} IC Transaction: ${icData.transaction?.id?.slice(0, 8)}`,
         }),
       });
 
-      if (!approveResponse.ok) {
-        console.warn('Could not mark invoice as processed');
+      if (!updateResponse.ok) {
+        console.warn('Could not update invoice notes');
       }
 
-      toast.success(`IC Transaction created: ${icForm.from_brand} → ${icForm.to_brand} for ${formatCurrency(icInvoice.subtotal)}`);
+      const successMessage = isConversion
+        ? `Converted to IC Transaction: ${icForm.from_brand} → ${icForm.to_brand} for ${formatCurrency(icInvoice.subtotal)}. Original B2B order excluded from P&L.`
+        : `IC Transaction created: ${icForm.from_brand} → ${icForm.to_brand} for ${formatCurrency(icInvoice.subtotal)}`;
+
+      toast.success(successMessage);
       setIcDialogOpen(false);
       setIcInvoice(null);
       fetchInvoices();
@@ -930,13 +954,46 @@ export default function XeroInvoicesPage() {
                               </div>
                             )}
                             {invoice.approval_status === 'approved' && (
-                              <div className="text-xs text-muted-foreground text-left">
-                                {(invoice as XeroInvoiceRecord & { linked_tracking?: string }).linked_tracking && (
-                                  <div className="font-mono">
-                                    📦 {(invoice as XeroInvoiceRecord & { linked_tracking?: string }).linked_tracking}
-                                  </div>
+                              <div className="flex items-center gap-2">
+                                {/* Show Convert to IC button for approved invoices with IC badge */}
+                                {isInterCompanyContact(invoice.contact_name) && !invoice.notes?.includes('IC Transaction') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openIcDialog(invoice)}
+                                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                                  >
+                                    <ArrowRightLeft className="h-3 w-3 mr-1" />
+                                    Convert to IC
+                                  </Button>
                                 )}
-                                {invoice.notes && <div>{invoice.notes}</div>}
+                                <div className="text-xs text-muted-foreground text-left">
+                                  {(invoice as XeroInvoiceRecord & { linked_tracking?: string }).linked_tracking && (
+                                    <div className="font-mono">
+                                      📦 {(invoice as XeroInvoiceRecord & { linked_tracking?: string }).linked_tracking}
+                                    </div>
+                                  )}
+                                  {invoice.notes && <div>{invoice.notes}</div>}
+                                </div>
+                              </div>
+                            )}
+                            {invoice.approval_status === 'ignored' && (
+                              <div className="flex items-center gap-2">
+                                {/* Show Convert to IC button for ignored invoices with IC badge */}
+                                {isInterCompanyContact(invoice.contact_name) && !invoice.notes?.includes('IC Transaction') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openIcDialog(invoice)}
+                                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                                  >
+                                    <ArrowRightLeft className="h-3 w-3 mr-1" />
+                                    Convert to IC
+                                  </Button>
+                                )}
+                                {invoice.notes && (
+                                  <div className="text-xs text-muted-foreground">{invoice.notes}</div>
+                                )}
                               </div>
                             )}
                           </TableCell>
@@ -1722,15 +1779,37 @@ export default function XeroInvoicesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ArrowRightLeft className="h-5 w-5 text-purple-600" />
-              Approve as Inter-Company Transaction
+              {icInvoice?.approval_status === 'pending'
+                ? 'Approve as Inter-Company Transaction'
+                : 'Convert to Inter-Company Transaction'}
             </DialogTitle>
             <DialogDescription>
-              This invoice appears to be between DC and BI. Create an IC transaction instead of a B2B order.
+              {icInvoice?.approval_status === 'pending'
+                ? 'This invoice appears to be between DC and BI. Create an IC transaction instead of a B2B order.'
+                : icInvoice?.matched_order_id
+                ? 'Convert this invoice to an IC transaction. The original B2B order will be excluded from P&L to avoid double-counting.'
+                : 'Convert this invoice to an IC transaction for proper inter-company accounting.'}
             </DialogDescription>
           </DialogHeader>
 
           {icInvoice && (
             <div className="space-y-4 py-4">
+              {/* Warning for conversion */}
+              {icInvoice.approval_status !== 'pending' && icInvoice.matched_order_id && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div className="text-sm text-amber-800">
+                      <p className="font-medium">This will exclude the existing B2B order</p>
+                      <p className="text-amber-700 mt-1">
+                        The B2B order created from this invoice will be excluded from P&L calculations
+                        to prevent double-counting. You may need to run &quot;Sync &amp; Update&quot; to refresh P&L data.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Invoice Summary */}
               <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 rounded-lg p-4">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -1852,12 +1931,12 @@ export default function XeroInvoicesPage() {
               {icLoading ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
+                  {icInvoice?.approval_status === 'pending' ? 'Creating...' : 'Converting...'}
                 </>
               ) : (
                 <>
                   <ArrowRightLeft className="h-4 w-4 mr-2" />
-                  Create IC Transaction
+                  {icInvoice?.approval_status === 'pending' ? 'Create IC Transaction' : 'Convert to IC'}
                 </>
               )}
             </Button>
