@@ -49,6 +49,7 @@ import {
 import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 
 type BrandFilter = 'all' | 'DC' | 'BI';
 
@@ -217,6 +218,7 @@ export default function ShippingDashboardPage() {
   }
 
   return (
+    <PullToRefresh onRefresh={async () => { await fetchData(); }}>
     <div className="space-y-6">
       {/* Error Alert */}
       {error && (
@@ -238,39 +240,39 @@ export default function ShippingDashboardPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Truck className="h-6 w-6" />
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Truck className="h-5 w-5 sm:h-6 sm:w-6" />
             Shipping Analytics
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
             Carrier costs, margins, and profitability analysis
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Link href="/shipping/upload">
-            <Button variant="default" size="sm">
-              <Upload className="h-4 w-4 mr-2" />
-              Upload Invoice
+            <Button variant="default" size="sm" className="h-9 sm:h-8">
+              <Upload className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Upload Invoice</span>
             </Button>
           </Link>
           <Link href="/shipping/unmatched">
-            <Button variant={unmatchedCount > 0 ? 'destructive' : 'outline'} size="sm">
-              <FileQuestion className="h-4 w-4 mr-2" />
-              Unmatched
+            <Button variant={unmatchedCount > 0 ? 'destructive' : 'outline'} size="sm" className="h-9 sm:h-8">
+              <FileQuestion className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Unmatched</span>
               {unmatchedCount > 0 && (
-                <Badge variant="secondary" className="ml-2 bg-white text-destructive">
+                <Badge variant="secondary" className="ml-1 sm:ml-2 bg-white text-destructive">
                   {unmatchedCount}
                 </Badge>
               )}
             </Button>
           </Link>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={cn('h-4 w-4 mr-2', refreshing && 'animate-spin')} />
-            Refresh
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="h-9 sm:h-8">
+            <RefreshCw className={cn('h-4 w-4 sm:mr-2', refreshing && 'animate-spin')} />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="h-9 sm:h-8 hidden sm:flex">
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
@@ -354,5 +356,6 @@ export default function ShippingDashboardPage() {
       {/* Orders Table */}
       <ShippingOrdersTable orders={tableOrders} onShipmentUpdate={handleRefresh} />
     </div>
+    </PullToRefresh>
   );
 }
