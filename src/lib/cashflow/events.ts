@@ -278,83 +278,146 @@ export function generatePOPaymentEvents(
 // ============================================
 
 /**
- * Estimate ad platform invoice payments based on recent spend
- * Meta: Typically bills monthly, around the 1st
- * Google: Varies by billing threshold or monthly
+ * Ad platform billing thresholds (configurable per platform)
+ * Meta: Threshold-based - charges every time spend hits threshold
+ * Google: Threshold-based or monthly (we use threshold model)
  * Microsoft: Monthly billing
+ */
+export interface AdPlatformBillingConfig {
+  metaThreshold: number;      // Default £700
+  googleThreshold: number;    // Default £500
+  microsoftMonthly: boolean;  // True = monthly, false = threshold
+}
+
+const DEFAULT_BILLING_CONFIG: AdPlatformBillingConfig = {
+  metaThreshold: 700,
+  googleThreshold: 500,
+  microsoftMonthly: true,
+};
+
+/**
+ * Estimate ad platform charges based on recent spend and billing models
+ *
+ * Meta: Threshold-based billing - charges £700 every time spend accumulates to threshold
+ * Google: Threshold-based billing - charges when threshold reached
+ * Microsoft: Monthly billing - charges at end of month
  */
 export function estimateAdPlatformInvoices(
   recentAdSpend: { date: string; meta: number; google: number; microsoft: number }[],
-  forecastMonths: number = 3
+  forecastMonths: number = 3,
+  config: Partial<AdPlatformBillingConfig> = {}
 ): CashEvent[] {
   const events: CashEvent[] = [];
   const today = new Date();
+  const forecastDays = forecastMonths * 30;
 
-  // Calculate monthly average spend
+  const billingConfig = { ...DEFAULT_BILLING_CONFIG, ...config };
+
+  // Calculate daily average spend from recent data
   const totalDays = recentAdSpend.length || 1;
   const totalMeta = recentAdSpend.reduce((sum, d) => sum + d.meta, 0);
   const totalGoogle = recentAdSpend.reduce((sum, d) => sum + d.google, 0);
   const totalMicrosoft = recentAdSpend.reduce((sum, d) => sum + d.microsoft, 0);
 
-  const monthlyMeta = (totalMeta / totalDays) * 30.44;
-  const monthlyGoogle = (totalGoogle / totalDays) * 30.44;
-  const monthlyMicrosoft = (totalMicrosoft / totalDays) * 30.44;
+  const dailyMeta = totalMeta / totalDays;
+  const dailyGoogle = totalGoogle / totalDays;
+  const dailyMicrosoft = totalMicrosoft / totalDays;
 
-  for (let i = 1; i <= forecastMonths; i++) {
-    const invoiceDate = addMonths(startOfMonth(today), i);
-    const invoiceDateStr = format(invoiceDate, 'yyyy-MM-dd');
+  // ========================================
+  // Meta - Threshold-based billing
+  // Charges every time spend accumulates to threshold
+  // ========================================
+  if (dailyMeta > 0) {
+    const threshold = billingConfig.metaThreshold;
+    const daysBetweenCharges = threshold / dailyMeta;
 
-    // Meta invoice (usually 1st of month)
-    if (monthlyMeta > 0) {
+    // Generate charges for each threshold crossing
+    let daysFromNow = daysBetweenCharges; // First charge after one threshold period
+    let chargeNumber = 1;
+
+    while (daysFromNow <= forecastDays) {
+      const chargeDate = addDays(today, Math.ceil(daysFromNow));
+      const chargeDateStr = format(chargeDate, 'yyyy-MM-dd');
+
       events.push({
-        id: `meta-invoice-${invoiceDateStr}`,
+        id: `meta-threshold-${chargeNumber}-${chargeDateStr}`,
+        brand_id: null,
+        event_date: chargeDateStr,
+        event_type: 'ad_platform_invoice',
+        amount: -threshold,
+        description: 'Meta Ads Threshold Charge',
+        reference_type: 'ad_platform',
+        reference_id: 'meta',
+        probability_pct: 85,  // Slightly uncertain on exact timing
+        status: 'forecast',
+        is_recurring: true,
+        notes: `£${threshold} threshold @ £${Math.round(dailyMeta)}/day ≈ every ${daysBetweenCharges.toFixed(1)} days`,
+      });
+
+      daysFromNow += daysBetweenCharges;
+      chargeNumber++;
+    }
+  }
+
+  // ========================================
+  // Google - Threshold-based billing
+  // Similar to Meta, charges when threshold reached
+  // ========================================
+  if (dailyGoogle > 0) {
+    const threshold = billingConfig.googleThreshold;
+    const daysBetweenCharges = threshold / dailyGoogle;
+
+    let daysFromNow = daysBetweenCharges;
+    let chargeNumber = 1;
+
+    while (daysFromNow <= forecastDays) {
+      const chargeDate = addDays(today, Math.ceil(daysFromNow));
+      const chargeDateStr = format(chargeDate, 'yyyy-MM-dd');
+
+      events.push({
+        id: `google-threshold-${chargeNumber}-${chargeDateStr}`,
+        brand_id: null,
+        event_date: chargeDateStr,
+        event_type: 'ad_platform_invoice',
+        amount: -threshold,
+        description: 'Google Ads Threshold Charge',
+        reference_type: 'ad_platform',
+        reference_id: 'google',
+        probability_pct: 85,
+        status: 'forecast',
+        is_recurring: true,
+        notes: `£${threshold} threshold @ £${Math.round(dailyGoogle)}/day ≈ every ${daysBetweenCharges.toFixed(1)} days`,
+      });
+
+      daysFromNow += daysBetweenCharges;
+      chargeNumber++;
+    }
+  }
+
+  // ========================================
+  // Microsoft - Monthly billing
+  // Charges accumulated spend at end of month
+  // ========================================
+  if (dailyMicrosoft > 0) {
+    const monthlyMicrosoft = dailyMicrosoft * 30.44;
+
+    for (let i = 1; i <= forecastMonths; i++) {
+      const invoiceDate = addMonths(startOfMonth(today), i);
+      const invoiceDateStr = format(addDays(invoiceDate, 2), 'yyyy-MM-dd'); // Usually 2nd-3rd
+
+      events.push({
+        id: `microsoft-monthly-${invoiceDateStr}`,
         brand_id: null,
         event_date: invoiceDateStr,
         event_type: 'ad_platform_invoice',
-        amount: -Math.round(monthlyMeta * 100) / 100,
-        description: 'Meta Ads Invoice',
-        reference_type: 'ad_platform',
-        reference_id: 'meta',
-        probability_pct: 95,
-        status: 'forecast',
-        is_recurring: true,
-        notes: `Estimated from ${totalDays}-day average`,
-      });
-    }
-
-    // Google invoice (usually around 1st-5th)
-    if (monthlyGoogle > 0) {
-      events.push({
-        id: `google-invoice-${invoiceDateStr}`,
-        brand_id: null,
-        event_date: format(addDays(invoiceDate, 4), 'yyyy-MM-dd'),
-        event_type: 'ad_platform_invoice',
-        amount: -Math.round(monthlyGoogle * 100) / 100,
-        description: 'Google Ads Invoice',
-        reference_type: 'ad_platform',
-        reference_id: 'google',
-        probability_pct: 95,
-        status: 'forecast',
-        is_recurring: true,
-        notes: `Estimated from ${totalDays}-day average`,
-      });
-    }
-
-    // Microsoft invoice
-    if (monthlyMicrosoft > 0) {
-      events.push({
-        id: `microsoft-invoice-${invoiceDateStr}`,
-        brand_id: null,
-        event_date: format(addDays(invoiceDate, 2), 'yyyy-MM-dd'),
-        event_type: 'ad_platform_invoice',
         amount: -Math.round(monthlyMicrosoft * 100) / 100,
-        description: 'Microsoft Ads Invoice',
+        description: 'Microsoft Ads Monthly Invoice',
         reference_type: 'ad_platform',
         reference_id: 'microsoft',
         probability_pct: 95,
         status: 'forecast',
         is_recurring: true,
-        notes: `Estimated from ${totalDays}-day average`,
+        notes: `Monthly billing @ £${Math.round(dailyMicrosoft)}/day`,
       });
     }
   }
