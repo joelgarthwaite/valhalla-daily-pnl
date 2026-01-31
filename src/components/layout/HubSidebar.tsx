@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -24,8 +25,10 @@ import {
   Building2,
   ClipboardList,
   ArrowRightLeft,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface NavItem {
   label: string;
@@ -195,8 +198,20 @@ const allNavHrefs = navSections.flatMap(section =>
   section.items.map(item => item.href)
 );
 
-export function HubSidebar() {
+interface HubSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function HubSidebar({ isOpen, onClose }: HubSidebarProps) {
   const pathname = usePathname();
+
+  // Close sidebar when route changes on mobile
+  useEffect(() => {
+    if (onClose) {
+      onClose();
+    }
+  }, [pathname, onClose]);
 
   const isActive = (href: string) => {
     if (href === '/') {
@@ -222,8 +237,8 @@ export function HubSidebar() {
     return false;
   };
 
-  return (
-    <aside className="w-64 shrink-0 border-r bg-card h-[calc(100vh-57px)] sticky top-[57px] overflow-y-auto">
+  const sidebarContent = (
+    <>
       <nav className="p-4 space-y-6">
         {navSections.map((section) => (
           <div key={section.title}>
@@ -247,7 +262,9 @@ export function HubSidebar() {
                         ? 'text-muted-foreground/50 cursor-not-allowed'
                         : 'hover:bg-muted text-foreground'
                     )}
-                    onClick={(e) => disabled && e.preventDefault()}
+                    onClick={(e) => {
+                      if (disabled) e.preventDefault();
+                    }}
                   >
                     <item.icon className={cn(
                       'h-4 w-4',
@@ -291,6 +308,46 @@ export function HubSidebar() {
           </div>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:block w-64 shrink-0 border-r bg-card h-[calc(100vh-57px)] sticky top-[57px] overflow-y-auto">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Sidebar Overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <aside
+        className={cn(
+          'fixed top-0 left-0 z-50 h-full w-72 bg-card border-r transform transition-transform duration-300 ease-in-out md:hidden',
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">V</span>
+            </div>
+            <span className="font-bold">Valhalla Hub</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="overflow-y-auto h-[calc(100%-65px)]">
+          {sidebarContent}
+        </div>
+      </aside>
+    </>
   );
 }

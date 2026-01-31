@@ -397,9 +397,9 @@ export default function HubHomePage() {
     <div className="space-y-8">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold">Welcome to Valhalla Hub</h1>
-        <p className="text-muted-foreground mt-1">
-          Your unified business intelligence dashboard for Display Champ & Bright Ivy
+        <h1 className="text-2xl sm:text-3xl font-bold">Welcome to Valhalla Hub</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1">
+          Your unified business intelligence dashboard
         </p>
       </div>
 
@@ -453,12 +453,12 @@ export default function HubHomePage() {
       {wtdData && (
         <Card className="bg-muted/30">
           <CardContent className="py-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">Week-to-Date</span>
               </div>
-              <div className="flex gap-6">
+              <div className="flex flex-wrap gap-4 sm:gap-6">
                 {wtdStats.map((stat) => (
                   <div key={stat.label} className="text-sm">
                     <span className="text-muted-foreground">{stat.label}: </span>
