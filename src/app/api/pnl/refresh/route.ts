@@ -4,6 +4,7 @@ import type { CostConfig } from '@/types';
 import {
   calculateGP1,
   calculateGP2,
+  calculateGP2WithShipping,
   calculateGP3,
   calculatePOAS,
   calculateCoP,
@@ -13,14 +14,16 @@ import {
   calculateNetAOV,
 } from '@/lib/pnl/calculations';
 import { getBaseSku } from '@/lib/inventory/sku-utils';
+import { calculateManufacturingOverhead } from '@/lib/pnl/manufacturing-overhead';
 
 // Allow up to 120 seconds for P&L refresh (Pro plan allows up to 300s)
 export const maxDuration = 120;
 
 // Default cost percentages
-const DEFAULT_COGS_RATE = 0.30; // 30% COGS for 70% gross margin
-const DEFAULT_PICK_PACK_RATE = 0.05; // 5% pick & pack
-const DEFAULT_LOGISTICS_RATE = 0.03; // 3% logistics
+const DEFAULT_COGS_RATE = 0.30; // 30% COGS for 70% gross margin (fallback when BOM unavailable)
+// Pick & Pack and Logistics are now calculated from manufacturing overhead config
+// const DEFAULT_PICK_PACK_RATE = 0.05; // DEPRECATED - now in manufacturing overhead
+// const DEFAULT_LOGISTICS_RATE = 0.03; // DEPRECATED - now in manufacturing overhead
 const SHOPIFY_FEE_RATE = 0.029; // 2.9%
 const SHOPIFY_FEE_FIXED = 0.30; // £0.30 per transaction
 const ETSY_FEE_RATE = 0.065; // ~6.5% total Etsy fees
@@ -294,7 +297,8 @@ export async function POST(request: NextRequest) {
     let totalOrdersWithFallback = 0;
 
     for (const brand of brands) {
-      // Fetch cost config for the brand
+      // Fetch cost config for the brand (only COGS fallback rate is used now)
+      // Pick & Pack and Logistics are now absorbed into manufacturing overhead
       const { data: costConfigData } = await supabase
         .from('cost_config')
         .select('*')
@@ -303,8 +307,8 @@ export async function POST(request: NextRequest) {
 
       const costConfig: CostConfig | null = costConfigData;
       const cogsRate = costConfig ? costConfig.cogs_pct / 100 : DEFAULT_COGS_RATE;
-      const pickPackRate = costConfig ? costConfig.pick_pack_pct / 100 : DEFAULT_PICK_PACK_RATE;
-      const logisticsRate = costConfig ? costConfig.logistics_pct / 100 : DEFAULT_LOGISTICS_RATE;
+      // Note: pickPackRate and logisticsRate are no longer used
+      // Manufacturing overhead is now calculated from OPEX allocations
 
       // Fetch orders within date range (extract refunds from raw_data)
       // Exclude orders that have been manually excluded
@@ -531,6 +535,28 @@ export async function POST(request: NextRequest) {
         .gte('transaction_date', fromDate)
         .lte('transaction_date', toDate);
 
+      // Calculate total orders for manufacturing overhead allocation
+      const totalOrdersInPeriod = (orders?.length || 0) + (b2bRevenue?.length || 0);
+
+      // Calculate manufacturing overhead for this period
+      const manufacturingOverhead = await calculateManufacturingOverhead(
+        supabase,
+        fromDate,
+        toDate,
+        totalOrdersInPeriod
+      );
+
+      // Log manufacturing overhead breakdown for debugging
+      if (manufacturingOverhead) {
+        console.log(`Manufacturing overhead for ${brand.code}:`, {
+          directLabor: manufacturingOverhead.directLabor.toFixed(2),
+          overhead: manufacturingOverhead.manufacturingOverhead.toFixed(2),
+          total: manufacturingOverhead.totalAllocatedToCOGS.toFixed(2),
+          perOrder: manufacturingOverhead.perOrderTotal.toFixed(2),
+          ordersInPeriod: totalOrdersInPeriod,
+        });
+      }
+
       // Process IC transactions - aggregate by date
       // If this brand is the sender (from_brand_id), it's IC revenue
       // If this brand is the receiver (to_brand_id), it's IC expense
@@ -570,7 +596,7 @@ export async function POST(request: NextRequest) {
 
         // Calculate COGS - use actual COGS from BOM when available
         // For orders without actual COGS data, use percentage-based fallback
-        let cogsEstimated: number;
+        let materialsCOGS: number;
         if (data.actual_cogs_orders > 0 && data.actual_cogs > 0) {
           // We have some actual COGS data
           // For orders with actual COGS: use the calculated amount
@@ -578,38 +604,58 @@ export async function POST(request: NextRequest) {
           const totalOrderCount = data.actual_cogs_orders + data.fallback_cogs_orders;
           if (data.fallback_cogs_orders === 0) {
             // All orders have actual COGS - use it directly
-            cogsEstimated = data.actual_cogs;
+            materialsCOGS = data.actual_cogs;
           } else {
             // Mix of actual and fallback - blend them
             // Estimate revenue per order for fallback portion
             const avgRevenuePerOrder = totalRevenue / (totalOrderCount || 1);
             const fallbackRevenue = avgRevenuePerOrder * data.fallback_cogs_orders;
             const fallbackCOGS = fallbackRevenue * cogsRate;
-            cogsEstimated = data.actual_cogs + fallbackCOGS;
+            materialsCOGS = data.actual_cogs + fallbackCOGS;
           }
         } else {
           // No actual COGS data - use percentage-based fallback
-          cogsEstimated = netRevenue * cogsRate;
+          materialsCOGS = netRevenue * cogsRate;
         }
 
-        // Calculate operational costs
-        const pickPackCost = netRevenue * pickPackRate;
-        const logisticsCost = netRevenue * logisticsRate;
+        // Calculate manufacturing overhead allocation for this day's orders
+        // Manufacturing overhead = direct labor + premises + equipment allocated to production
+        const dayOrderCount = totalOrders;
+        const manufacturingOverheadAllocation = manufacturingOverhead
+          ? manufacturingOverhead.perOrderTotal * dayOrderCount
+          : 0;
+
+        // Total COGS = Materials + Manufacturing Overhead (direct labor + overhead)
+        const cogsEstimated = materialsCOGS + manufacturingOverheadAllocation;
+
+        // Pick & Pack and Logistics are now absorbed into COGS via manufacturing overhead
+        // Keep these at 0 for backward compatibility in records
+        const pickPackCost = 0;
+        const logisticsCost = 0;
 
         // Calculate platform fees
         const shopifyFees = (data.shopify_revenue * SHOPIFY_FEE_RATE) + (data.shopify_orders * SHOPIFY_FEE_FIXED);
         const etsyFees = data.etsy_revenue * ETSY_FEE_RATE;
         const totalPlatformFees = shopifyFees + etsyFees;
 
-        // Calculate GP1, GP2, GP3 (GP3 now includes IC amounts)
+        // Calculate shipping margin (now included in GP2)
+        const shippingMargin = data.shipping_charged - data.shipping_cost;
+
+        // Calculate GP1, GP2, GP3
+        // GP1 = Net Revenue - COGS (materials + manufacturing overhead)
         const gp1 = calculateGP1(netRevenue, cogsEstimated);
-        const gp2 = calculateGP2(gp1, pickPackCost, totalPlatformFees, logisticsCost);
+
+        // GP2 = GP1 - Platform Fees + Shipping Margin
+        // (Pick & Pack and Logistics are now in COGS, shipping is now in GP2)
+        const gp2 = calculateGP2WithShipping(gp1, totalPlatformFees, data.shipping_charged, data.shipping_cost);
+
+        // GP3 = GP2 + IC Revenue - IC Expense - Ad Spend
         const gp3 = calculateGP3(gp2, totalAdSpend, icRevenue, icExpense);
 
         // Legacy margins (GP1 = gross profit, GP3 = net profit)
         const grossProfit = gp1;
         const grossMarginPct = netRevenue > 0 ? (grossProfit / netRevenue) * 100 : 0;
-        const shippingMargin = data.shipping_charged - data.shipping_cost;
+        // shippingMargin already calculated above for GP2
         const netProfit = gp3;
         const netMarginPct = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
 
@@ -617,7 +663,8 @@ export async function POST(request: NextRequest) {
         const grossAov = calculateGrossAOV(totalRevenue, data.shipping_charged, totalOrders);
         const netAov = calculateNetAOV(netRevenue, 0, totalOrders); // discounts = 0 for now
         const poas = calculatePOAS(gp3, totalAdSpend);
-        const totalCosts = cogsEstimated + pickPackCost + logisticsCost + totalPlatformFees + totalAdSpend + data.shipping_cost;
+        // Total costs now includes COGS (materials + mfg overhead), platform fees, ad spend, and shipping
+        const totalCosts = cogsEstimated + totalPlatformFees + totalAdSpend + data.shipping_cost;
         const cop = calculateCoP(totalCosts, gp3);
         const mer = calculateMER(totalRevenue, totalAdSpend);
         const marketingCostRatio = calculateMarketingCostRatio(totalAdSpend, totalRevenue);
@@ -727,6 +774,8 @@ export async function POST(request: NextRequest) {
           : cogsAccuracy > 0
             ? `${cogsAccuracy}% of orders have actual COGS, rest use ${(DEFAULT_COGS_RATE * 100).toFixed(0)}% fallback`
             : 'Using percentage-based COGS (no BOM data available)',
+        manufacturingOverheadIncluded: true,
+        note2: 'COGS now includes manufacturing overhead (labor + 50% premises + equipment). Pick & Pack and Logistics removed. GP2 now includes shipping margin.',
       },
     });
 

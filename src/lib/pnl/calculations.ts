@@ -116,6 +116,7 @@ export function calculateGP1(revenue: number, cogs: number): number {
 
 /**
  * Calculate GP2 (Gross Profit 2): GP1 - Pick&Pack - Payment Fees - Logistics
+ * @deprecated Use calculateGP2WithShipping for new calculations
  */
 export function calculateGP2(
   gp1: number,
@@ -124,6 +125,21 @@ export function calculateGP2(
   logisticsCost: number
 ): number {
   return gp1 - pickPackCost - platformFees - logisticsCost;
+}
+
+/**
+ * Calculate GP2 with shipping margin included
+ * New formula: GP1 - Platform Fees + Shipping Margin
+ * (Pick & Pack and Logistics are now part of COGS via manufacturing overhead)
+ */
+export function calculateGP2WithShipping(
+  gp1: number,
+  platformFees: number,
+  shippingCharged: number,
+  shippingCost: number
+): number {
+  const shippingMargin = shippingCharged - shippingCost;
+  return gp1 - platformFees + shippingMargin;
 }
 
 /**

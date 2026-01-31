@@ -147,6 +147,7 @@ The CSP allows:
 - `supabase/migrations/019_xero_invoices.sql` - Xero invoice sync for B2B orders
 - `supabase/migrations/020_inter_company_transactions.sql` - Inter-company transactions (DC ↔ BI)
 - `supabase/migrations/021_cashflow_schema.sql` - Cash flow forecasting tables
+- `supabase/migrations/022_manufacturing_overhead.sql` - Manufacturing overhead allocation config
 
 ---
 
@@ -812,10 +813,10 @@ Net Revenue = Product Revenue - Refunds
 
 ```
 GP1 = Net Revenue - COGS
-      (Gross profit after cost of goods)
+      (Manufacturing Margin - after materials + labor + overhead)
 
-GP2 = GP1 - Pick&Pack - Payment Fees - Logistics
-      (Operating profit after fulfillment costs)
+GP2 = GP1 - Platform Fees + Shipping Margin
+      (Operating profit after platform fees, plus shipping profit/loss)
 
 GP3 = GP2 + IC Revenue - IC Expense - Ad Spend
       (Contribution Margin after Inter-Company and Ads)
@@ -823,6 +824,82 @@ GP3 = GP2 + IC Revenue - IC Expense - Ad Spend
 True Net Profit = GP3 - OPEX
       (THE BOTTOM LINE - after all operating expenses)
 ```
+
+### COGS (Cost of Goods Sold)
+
+COGS now uses actual manufacturing overhead allocation instead of percentage estimates:
+
+```
+COGS = Materials Cost + Direct Labor + Manufacturing Overhead
+
+Where:
+- Materials Cost = BOM × Component Costs (or 30% of revenue as fallback)
+- Direct Labor = Allocated production staff wages
+- Manufacturing Overhead = Allocated premises + equipment + indirect labor
+```
+
+**Per-Order Allocation:**
+Manufacturing overhead is calculated for the period and divided by order count:
+```
+Per-Order Overhead = Total Period Overhead / Orders in Period
+Daily COGS = Materials + (Per-Order Overhead × Day's Orders)
+```
+
+### Manufacturing Overhead Configuration
+
+Admin configurable allocations from OPEX to COGS. Managed at Admin > Settings or via API.
+
+**Configuration Options:**
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `production_premises_pct` | % of Premises costs allocated to manufacturing | 50% |
+| `staff_allocations` | Per-staff Direct Labor % and Overhead % | See below |
+| `equipment_allocations` | Per-equipment % allocated to manufacturing | See below |
+
+**Staff Allocation Format:**
+```json
+{
+  "Edvin": { "direct_labor_pct": 100, "overhead_pct": 0 },
+  "Sophie": { "direct_labor_pct": 100, "overhead_pct": 0 },
+  "Jake": { "direct_labor_pct": 25, "overhead_pct": 75 }
+}
+```
+- Staff matched by name appearing in OPEX description
+- Direct Labor: Hands-on production work (e.g., assembly, printing)
+- Overhead: Indirect production support (e.g., supervision, planning)
+
+**Equipment Allocation Format:**
+```json
+{
+  "Mimaki UJF 6042 MkII e UV Printer": 100
+}
+```
+- Equipment matched by name appearing in OPEX description
+- 100% = fully allocated to manufacturing
+
+**What Gets Excluded from OPEX:**
+Amounts allocated to COGS are automatically excluded from OPEX to avoid double-counting:
+- 50% of Premises costs
+- Allocated portions of staff salaries
+- Allocated portions of equipment costs
+
+**API Endpoint:** `GET/PATCH /api/manufacturing-config`
+
+**Migration:** `supabase/migrations/022_manufacturing_overhead.sql`
+
+### Shipping Margin
+
+Shipping profit/loss is now included in GP2 (previously tracked separately):
+
+```
+Shipping Margin = Shipping Charged - Shipping Cost
+GP2 = GP1 - Platform Fees + Shipping Margin
+```
+
+This means:
+- Profitable shipping (charged > cost) increases GP2
+- Loss-making shipping (charged < cost) decreases GP2
 
 ### Inter-Company (IC) Transactions
 
@@ -1502,6 +1579,13 @@ curl "https://pnl.displaychamp.com/api/email/daily-summary?type=morning&test=tru
 - `GET /api/opex` - Fetch OPEX data and calculate totals
   - Query params: `from`, `to`, `brand`
   - Returns: summary (monthly totals by category), periodTotal, expenseCount
+
+### Manufacturing Overhead Config
+- `GET /api/manufacturing-config` - Get current manufacturing overhead allocation settings
+  - Returns: config object with premises %, staff allocations, equipment allocations
+- `PATCH /api/manufacturing-config` - Update manufacturing overhead config (admin only)
+  - Body: `{ production_premises_pct, staff_allocations, equipment_allocations, notes }`
+  - Returns: updated config, message to refresh P&L
 
 ### Daily Summary Email
 - `POST /api/email/daily-summary` - Send daily P&L summary email
