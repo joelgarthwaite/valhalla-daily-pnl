@@ -1074,6 +1074,49 @@ onChange={(e) => setFormData({
 
 **Why:** Using `parseInt()` or `parseFloat()` directly in onChange prevents users from clearing prefilled values to enter new ones.
 
+#### TypeScript Configuration
+
+The `scripts/` folder is excluded from TypeScript compilation in `tsconfig.json`:
+
+```json
+"exclude": ["node_modules", "scripts"]
+```
+
+**Why:** Migration scripts use `dotenv` and other dependencies not available during Next.js production build. Excluding them prevents build failures on Vercel.
+
+---
+
+## Dashboard Features
+
+### Hub Home Page (`/`)
+- **Yesterday Card**: Displays "Yesterday (30 Jan)" with the actual date for data verification
+- **Quick Stats**: Revenue, Orders, Net Profit with daily comparisons
+- **Cash Position**: Real-time bank balances from Xero
+
+### Revenue by Channel Chart
+The Revenue by Channel chart supports multiple view modes:
+
+**Lines View** (default):
+- Individual lines for Shopify (blue), Etsy (orange), B2B (green), Total (purple)
+- Each channel clearly visible with distinct colors
+- YoY comparison shows dashed lines for previous year
+
+**Bars View**:
+- Stacked bar chart showing channel breakdown
+- Total revenue per period with channel proportions
+
+**Features**:
+- **YoY Toggle**: Compare current period vs same period last year
+- **Trend Line**: Linear regression showing overall direction
+- **Tooltips**: Detailed breakdown on hover with YoY change percentages
+
+### Other Charts
+| Chart | Description |
+|-------|-------------|
+| Revenue vs Ad Spend | Dual-axis comparing revenue to marketing spend |
+| Orders by Channel | Stacked orders with YoY comparison |
+| Margin Trend | GP1%, GP2%, GP3%, Net Margin% over time |
+
 ---
 
 ## Data Flow & Sync Architecture
