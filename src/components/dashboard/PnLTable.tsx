@@ -59,7 +59,7 @@ export function PnLTable({ data, isLoading = false, showDetails = true }: PnLTab
   // Mobile Card View Component
   const MobileCardView = () => (
     <div className="space-y-3 md:hidden">
-      {data.map((row) => {
+      {data.map((row, index) => {
         const isExpanded = expandedRows.has(row.period);
         const isProfit = row.netProfit >= 0;
 
@@ -72,9 +72,12 @@ export function PnLTable({ data, isLoading = false, showDetails = true }: PnLTab
             )}
           >
             <CardContent className="p-4">
-              {/* Header with period and profit/loss indicator */}
+              {/* Header with period label and index badge */}
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
+                  <span className="bg-muted text-muted-foreground text-xs font-medium px-2 py-0.5 rounded">
+                    {index === 0 ? 'Latest' : `${index + 1}`}
+                  </span>
                   <span className="font-semibold text-base">{row.periodLabel}</span>
                   {isProfit ? (
                     <TrendingUp className="h-4 w-4 text-green-500" />

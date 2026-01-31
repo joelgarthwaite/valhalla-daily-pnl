@@ -27,6 +27,24 @@ function useIsMobile() {
   return isMobile;
 }
 
+// Abbreviated labels for mobile display
+const mobileLabels: Record<string, string> = {
+  'Product Revenue': 'Revenue',
+  'Refunds': 'Refunds',
+  'COGS (30%)': 'COGS',
+  'Platform Fees': 'Fees',
+  'Pick & Pack (5%)': 'P&P',
+  'Logistics (3%)': 'Logistics',
+  'Ad Spend': 'Ads',
+  'OPEX': 'OPEX',
+  'IC Revenue': 'IC Rev',
+  'IC Expense': 'IC Exp',
+  'True Net Profit': 'Net',
+  'GP1': 'GP1',
+  'GP2': 'GP2',
+  'GP3': 'GP3',
+};
+
 interface WaterfallChartProps {
   data: WaterfallDataPoint[];
   isLoading?: boolean;
@@ -34,6 +52,7 @@ interface WaterfallChartProps {
 
 interface ProcessedWaterfallData {
   name: string;
+  fullName: string; // Keep full name for tooltip
   value: number;
   start: number;
   end: number;
@@ -42,7 +61,7 @@ interface ProcessedWaterfallData {
   displayValue: number;
 }
 
-function processWaterfallData(data: WaterfallDataPoint[]): ProcessedWaterfallData[] {
+function processWaterfallData(data: WaterfallDataPoint[], isMobile: boolean): ProcessedWaterfallData[] {
   let runningTotal = 0;
 
   return data.map((item) => {
@@ -56,8 +75,12 @@ function processWaterfallData(data: WaterfallDataPoint[]): ProcessedWaterfallDat
       runningTotal = item.value;
     }
 
+    // Use abbreviated label for mobile, full name for desktop
+    const displayName = isMobile ? (mobileLabels[item.name] || item.name) : item.name;
+
     return {
-      name: item.name,
+      name: displayName,
+      fullName: item.name, // Keep full name for tooltip
       value: item.value,
       start: Math.min(start, end),
       end: Math.max(start, end),
@@ -82,7 +105,7 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 
   return (
     <div className="bg-background border rounded-lg shadow-lg p-3 text-sm">
-      <p className="font-medium mb-1">{data.name}</p>
+      <p className="font-medium mb-1">{data.fullName}</p>
       <p className={data.displayValue >= 0 ? 'text-green-600' : 'text-red-600'}>
         {data.displayValue >= 0 ? '' : '-'}{formatCurrency(Math.abs(data.displayValue))}
       </p>
@@ -124,7 +147,7 @@ export function WaterfallChart({ data, isLoading = false }: WaterfallChartProps)
     );
   }
 
-  const processedData = processWaterfallData(data);
+  const processedData = processWaterfallData(data, isMobile);
 
   const getBarColor = (entry: ProcessedWaterfallData) => {
     if (entry.isTotal) {
@@ -148,11 +171,11 @@ export function WaterfallChart({ data, isLoading = false }: WaterfallChartProps)
             <XAxis
               dataKey="name"
               type="category"
-              className="text-xs"
+              tick={{ fontSize: isMobile ? 10 : 12 }}
               interval={0}
-              angle={-45}
+              angle={isMobile ? -60 : -45}
               textAnchor="end"
-              height={80}
+              height={isMobile ? 60 : 80}
             />
             <YAxis
               type="number"

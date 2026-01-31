@@ -131,12 +131,6 @@ const navSections: NavSection[] = [
         description: 'Product components',
       },
       {
-        label: 'SKU Mapping',
-        href: '/inventory/sku-mapping',
-        icon: Link2,
-        description: 'Legacy SKU mapping',
-      },
-      {
         label: 'Suppliers',
         href: '/inventory/suppliers',
         icon: Building2,
@@ -176,6 +170,12 @@ const navSections: NavSection[] = [
         href: '/admin/intercompany',
         icon: ArrowRightLeft,
         description: 'DC ↔ BI transactions',
+      },
+      {
+        label: 'SKU Mapping',
+        href: '/inventory/sku-mapping',
+        icon: Link2,
+        description: 'Legacy SKU mapping',
       },
       {
         label: 'Admin Settings',
