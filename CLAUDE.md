@@ -118,9 +118,15 @@ The CSP allows:
 - `bom` - Bill of Materials (product_sku → component_id + quantity)
 - `stock_levels` - Current inventory (on_hand, reserved, on_order, available)
 - `stock_transactions` - Audit trail of all stock movements
-- `purchase_orders` - PO header (status, dates, totals)
+- `purchase_orders` - PO header (status, dates, totals, payment tracking)
 - `purchase_order_items` - PO line items
 - `inventory_notification_prefs` - Per-user email settings
+
+### Cash Flow Tables
+- `cash_balance_snapshots` - Daily snapshots of bank/credit card balances
+- `cash_events` - Unified calendar of cash inflows/outflows (forecasted, confirmed, paid)
+- `cash_forecast_scenarios` - Saved scenarios (baseline, optimistic, pessimistic)
+- `platform_payout_schedules` - Platform payout configuration (Shopify/Etsy timing)
 
 **Migrations:**
 - `supabase/migrations/002_pnl_schema.sql` - Core P&L tables
@@ -140,6 +146,7 @@ The CSP allows:
 - `supabase/migrations/018_b2b_orders_platform.sql` - Allow 'b2b' as platform type for orders
 - `supabase/migrations/019_xero_invoices.sql` - Xero invoice sync for B2B orders
 - `supabase/migrations/020_inter_company_transactions.sql` - Inter-company transactions (DC ↔ BI)
+- `supabase/migrations/021_cashflow_schema.sql` - Cash flow forecasting tables
 
 ---
 
@@ -1956,6 +1963,185 @@ Returns:
 
 ### Order Exclusions
 Excluded orders (test orders, etc.) are automatically filtered out from all investor metrics calculations via the `excluded_at IS NULL` filter.
+
+---
+
+## Cash Flow Forecasting
+
+### Purpose
+Real-time cash position visibility with forecasting, runway calculations, and scenario modeling.
+
+### Location
+Finance > Cash Flow (`/finance/cashflow`)
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Net Position Hero** | Large display of current cash position with status indicator |
+| **KPI Cards** | Cash Balance, Credit Used, Burn Rate, Runway |
+| **Balance History** | 30/60/90 day historical trend chart |
+| **Inflows/Outflows** | Breakdown by category with progress bars |
+| **12-Week Projection** | Multi-scenario chart (Baseline, Optimistic, Pessimistic) |
+| **Events Timeline** | Upcoming cash events sorted by date |
+| **Alerts** | Critical, warning, and info alerts for cash concerns |
+
+### Cash Position Calculation
+
+```
+Net Position = Total Cash (bank accounts) - Total Credit (credit cards)
+
+Status:
+- Green (Healthy): Net > £5,000 AND runway > 8 weeks
+- Yellow (Caution): Runway 4-8 weeks
+- Red (Critical): Net < £5,000 OR runway < 4 weeks
+```
+
+### Burn Rate & Runway
+
+```
+Burn Rate = (Balance 30 days ago - Balance today) / 30
+Runway (days) = Current Balance / Daily Burn Rate
+
+If balance is growing, runway = "Sustainable" (infinite)
+```
+
+### Scenario Modeling
+
+| Scenario | Revenue Adjustment | Cost Adjustment |
+|----------|-------------------|-----------------|
+| **Baseline** | 0% | 0% |
+| **Optimistic** | +20% | -10% |
+| **Pessimistic** | -20% | +10% |
+
+### Cash Event Types
+
+**Inflows (positive):**
+- `platform_payout` - Shopify/Etsy daily/weekly payouts
+- `b2b_receivable` - B2B invoice payments
+- `other_inflow` - Miscellaneous income
+
+**Outflows (negative):**
+- `supplier_payment` - Purchase order payments
+- `opex_payment` - Operating expense payments
+- `ad_platform_invoice` - Meta/Google/Microsoft ad invoices
+- `vat_payment` - VAT/tax payments
+- `other_outflow` - Miscellaneous expenses
+
+### Alert Thresholds
+
+| Alert | Trigger | Severity |
+|-------|---------|----------|
+| Low Cash | Net position < £5,000 | Critical |
+| Runway Warning | < 8 weeks remaining | Warning |
+| Large Payment | > £2,000 due in 7 days | Info |
+| Negative Projection | Balance < £0 in 4 weeks | Critical |
+
+### Data Sources
+
+| Source | How Collected |
+|--------|---------------|
+| Bank Balances | Daily snapshot from Xero (7am cron) |
+| Platform Payouts | Estimated from order revenue + payout schedules |
+| PO Payments | From `purchase_orders.payment_due_date` |
+| OPEX | From `operating_expenses.payment_day` |
+| Ad Invoices | Estimated from recent ad spend patterns |
+
+### API Endpoints
+
+```
+GET /api/cashflow
+  ?brand=all|DC|BI
+  &historyDays=30|60|90
+  &forecastDays=30|60|90
+```
+
+Returns:
+- `currentPosition` - Net cash, accounts breakdown
+- `history` - Daily balance snapshots with trend
+- `burnMetrics` - Daily/weekly/monthly burn rates
+- `runway` - Days/weeks remaining, projected balances
+- `inflows` - Total and breakdown by source
+- `outflows` - Total and breakdown by category
+- `projections` - Scenario data and chart points
+- `alerts` - Active cash flow alerts
+
+```
+POST /api/cashflow/snapshot
+```
+- Creates daily balance snapshot from Xero
+- Called by morning cron job
+- Skips if today's snapshot already exists
+
+```
+GET /api/cashflow/snapshot
+```
+- Returns latest snapshot info for debugging
+
+### Balance Snapshot Cron
+
+The daily sync cron job (7am) includes a balance snapshot step:
+1. Fetches current bank balances from Xero API
+2. Creates `cash_balance_snapshots` records for each account
+3. Builds historical data for trend analysis
+
+### Database Schema
+
+```sql
+cash_balance_snapshots (
+  id UUID,
+  snapshot_date DATE,
+  brand_id UUID,
+  account_name TEXT,
+  account_type VARCHAR(20), -- 'BANK' or 'CREDITCARD'
+  balance DECIMAL(14,2),
+  currency VARCHAR(3),
+  UNIQUE(snapshot_date, brand_id, account_name)
+);
+
+cash_events (
+  id UUID,
+  brand_id UUID,
+  event_date DATE,
+  event_type VARCHAR(30),
+  amount DECIMAL(14,2), -- positive=inflow, negative=outflow
+  description TEXT,
+  reference_type VARCHAR(30),
+  reference_id UUID,
+  probability_pct DECIMAL(5,2),
+  status VARCHAR(20), -- forecast, confirmed, paid, cancelled
+  is_recurring BOOLEAN
+);
+
+cash_forecast_scenarios (
+  id UUID,
+  name VARCHAR(100),
+  revenue_adjustment_pct DECIMAL(5,2),
+  cost_adjustment_pct DECIMAL(5,2),
+  is_default BOOLEAN
+);
+
+platform_payout_schedules (
+  id UUID,
+  brand_id UUID,
+  platform VARCHAR(20), -- shopify, etsy
+  payout_frequency VARCHAR(20), -- daily, weekly, biweekly, monthly
+  payout_delay_days INT
+);
+```
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `src/app/(hub)/finance/cashflow/page.tsx` | Main page component |
+| `src/app/api/cashflow/route.ts` | Main data API |
+| `src/app/api/cashflow/snapshot/route.ts` | Balance snapshot cron |
+| `src/lib/cashflow/calculations.ts` | Burn rate, runway, alerts |
+| `src/lib/cashflow/events.ts` | Event generation logic |
+| `src/lib/cashflow/scenarios.ts` | Scenario modeling |
+| `src/components/cashflow/*.tsx` | UI components |
+| `supabase/migrations/021_cashflow_schema.sql` | Database migration |
 
 ---
 

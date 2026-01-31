@@ -1,0 +1,415 @@
+// Cash Flow Event Generation
+// Generates forecasted cash events from various data sources
+
+import { addDays, format, startOfMonth, endOfMonth, addMonths, getDate } from 'date-fns';
+
+// ============================================
+// Types
+// ============================================
+
+export interface CashEvent {
+  id: string;
+  brand_id: string | null;
+  event_date: string;
+  event_type: CashEventType;
+  amount: number;  // positive = inflow, negative = outflow
+  description: string;
+  reference_type: string | null;
+  reference_id: string | null;
+  probability_pct: number;
+  status: CashEventStatus;
+  is_recurring: boolean;
+  notes: string | null;
+}
+
+export type CashEventType =
+  | 'platform_payout'
+  | 'b2b_receivable'
+  | 'other_inflow'
+  | 'supplier_payment'
+  | 'opex_payment'
+  | 'ad_platform_invoice'
+  | 'vat_payment'
+  | 'other_outflow';
+
+export type CashEventStatus = 'forecast' | 'confirmed' | 'paid' | 'cancelled';
+
+export interface PayoutSchedule {
+  platform: 'shopify' | 'etsy';
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  delayDays: number;
+}
+
+export interface OperatingExpense {
+  id: string;
+  brand_id: string | null;
+  name: string;
+  category: string;
+  amount: number;
+  frequency: 'monthly' | 'quarterly' | 'annual' | 'one_time';
+  payment_day: number | null;
+  start_date: string;
+  end_date: string | null;
+  expense_date: string | null;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  brand_id: string;
+  po_number: string;
+  supplier_name: string;
+  total_amount: number;
+  payment_due_date: string | null;
+  payment_status: 'unpaid' | 'partial' | 'paid';
+  status: string;
+}
+
+// ============================================
+// Platform Payout Estimation
+// ============================================
+
+/**
+ * Estimate platform payouts based on recent revenue
+ * Shopify: typically pays out daily, 2 business days delay
+ * Etsy: typically pays out weekly or biweekly
+ */
+export function estimatePlatformPayouts(
+  dailyRevenue: { date: string; shopify: number; etsy: number }[],
+  schedules: PayoutSchedule[],
+  forecastDays: number = 30
+): CashEvent[] {
+  const events: CashEvent[] = [];
+  const today = new Date();
+
+  // Get average daily revenue per platform (last 7 days)
+  const recentRevenue = dailyRevenue.slice(-7);
+  const avgShopify = recentRevenue.reduce((sum, d) => sum + d.shopify, 0) / recentRevenue.length || 0;
+  const avgEtsy = recentRevenue.reduce((sum, d) => sum + d.etsy, 0) / recentRevenue.length || 0;
+
+  // Get schedules with defaults
+  const shopifySchedule = schedules.find(s => s.platform === 'shopify') || {
+    platform: 'shopify' as const,
+    frequency: 'daily' as const,
+    delayDays: 2,
+  };
+  const etsySchedule = schedules.find(s => s.platform === 'etsy') || {
+    platform: 'etsy' as const,
+    frequency: 'weekly' as const,
+    delayDays: 3,
+  };
+
+  // Generate Shopify payout events (daily)
+  for (let i = 0; i < forecastDays; i++) {
+    const payoutDate = addDays(today, i);
+    // Skip weekends for Shopify
+    if (payoutDate.getDay() === 0 || payoutDate.getDay() === 6) continue;
+
+    if (avgShopify > 0) {
+      events.push({
+        id: `shopify-payout-${format(payoutDate, 'yyyy-MM-dd')}`,
+        brand_id: null,  // Cross-brand
+        event_date: format(payoutDate, 'yyyy-MM-dd'),
+        event_type: 'platform_payout',
+        amount: Math.round(avgShopify * 100) / 100,
+        description: 'Shopify Daily Payout',
+        reference_type: 'platform',
+        reference_id: 'shopify',
+        probability_pct: 95,
+        status: 'forecast',
+        is_recurring: true,
+        notes: `Estimated from ${recentRevenue.length}-day average`,
+      });
+    }
+  }
+
+  // Generate Etsy payout events (weekly, typically Monday)
+  const etsyPayoutDays = etsySchedule.frequency === 'weekly' ? 7 :
+                         etsySchedule.frequency === 'biweekly' ? 14 : 30;
+  const etsyAmount = avgEtsy * etsyPayoutDays;
+
+  for (let i = 0; i < forecastDays; i += etsyPayoutDays) {
+    const payoutDate = addDays(today, i + etsySchedule.delayDays);
+
+    if (etsyAmount > 0) {
+      events.push({
+        id: `etsy-payout-${format(payoutDate, 'yyyy-MM-dd')}`,
+        brand_id: null,
+        event_date: format(payoutDate, 'yyyy-MM-dd'),
+        event_type: 'platform_payout',
+        amount: Math.round(etsyAmount * 100) / 100,
+        description: `Etsy ${etsySchedule.frequency.charAt(0).toUpperCase() + etsySchedule.frequency.slice(1)} Payout`,
+        reference_type: 'platform',
+        reference_id: 'etsy',
+        probability_pct: 90,
+        status: 'forecast',
+        is_recurring: true,
+        notes: `Estimated from ${recentRevenue.length}-day average`,
+      });
+    }
+  }
+
+  return events;
+}
+
+// ============================================
+// OPEX Payment Events
+// ============================================
+
+/**
+ * Generate cash events from operating expenses
+ */
+export function generateOpexEvents(
+  expenses: OperatingExpense[],
+  forecastDays: number = 90
+): CashEvent[] {
+  const events: CashEvent[] = [];
+  const today = new Date();
+  const endDate = addDays(today, forecastDays);
+
+  for (const expense of expenses) {
+    // Skip inactive or expired expenses
+    if (expense.end_date && new Date(expense.end_date) < today) continue;
+    if (new Date(expense.start_date) > endDate) continue;
+
+    if (expense.frequency === 'one_time') {
+      // One-time expense
+      if (expense.expense_date) {
+        const expenseDate = new Date(expense.expense_date);
+        if (expenseDate >= today && expenseDate <= endDate) {
+          events.push(createOpexEvent(expense, expense.expense_date));
+        }
+      }
+    } else {
+      // Recurring expense
+      const paymentDay = expense.payment_day || 1;  // Default to 1st of month
+      let currentDate = startOfMonth(today);
+
+      while (currentDate <= endDate) {
+        // Set to payment day
+        const paymentDate = new Date(currentDate);
+        paymentDate.setDate(Math.min(paymentDay, endOfMonth(currentDate).getDate()));
+
+        // Check if this payment is within our forecast window
+        if (paymentDate >= today && paymentDate <= endDate) {
+          // Check frequency
+          const monthDiff = (paymentDate.getFullYear() - today.getFullYear()) * 12 +
+                           (paymentDate.getMonth() - today.getMonth());
+
+          let shouldInclude = false;
+          if (expense.frequency === 'monthly') {
+            shouldInclude = true;
+          } else if (expense.frequency === 'quarterly') {
+            shouldInclude = monthDiff % 3 === 0;
+          } else if (expense.frequency === 'annual') {
+            shouldInclude = monthDiff % 12 === 0;
+          }
+
+          if (shouldInclude) {
+            events.push(createOpexEvent(expense, format(paymentDate, 'yyyy-MM-dd')));
+          }
+        }
+
+        currentDate = addMonths(currentDate, 1);
+      }
+    }
+  }
+
+  return events;
+}
+
+function createOpexEvent(expense: OperatingExpense, date: string): CashEvent {
+  return {
+    id: `opex-${expense.id}-${date}`,
+    brand_id: expense.brand_id,
+    event_date: date,
+    event_type: 'opex_payment',
+    amount: -expense.amount,  // Negative for outflow
+    description: expense.name,
+    reference_type: 'operating_expense',
+    reference_id: expense.id,
+    probability_pct: 100,  // Committed expense
+    status: 'forecast',
+    is_recurring: expense.frequency !== 'one_time',
+    notes: `Category: ${expense.category}`,
+  };
+}
+
+// ============================================
+// Purchase Order Payment Events
+// ============================================
+
+/**
+ * Generate cash events from unpaid purchase orders
+ */
+export function generatePOPaymentEvents(
+  purchaseOrders: PurchaseOrder[]
+): CashEvent[] {
+  const events: CashEvent[] = [];
+
+  for (const po of purchaseOrders) {
+    // Only include orders that are sent/confirmed but not fully paid
+    if (!['sent', 'confirmed', 'partial'].includes(po.status)) continue;
+    if (po.payment_status === 'paid') continue;
+
+    // Use payment due date if set, otherwise estimate
+    const paymentDate = po.payment_due_date || format(addDays(new Date(), 14), 'yyyy-MM-dd');
+
+    events.push({
+      id: `po-${po.id}`,
+      brand_id: po.brand_id,
+      event_date: paymentDate,
+      event_type: 'supplier_payment',
+      amount: -po.total_amount,  // Negative for outflow
+      description: `${po.supplier_name} (${po.po_number})`,
+      reference_type: 'purchase_order',
+      reference_id: po.id,
+      probability_pct: po.status === 'confirmed' ? 100 : 90,
+      status: po.payment_status === 'partial' ? 'confirmed' : 'forecast',
+      is_recurring: false,
+      notes: `Status: ${po.status}`,
+    });
+  }
+
+  return events;
+}
+
+// ============================================
+// Ad Platform Invoice Events
+// ============================================
+
+/**
+ * Estimate ad platform invoice payments based on recent spend
+ * Meta: Typically bills monthly, around the 1st
+ * Google: Varies by billing threshold or monthly
+ * Microsoft: Monthly billing
+ */
+export function estimateAdPlatformInvoices(
+  recentAdSpend: { date: string; meta: number; google: number; microsoft: number }[],
+  forecastMonths: number = 3
+): CashEvent[] {
+  const events: CashEvent[] = [];
+  const today = new Date();
+
+  // Calculate monthly average spend
+  const totalDays = recentAdSpend.length || 1;
+  const totalMeta = recentAdSpend.reduce((sum, d) => sum + d.meta, 0);
+  const totalGoogle = recentAdSpend.reduce((sum, d) => sum + d.google, 0);
+  const totalMicrosoft = recentAdSpend.reduce((sum, d) => sum + d.microsoft, 0);
+
+  const monthlyMeta = (totalMeta / totalDays) * 30.44;
+  const monthlyGoogle = (totalGoogle / totalDays) * 30.44;
+  const monthlyMicrosoft = (totalMicrosoft / totalDays) * 30.44;
+
+  for (let i = 1; i <= forecastMonths; i++) {
+    const invoiceDate = addMonths(startOfMonth(today), i);
+    const invoiceDateStr = format(invoiceDate, 'yyyy-MM-dd');
+
+    // Meta invoice (usually 1st of month)
+    if (monthlyMeta > 0) {
+      events.push({
+        id: `meta-invoice-${invoiceDateStr}`,
+        brand_id: null,
+        event_date: invoiceDateStr,
+        event_type: 'ad_platform_invoice',
+        amount: -Math.round(monthlyMeta * 100) / 100,
+        description: 'Meta Ads Invoice',
+        reference_type: 'ad_platform',
+        reference_id: 'meta',
+        probability_pct: 95,
+        status: 'forecast',
+        is_recurring: true,
+        notes: `Estimated from ${totalDays}-day average`,
+      });
+    }
+
+    // Google invoice (usually around 1st-5th)
+    if (monthlyGoogle > 0) {
+      events.push({
+        id: `google-invoice-${invoiceDateStr}`,
+        brand_id: null,
+        event_date: format(addDays(invoiceDate, 4), 'yyyy-MM-dd'),
+        event_type: 'ad_platform_invoice',
+        amount: -Math.round(monthlyGoogle * 100) / 100,
+        description: 'Google Ads Invoice',
+        reference_type: 'ad_platform',
+        reference_id: 'google',
+        probability_pct: 95,
+        status: 'forecast',
+        is_recurring: true,
+        notes: `Estimated from ${totalDays}-day average`,
+      });
+    }
+
+    // Microsoft invoice
+    if (monthlyMicrosoft > 0) {
+      events.push({
+        id: `microsoft-invoice-${invoiceDateStr}`,
+        brand_id: null,
+        event_date: format(addDays(invoiceDate, 2), 'yyyy-MM-dd'),
+        event_type: 'ad_platform_invoice',
+        amount: -Math.round(monthlyMicrosoft * 100) / 100,
+        description: 'Microsoft Ads Invoice',
+        reference_type: 'ad_platform',
+        reference_id: 'microsoft',
+        probability_pct: 95,
+        status: 'forecast',
+        is_recurring: true,
+        notes: `Estimated from ${totalDays}-day average`,
+      });
+    }
+  }
+
+  return events;
+}
+
+// ============================================
+// Event Sorting and Filtering
+// ============================================
+
+/**
+ * Sort events by date
+ */
+export function sortEventsByDate(events: CashEvent[]): CashEvent[] {
+  return [...events].sort((a, b) =>
+    new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
+  );
+}
+
+/**
+ * Filter events by date range
+ */
+export function filterEventsByDateRange(
+  events: CashEvent[],
+  startDate: Date,
+  endDate: Date
+): CashEvent[] {
+  return events.filter(event => {
+    const eventDate = new Date(event.event_date);
+    return eventDate >= startDate && eventDate <= endDate;
+  });
+}
+
+/**
+ * Get events within N days
+ */
+export function getUpcomingEvents(
+  events: CashEvent[],
+  days: number = 30
+): CashEvent[] {
+  const today = new Date();
+  const endDate = addDays(today, days);
+  return filterEventsByDateRange(events, today, endDate);
+}
+
+/**
+ * Separate events into inflows and outflows
+ */
+export function separateEventsByFlow(events: CashEvent[]): {
+  inflows: CashEvent[];
+  outflows: CashEvent[];
+} {
+  return {
+    inflows: events.filter(e => e.amount > 0),
+    outflows: events.filter(e => e.amount < 0),
+  };
+}

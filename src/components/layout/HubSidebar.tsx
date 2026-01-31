@@ -88,7 +88,6 @@ const navSections: NavSection[] = [
         href: '/finance/cashflow',
         icon: Wallet,
         description: 'Projections & runway',
-        badge: 'Soon',
       },
     ],
   },

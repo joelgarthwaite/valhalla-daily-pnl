@@ -20,9 +20,10 @@ export const maxDuration = 120;
  * 2. Sync orders from Etsy (all brands)
  * 3. Sync ad spend from Meta (all brands)
  * 4. Sync country-level ad spend from Meta (for Country Analysis GP3)
- * 5. Refresh P&L calculations
- * 6. Send P&L summary email (morning=yesterday, evening=today so far)
- * 7. Send low stock alert email (morning only, when items need attention)
+ * 5. Take cash balance snapshot (morning only, for cash flow tracking)
+ * 6. Refresh P&L calculations
+ * 7. Send P&L summary email (morning=yesterday, evening=today so far)
+ * 8. Send low stock alert email (morning only, when items need attention)
  */
 
 const BRAND_AD_ACCOUNTS: Record<string, string> = {
@@ -258,7 +259,49 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Step 5: Refresh P&L Calculations
+  // Determine sync type from query param or time of day
+  const syncType = request.nextUrl.searchParams.get('type') ||
+    (new Date().getUTCHours() < 12 ? 'morning' : 'evening');
+
+  // Step 5: Take Cash Balance Snapshot (morning only - for cash flow tracking)
+  if (syncType === 'morning') {
+    try {
+      const snapshotResponse = await fetch(
+        `${baseUrl}/api/cashflow/snapshot`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${cronSecret}`,
+          },
+        }
+      );
+      const snapshotData = await snapshotResponse.json();
+
+      results.push({
+        step: 'Cash Balance Snapshot',
+        success: snapshotResponse.ok,
+        message: snapshotResponse.ok
+          ? snapshotData.message
+          : snapshotData.error,
+        details: snapshotData,
+      });
+    } catch (error) {
+      results.push({
+        step: 'Cash Balance Snapshot',
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  } else {
+    results.push({
+      step: 'Cash Balance Snapshot',
+      success: true,
+      message: 'Skipped - only runs on morning sync',
+    });
+  }
+
+  // Step 6: Refresh P&L Calculations
   try {
     const pnlResponse = await fetch(
       `${baseUrl}/api/pnl/refresh`,
@@ -284,7 +327,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Step 6: Send Daily Summary Email
+  // Step 7: Send Daily Summary Email
   // Only send email if critical syncs succeeded (at least P&L refresh must work)
   // This prevents sending emails with stale/incomplete data
   const pnlRefreshResult = results.find(r => r.step === 'P&L Refresh');
@@ -293,10 +336,6 @@ export async function GET(request: NextRequest) {
 
   const criticalSyncsSucceeded = pnlRefreshResult?.success &&
     (shopifySyncResult?.success || etsySyncResult?.success);
-
-  // Determine sync type from query param or time of day
-  const syncType = request.nextUrl.searchParams.get('type') ||
-    (new Date().getUTCHours() < 12 ? 'morning' : 'evening');
 
   if (!criticalSyncsSucceeded) {
     results.push({
@@ -338,7 +377,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Step 7: Send Low Stock Alert Email (morning sync only)
+  // Step 8: Send Low Stock Alert Email (morning sync only)
   // Only send on morning sync so operations team can action it during the day
   if (syncType === 'morning') {
     try {
