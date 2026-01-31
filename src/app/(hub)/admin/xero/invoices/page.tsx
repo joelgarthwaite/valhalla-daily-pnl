@@ -127,6 +127,12 @@ interface XeroInvoiceRecord {
   };
 }
 
+// Check if an invoice has already been converted to IC
+function hasBeenConvertedToIC(invoice: XeroInvoiceRecord): boolean {
+  // Check notes for IC Transaction indicator
+  return invoice.notes?.includes('IC Transaction') ?? false;
+}
+
 interface StatusCounts {
   pending: number;
   approved: number;
@@ -541,18 +547,21 @@ export default function XeroInvoicesPage() {
         }
       }
 
-      // Update the Xero invoice notes to indicate it's been converted to IC
+      // Update the Xero invoice to indicate it's been converted to IC
       const updateResponse = await fetch(`/api/xero/invoices/${icInvoice.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // For pending invoices, use 'ignore' action to change status
+          // For already processed invoices, no action - just update notes
           action: icInvoice.approval_status === 'pending' ? 'ignore' : undefined,
-          notes: `${isConversion ? 'Converted to' : 'Approved as'} IC Transaction: ${icData.transaction?.id?.slice(0, 8)}`,
+          notes: `IC Transaction: ${icData.transaction?.id?.slice(0, 8)}`,
         }),
       });
 
       if (!updateResponse.ok) {
-        console.warn('Could not update invoice notes');
+        const updateData = await updateResponse.json();
+        console.warn('Could not update invoice:', updateData.error);
       }
 
       const successMessage = isConversion
@@ -955,17 +964,24 @@ export default function XeroInvoicesPage() {
                             )}
                             {invoice.approval_status === 'approved' && (
                               <div className="flex items-center gap-2">
-                                {/* Show Convert to IC button for approved invoices with IC badge */}
-                                {isInterCompanyContact(invoice.contact_name) && !invoice.notes?.includes('IC Transaction') && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openIcDialog(invoice)}
-                                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
-                                  >
-                                    <ArrowRightLeft className="h-3 w-3 mr-1" />
-                                    Convert to IC
-                                  </Button>
+                                {/* Show Convert to IC button OR Converted indicator */}
+                                {isInterCompanyContact(invoice.contact_name) && (
+                                  hasBeenConvertedToIC(invoice) ? (
+                                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      IC Created
+                                    </Badge>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openIcDialog(invoice)}
+                                      className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                                    >
+                                      <ArrowRightLeft className="h-3 w-3 mr-1" />
+                                      Convert to IC
+                                    </Button>
+                                  )
                                 )}
                                 <div className="text-xs text-muted-foreground text-left">
                                   {(invoice as XeroInvoiceRecord & { linked_tracking?: string }).linked_tracking && (
@@ -973,25 +989,32 @@ export default function XeroInvoicesPage() {
                                       📦 {(invoice as XeroInvoiceRecord & { linked_tracking?: string }).linked_tracking}
                                     </div>
                                   )}
-                                  {invoice.notes && <div>{invoice.notes}</div>}
+                                  {invoice.notes && !hasBeenConvertedToIC(invoice) && <div>{invoice.notes}</div>}
                                 </div>
                               </div>
                             )}
                             {invoice.approval_status === 'ignored' && (
                               <div className="flex items-center gap-2">
-                                {/* Show Convert to IC button for ignored invoices with IC badge */}
-                                {isInterCompanyContact(invoice.contact_name) && !invoice.notes?.includes('IC Transaction') && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openIcDialog(invoice)}
-                                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
-                                  >
-                                    <ArrowRightLeft className="h-3 w-3 mr-1" />
-                                    Convert to IC
-                                  </Button>
+                                {/* Show Convert to IC button OR Converted indicator */}
+                                {isInterCompanyContact(invoice.contact_name) && (
+                                  hasBeenConvertedToIC(invoice) ? (
+                                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      IC Created
+                                    </Badge>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openIcDialog(invoice)}
+                                      className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                                    >
+                                      <ArrowRightLeft className="h-3 w-3 mr-1" />
+                                      Convert to IC
+                                    </Button>
+                                  )
                                 )}
-                                {invoice.notes && (
+                                {invoice.notes && !hasBeenConvertedToIC(invoice) && (
                                   <div className="text-xs text-muted-foreground">{invoice.notes}</div>
                                 )}
                               </div>

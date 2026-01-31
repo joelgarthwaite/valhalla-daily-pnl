@@ -67,14 +67,7 @@ export async function PATCH(
     const body = await request.json();
     const { action, tracking_number, notes } = body;
 
-    if (!action || !['approve', 'ignore', 'link_existing'].includes(action)) {
-      return NextResponse.json(
-        { error: 'action must be "approve", "ignore", or "link_existing"' },
-        { status: 400 }
-      );
-    }
-
-    // Get the invoice
+    // Get the invoice first
     const { data: invoice, error: fetchError } = await supabase
       .from('xero_invoices')
       .select('*, brands(code, name)')
@@ -88,7 +81,38 @@ export async function PATCH(
       );
     }
 
-    // Check if already processed
+    // If no action provided, just update notes (allows updating already processed invoices)
+    if (!action) {
+      if (notes === undefined) {
+        return NextResponse.json(
+          { error: 'No updates provided' },
+          { status: 400 }
+        );
+      }
+
+      const { error: updateError } = await supabase
+        .from('xero_invoices')
+        .update({ notes })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      return NextResponse.json({
+        success: true,
+        message: 'Invoice updated',
+        invoice_number: invoice.invoice_number,
+      });
+    }
+
+    // Validate action if provided
+    if (!['approve', 'ignore', 'link_existing'].includes(action)) {
+      return NextResponse.json(
+        { error: 'action must be "approve", "ignore", or "link_existing"' },
+        { status: 400 }
+      );
+    }
+
+    // Check if already processed (only for actions that change status)
     if (invoice.approval_status !== 'pending') {
       return NextResponse.json(
         { error: `Invoice already ${invoice.approval_status}` },
