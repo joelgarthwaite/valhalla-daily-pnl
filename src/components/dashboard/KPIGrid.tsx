@@ -84,16 +84,16 @@ function KPICard({
 
   return (
     <Card className={cn(isLoading && 'animate-pulse')}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div className="flex items-center gap-1">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+        <div className="flex items-center gap-1 min-w-0">
+          <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
             {title}
           </CardTitle>
           {tooltip && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="h-3.5 w-3.5 text-muted-foreground/70 cursor-help" />
+                  <Info className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-muted-foreground/70 cursor-help shrink-0" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <p>{tooltip}</p>
@@ -102,31 +102,31 @@ function KPICard({
             </TooltipProvider>
           )}
         </div>
-        <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
+        <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
           {icon}
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">
+      <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+        <div className="text-lg sm:text-2xl font-bold truncate">
           {isLoading ? (
-            <div className="h-8 w-24 bg-muted rounded" />
+            <div className="h-6 sm:h-8 w-20 sm:w-24 bg-muted rounded" />
           ) : (
             value
           )}
         </div>
         {change !== undefined && !isLoading && (
           <p className={cn(
-            'text-xs mt-1 flex items-center gap-1',
+            'text-[10px] sm:text-xs mt-0.5 sm:mt-1 flex items-center gap-0.5 sm:gap-1',
             showGreen && 'text-green-600',
             showRed && 'text-red-600',
             !showGreen && !showRed && 'text-muted-foreground'
           )}>
             {isPositive ? (
-              <TrendingUp className="h-3 w-3" />
+              <TrendingUp className="h-2.5 sm:h-3 w-2.5 sm:w-3" />
             ) : isNegative ? (
-              <TrendingDown className="h-3 w-3" />
+              <TrendingDown className="h-2.5 sm:h-3 w-2.5 sm:w-3" />
             ) : null}
-            <span>
+            <span className="truncate">
               {isPositive ? '+' : ''}{change.toFixed(1)}% {changeLabel}
             </span>
           </p>
@@ -138,7 +138,7 @@ function KPICard({
 
 export function KPIGrid({ summary, isLoading = false }: KPIGridProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
       <KPICard
         title="Total Revenue"
         value={summary ? formatCurrency(summary.totalRevenue) : '£0'}
@@ -180,7 +180,7 @@ export function ExtendedKPIGrid({ summary, isLoading = false }: KPIGridProps) {
   return (
     <div className="space-y-4">
       {/* Row 1: Revenue & Orders (Top of P&L) */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <KPICard
           title="Total Revenue"
           value={summary ? formatCurrency(summary.totalRevenue) : '£0'}
@@ -214,7 +214,7 @@ export function ExtendedKPIGrid({ summary, isLoading = false }: KPIGridProps) {
       </div>
 
       {/* Row 2: Profit Tiers (Core P&L Flow: Revenue → GP1 → GP2 → GP3) */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <KPICard
           title="GP1 (After COGS)"
           value={summary ? formatCurrency(summary.gp1) : '£0'}
@@ -251,7 +251,7 @@ export function ExtendedKPIGrid({ summary, isLoading = false }: KPIGridProps) {
       </div>
 
       {/* Row 3: Margins & Efficiency */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         <KPICard
           title="Gross Margin"
           value={summary ? formatPercentage(summary.grossMarginPct) : '0%'}
@@ -288,7 +288,7 @@ export function ExtendedKPIGrid({ summary, isLoading = false }: KPIGridProps) {
       </div>
 
       {/* Row 4: Cost Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4">
         <KPICard
           title="Marketing Cost %"
           value={summary ? `${summary.marketingCostRatio.toFixed(1)}%` : '0%'}

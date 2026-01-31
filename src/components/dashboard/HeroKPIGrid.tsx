@@ -137,17 +137,17 @@ function HeroKPICard({
       isLoading && 'animate-pulse',
       size === 'large' && 'row-span-1'
     )}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <div className="flex items-center gap-2">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1.5 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           <StatusDot status={status} />
-          <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
             {title}
           </CardTitle>
           {tooltip && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="h-3.5 w-3.5 text-muted-foreground/70 cursor-help" />
+                  <Info className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-muted-foreground/70 cursor-help shrink-0" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <p>{tooltip}</p>
@@ -156,46 +156,48 @@ function HeroKPICard({
             </TooltipProvider>
           )}
         </div>
-        <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
+        <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
           {icon}
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="flex items-end justify-between">
-          <div>
+      <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+        <div className="flex items-end justify-between gap-2">
+          <div className="min-w-0">
             <div className={cn(
-              'font-bold',
-              size === 'large' ? 'text-3xl' : 'text-2xl'
+              'font-bold truncate',
+              size === 'large' ? 'text-xl sm:text-3xl' : 'text-lg sm:text-2xl'
             )}>
               {isLoading ? (
-                <div className="h-8 w-24 bg-muted rounded" />
+                <div className="h-6 sm:h-8 w-20 sm:w-24 bg-muted rounded" />
               ) : (
                 value
               )}
             </div>
             {change !== undefined && !isLoading && (
               <p className={cn(
-                'text-xs mt-1 flex items-center gap-1',
+                'text-[10px] sm:text-xs mt-0.5 sm:mt-1 flex items-center gap-0.5 sm:gap-1',
                 showGreen && 'text-green-600',
                 showRed && 'text-red-600',
                 !showGreen && !showRed && 'text-muted-foreground'
               )}>
                 {isPositive ? (
-                  <TrendingUp className="h-3 w-3" />
+                  <TrendingUp className="h-2.5 sm:h-3 w-2.5 sm:w-3" />
                 ) : isNegative ? (
-                  <TrendingDown className="h-3 w-3" />
+                  <TrendingDown className="h-2.5 sm:h-3 w-2.5 sm:w-3" />
                 ) : null}
-                <span>
+                <span className="truncate">
                   {isPositive ? '+' : ''}{change.toFixed(1)}% {changeLabel}
                 </span>
               </p>
             )}
           </div>
           {sparklineData && sparklineData.length > 1 && !isLoading && (
-            <Sparkline
-              data={sparklineData}
-              color={status === 'green' ? 'text-green-500' : status === 'red' ? 'text-red-500' : 'text-primary'}
-            />
+            <div className="hidden sm:block">
+              <Sparkline
+                data={sparklineData}
+                color={status === 'green' ? 'text-green-500' : status === 'red' ? 'text-red-500' : 'text-primary'}
+              />
+            </div>
           )}
         </div>
       </CardContent>
@@ -243,9 +245,9 @@ export function HeroKPIGrid({
   const ordersSparkline = trendData.slice(-7).map(d => d.totalOrders);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Row 1: Hero Metrics (4 cards) */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
         <HeroKPICard
           title="True Net Profit"
           value={summary ? formatCurrency(summary.trueNetProfit) : '£0'}
@@ -293,7 +295,7 @@ export function HeroKPIGrid({
       </div>
 
       {/* Row 2: Efficiency Metrics (3 cards) */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <HeroKPICard
           title="MER"
           value={summary ? `${summary.mer.toFixed(2)}x` : '0x'}

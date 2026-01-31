@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 import {
   TrendingUp,
   TrendingDown,
@@ -75,8 +76,7 @@ export default function HubHomePage() {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [yesterdayDate, setYesterdayDate] = useState<string>('');
 
-  useEffect(() => {
-    async function fetchData() {
+  const fetchData = useCallback(async () => {
       try {
         // Calculate dates
         const today = new Date();
@@ -253,10 +253,12 @@ export default function HubHomePage() {
       } finally {
         setIsLoading(false);
       }
-    }
-
-    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Format change for display
   const formatChange = (change: number | undefined): string => {
@@ -394,6 +396,7 @@ export default function HubHomePage() {
   ];
 
   return (
+    <PullToRefresh onRefresh={fetchData}>
     <div className="space-y-8">
       {/* Page Header */}
       <div>
@@ -685,5 +688,6 @@ export default function HubHomePage() {
         </CardContent>
       </Card>
     </div>
+    </PullToRefresh>
   );
 }
