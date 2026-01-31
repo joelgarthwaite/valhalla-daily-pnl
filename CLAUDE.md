@@ -1571,6 +1571,42 @@ Run migrations in order via Supabase SQL editor:
 
 ---
 
+## Mobile App (PWA)
+
+The dashboard is a Progressive Web App (PWA) that can be installed on your iPhone or Android home screen for an app-like experience.
+
+### Install on iPhone
+
+1. Open Safari and visit `pnl.displaychamp.com`
+2. Tap the **Share** button (square with arrow)
+3. Scroll down and tap **"Add to Home Screen"**
+4. Tap **"Add"** in the top right
+5. App icon appears on home screen - launches in full-screen mode
+
+### Install on Android
+
+1. Open Chrome and visit `pnl.displaychamp.com`
+2. Tap the **three dots** menu
+3. Tap **"Add to Home screen"** or **"Install app"**
+4. Confirm installation
+
+### Mobile Features
+
+- **Responsive layout** - Sidebar collapses to hamburger menu on mobile
+- **Touch-friendly** - Larger tap targets, swipe to close sidebar
+- **Full-screen mode** - No browser chrome when launched from home screen
+- **Compact header** - Icon-only buttons on small screens
+
+### PWA Files
+
+| File | Purpose |
+|------|---------|
+| `public/manifest.json` | App name, icons, theme colors |
+| `public/icons/icon-*.svg` | App icons for home screen |
+| `src/app/layout.tsx` | PWA meta tags (apple-mobile-web-app-capable) |
+
+---
+
 ## Deployment
 
 ### Production
