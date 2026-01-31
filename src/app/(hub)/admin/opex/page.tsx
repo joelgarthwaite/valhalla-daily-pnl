@@ -120,6 +120,7 @@ export default function OpexPage() {
     start_date: format(new Date(), 'yyyy-MM-dd'),
     end_date: '',
     expense_date: '',
+    payment_day: '',  // Day of month (1-31) when payment is made
     is_active: true,
     notes: '',
   });
@@ -197,6 +198,7 @@ export default function OpexPage() {
       start_date: format(new Date(), 'yyyy-MM-dd'),
       end_date: '',
       expense_date: '',
+      payment_day: '',
       is_active: true,
       notes: '',
     });
@@ -220,6 +222,7 @@ export default function OpexPage() {
         start_date: formData.start_date,
         end_date: formData.end_date || null,
         expense_date: formData.frequency === 'one_time' ? formData.expense_date || null : null,
+        payment_day: formData.payment_day ? parseInt(formData.payment_day, 10) : null,
         is_active: formData.is_active,
         notes: formData.notes || null,
       };
@@ -259,6 +262,7 @@ export default function OpexPage() {
       start_date: expense.start_date,
       end_date: expense.end_date || '',
       expense_date: expense.expense_date || '',
+      payment_day: expense.payment_day?.toString() || '',
       is_active: expense.is_active,
       notes: expense.notes || '',
     });
@@ -277,6 +281,7 @@ export default function OpexPage() {
       start_date: format(new Date(), 'yyyy-MM-dd'), // Reset to today
       end_date: expense.end_date || '',
       expense_date: expense.expense_date || '',
+      payment_day: expense.payment_day?.toString() || '',
       is_active: expense.is_active,
       notes: expense.notes || '',
     });
@@ -431,6 +436,27 @@ export default function OpexPage() {
                   </Select>
                 </div>
               </div>
+
+              {/* Payment Day - only for recurring expenses */}
+              {formData.frequency !== 'one_time' && (
+                <div className="space-y-2">
+                  <Label>Payment Day of Month</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      max="31"
+                      placeholder="e.g., 15"
+                      value={formData.payment_day}
+                      onChange={(e) => setFormData({ ...formData, payment_day: e.target.value })}
+                      className="w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      Day when payment is made (1-31). Used for cash flow forecasting.
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

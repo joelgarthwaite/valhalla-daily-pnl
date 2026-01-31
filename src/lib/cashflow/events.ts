@@ -47,7 +47,7 @@ export interface OperatingExpense {
   category: string;
   amount: number;
   frequency: 'monthly' | 'quarterly' | 'annual' | 'one_time';
-  payment_day: number | null;
+  payment_day: number | null;  // Explicit override, or null to use start_date's day
   start_date: string;
   end_date: string | null;
   expense_date: string | null;
@@ -181,7 +181,9 @@ export function generateOpexEvents(
       }
     } else {
       // Recurring expense
-      const paymentDay = expense.payment_day || 1;  // Default to 1st of month
+      // Use explicit payment_day if set, otherwise extract day from start_date
+      const startDateObj = new Date(expense.start_date);
+      const paymentDay = expense.payment_day || getDate(startDateObj);  // Use start_date's day
       let currentDate = startOfMonth(today);
 
       while (currentDate <= endDate) {

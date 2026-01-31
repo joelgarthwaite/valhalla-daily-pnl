@@ -680,6 +680,7 @@ export interface OperatingExpense {
   start_date: string;
   end_date: string | null;  // NULL = ongoing
   expense_date: string | null;  // For one-time expenses
+  payment_day: number | null;  // Day of month (1-31) when payment is made - for cash flow forecasting
   is_active: boolean;
   notes: string | null;
   created_at: string;
@@ -696,6 +697,7 @@ export interface OperatingExpenseFormData {
   start_date: string;
   end_date?: string;
   expense_date?: string;
+  payment_day?: number;  // Day of month (1-31) when payment is made
   is_active?: boolean;
   notes?: string;
 }
