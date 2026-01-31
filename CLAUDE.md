@@ -356,15 +356,24 @@ When approving Xero invoices, the system automatically detects inter-company tra
 
 **UI Indicators:**
 - Purple "IC" badge appears on detected inter-company invoices
-- "Approve as IC" button replaces standard "Approve as B2B" button
+- "Approve as IC" button replaces standard "Approve as B2B" button for pending invoices
+- "Convert to IC" button appears for already-approved/ignored invoices with IC badge
+- "IC Created" badge shows when invoice has been converted to IC transaction
 - IC Approval Dialog shows P&L impact preview for both brands
 
-**IC Approval Flow:**
+**IC Approval Flow (New Invoices):**
 1. Invoice detected as inter-company (purple IC badge)
 2. Click "Approve as IC" to open IC-specific dialog
 3. Select category (manufacturing, materials, labor, overhead, services, logistics, other)
 4. Optionally add pricing notes for transfer pricing audit trail
 5. Confirm to create IC transaction (not B2B order)
+
+**IC Conversion Flow (Already Approved/Ignored):**
+1. Find approved/ignored invoice with IC badge
+2. Click "Convert to IC" button
+3. Warning shows that existing B2B order will be excluded from P&L
+4. Select category and confirm
+5. IC transaction created, original B2B order excluded, "IC Created" badge shown
 
 **P&L Impact Preview:**
 The IC dialog shows exactly how the transaction will affect each brand:
