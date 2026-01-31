@@ -1676,7 +1676,9 @@ The dashboard is a Progressive Web App (PWA) that can be installed on your iPhon
 - **Touch gestures** - Swipe from left edge to open sidebar, swipe left to close
 - **2-column KPI grids** - Compact card layouts optimized for mobile screens
 - **Touch-friendly buttons** - Larger tap targets (44px minimum), icon-only on mobile
-- **Responsive charts** - Reduced heights and compact legends on mobile
+- **Responsive charts** - Reduced heights, compact legends, abbreviated labels on mobile
+- **P&L Waterfall** - Uses short labels on mobile (Revenue, COGS, Fees, Ads, Net, etc.)
+- **Quick P&L Summary** - Mobile cards show position badges (Latest, 2, 3...) for clarity
 - **Full-screen mode** - No browser chrome when launched from home screen
 - **Safe area support** - Proper insets for iOS home indicator
 
@@ -2245,9 +2247,9 @@ A complete inventory management system for tracking component stock levels, mana
 | Components | `/inventory/components` | CRUD for managing components |
 | Product SKUs | `/inventory/product-skus` | Master SKU catalog with status filtering |
 | BOM Editor | `/inventory/bom` | Bill of Materials with status-based filtering |
-| SKU Mapping | `/inventory/sku-mapping` | Map legacy SKUs to current B-series SKUs |
 | Suppliers | `/inventory/suppliers` | Supplier management |
 | Purchase Orders | `/inventory/po` | PO list, create, and management |
+| SKU Mapping | `/inventory/sku-mapping` | Map legacy SKUs (in Admin sidebar section) |
 
 ### Product SKUs (Master Catalog)
 
