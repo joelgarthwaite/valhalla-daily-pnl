@@ -394,6 +394,33 @@ export function ChannelRevenueChart({
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px' }} />
             <Line
               type="monotone"
+              dataKey="shopifyRevenue"
+              name="Shopify"
+              stroke={COLORS.shopify}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              activeDot={{ r: 5 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="etsyRevenue"
+              name="Etsy"
+              stroke={COLORS.etsy}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              activeDot={{ r: 5 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="b2bRevenue"
+              name="B2B"
+              stroke={COLORS.b2b}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              activeDot={{ r: 5 }}
+            />
+            <Line
+              type="monotone"
               dataKey="totalRevenue"
               name={`${currentYear} Total`}
               stroke={COLORS.total}
