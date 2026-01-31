@@ -2226,10 +2226,13 @@ A complete inventory management system for tracking component stock levels, mana
 
 | Feature | Status | Description |
 |---------|--------|-------------|
+| **Product SKUs** | ✅ Complete | Master catalog with Active/Historic/Discontinued status filtering |
+| **SKU Mapping** | ✅ Complete | 204 legacy→B-series mappings imported from CSV audit |
+| **BOM Editor** | ✅ Complete | Status-filtered to prevent accidental legacy BOM creation |
 | **Components CRUD** | ✅ Complete | Create/edit/delete components with categories, materials, variants |
 | **Stock Dashboard** | ✅ Complete | View stock levels with status badges (OK, Warning, Critical, Out of Stock) |
 | **Stock Adjustments** | ✅ Complete | Manual stock count, add, and remove with audit trail |
-| **Velocity Forecasting** | ✅ Complete | Real velocity calculation from BOM + order history |
+| **Velocity Forecasting** | ✅ Complete | Real velocity calculation from BOM + order history + SKU mappings |
 | **Suppliers** | ✅ Complete | Supplier management with lead times, MOQ, payment terms |
 | **Purchase Orders** | ✅ Complete | Full PO workflow (draft → sent → partial → received) |
 | **Low Stock Alerts** | ✅ Complete | Automated email alerts for items needing attention |
@@ -2240,11 +2243,64 @@ A complete inventory management system for tracking component stock levels, mana
 |------|------|-------------|
 | Stock Levels | `/inventory` | Main dashboard showing all component stock status |
 | Components | `/inventory/components` | CRUD for managing components |
-| Product SKUs | `/inventory/product-skus` | Master SKU catalog |
-| BOM Editor | `/inventory/bom` | Bill of Materials management |
-| SKU Mapping | `/inventory/sku-mapping` | Map legacy SKUs to current SKUs |
+| Product SKUs | `/inventory/product-skus` | Master SKU catalog with status filtering |
+| BOM Editor | `/inventory/bom` | Bill of Materials with status-based filtering |
+| SKU Mapping | `/inventory/sku-mapping` | Map legacy SKUs to current B-series SKUs |
 | Suppliers | `/inventory/suppliers` | Supplier management |
 | Purchase Orders | `/inventory/po` | PO list, create, and management |
+
+### Product SKUs (Master Catalog)
+
+The master catalog of all product SKUs with three status categories:
+
+| Status | Count | Description |
+|--------|-------|-------------|
+| **Active** | 142 | Current B-series SKUs being sold |
+| **Historic** | 204 | Legacy SKUs with sales history (mapped to current SKUs) |
+| **Discontinued** | 0 | Permanently removed products |
+
+**Features:**
+- Clickable KPI cards to filter by status
+- Each historic SKU includes order count, revenue, and date range
+- Historic SKUs show mapping to current B-series SKU in notes
+- Status dropdown filter syncs with KPI card selection
+
+**Data Import (Jan 2026):**
+- 142 active B-series SKUs from `SKU_Audit_Results.csv`
+- 204 historic legacy SKUs from `sku_mapping` table
+- Auto-generated product names from SKU codes
+
+### BOM Editor
+
+Defines which components make up each product. Essential for inventory forecasting.
+
+**Status Filtering (IMPORTANT):**
+- **Default view shows Active products only** - prevents accidental BOM creation for legacy SKUs
+- Clickable KPI cards filter by Active/Historic/Discontinued/All
+- Status column shows product status in the table
+- Status dropdown in filters section
+
+**Features:**
+- Expandable rows showing component list per product
+- Add/edit/delete components with quantity
+- Component search with stock level display
+- BOM summary (with/without BOM counts)
+
+### SKU Mapping
+
+Maps 204 legacy SKUs to 121 unique B-series target SKUs. Used by velocity calculation to consolidate historical sales data.
+
+**Mapping Statistics:**
+- 204 total mappings (195 DC + 9 BI)
+- 93.6% map to B-series targets
+- Imported from `SKU_Audit_Results.csv` (AUTO_MAPPED entries)
+
+**Example Mappings:**
+| Legacy SKU | Current SKU | Brand |
+|------------|-------------|-------|
+| GBCVANTAGEP | B1-VANT-GT-C1-P | DC |
+| GBCPRESTIGEMAHP | B1-PRES-AHW-GT-C1-P | DC |
+| B1BLACK | B1-ICON-C1 | BI |
 
 ### Purchase Order Workflow
 
