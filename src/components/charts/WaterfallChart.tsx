@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   BarChart,
   Bar,
@@ -14,6 +15,17 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/pnl/targets';
 import type { WaterfallDataPoint } from '@/types';
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  return isMobile;
+}
 
 interface WaterfallChartProps {
   data: WaterfallDataPoint[];
@@ -79,14 +91,17 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 }
 
 export function WaterfallChart({ data, isLoading = false }: WaterfallChartProps) {
+  const isMobile = useIsMobile();
+  const chartHeight = isMobile ? 240 : 300;
+
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>P&L Waterfall</CardTitle>
+        <CardHeader className="pb-2 sm:pb-6">
+          <CardTitle className="text-base sm:text-lg">P&L Waterfall</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+        <CardContent className="pt-0">
+          <div className="h-[240px] md:h-[300px] flex items-center justify-center text-muted-foreground">
             Loading chart...
           </div>
         </CardContent>
@@ -97,11 +112,11 @@ export function WaterfallChart({ data, isLoading = false }: WaterfallChartProps)
   if (data.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>P&L Waterfall</CardTitle>
+        <CardHeader className="pb-2 sm:pb-6">
+          <CardTitle className="text-base sm:text-lg">P&L Waterfall</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+        <CardContent className="pt-0">
+          <div className="h-[240px] md:h-[300px] flex items-center justify-center text-muted-foreground">
             No data available
           </div>
         </CardContent>
@@ -123,11 +138,11 @@ export function WaterfallChart({ data, isLoading = false }: WaterfallChartProps)
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>P&L Waterfall</CardTitle>
+      <CardHeader className="pb-2 sm:pb-6">
+        <CardTitle className="text-base sm:text-lg">P&L Waterfall</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
+      <CardContent className="pt-0">
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={processedData} layout="horizontal">
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
