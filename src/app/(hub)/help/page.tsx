@@ -20,6 +20,11 @@ import {
   XeroIntegrationGuide,
   OrderManagementGuide,
   CountryAnalysisGuide,
+  InventoryGuide,
+  InvestorMetricsGuide,
+  InterCompanyGuide,
+  PWAGuide,
+  MicrosoftAdsGuide,
 } from '@/components/help';
 
 // Glossary terms
@@ -44,6 +49,12 @@ const glossaryTerms = [
   { term: 'Shipping Margin', definition: 'Shipping charged minus actual shipping cost', link: '#shipping-analytics' },
   { term: 'True Net Profit', definition: 'GP3 minus OPEX - the bottom line', link: '#profit-tiers' },
   { term: 'Unmatched', definition: 'Invoice records that could not be auto-matched to orders', link: '#unmatched-records' },
+  { term: 'IC', definition: 'Inter-Company - transactions between DC and BI brands', link: '#inter-company' },
+  { term: 'BOM', definition: 'Bill of Materials - components that make up each product', link: '#inventory-management' },
+  { term: 'TTM', definition: 'Trailing Twelve Months - last 12 months of data', link: '#investor-metrics' },
+  { term: 'LTV', definition: 'Lifetime Value - average revenue per customer over their lifetime', link: '#investor-metrics' },
+  { term: 'CAC', definition: 'Customer Acquisition Cost - ad spend divided by new customers', link: '#investor-metrics' },
+  { term: 'PWA', definition: 'Progressive Web App - installable web application', link: '#mobile-app' },
 ];
 
 export default function HelpPage() {
@@ -147,6 +158,9 @@ export default function HelpPage() {
             {/* Platform Breakdown */}
             <PlatformBreakdown />
 
+            {/* Microsoft Ads */}
+            <MicrosoftAdsGuide />
+
             {/* Shipping & Invoices Guide */}
             <ShippingInvoicesGuide />
 
@@ -156,8 +170,20 @@ export default function HelpPage() {
             {/* Order Management */}
             <OrderManagementGuide />
 
+            {/* Inter-Company Transactions */}
+            <InterCompanyGuide />
+
             {/* Country Analysis */}
             <CountryAnalysisGuide />
+
+            {/* Investor Metrics */}
+            <InvestorMetricsGuide />
+
+            {/* Inventory Management */}
+            <InventoryGuide />
+
+            {/* Mobile App (PWA) */}
+            <PWAGuide />
 
             {/* Admin Functions */}
             <AdminFunctionsGuide />

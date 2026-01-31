@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { HubSidebar, HubHeader } from '@/components/layout';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
+import { HelpChatWidget } from '@/components/help';
 
 export default function HubLayout({
   children,
@@ -79,6 +80,7 @@ export default function HubLayout({
         </main>
       </div>
       <MobileBottomNav />
+      <HelpChatWidget />
     </div>
   );
 }
