@@ -248,6 +248,45 @@ LE products use **unique base codes** that include the edition name AND ball typ
   - Display Champ: `281-641-2476`
 - **Data to Sync:** Daily spend, impressions, clicks, conversions, conversion value
 
+### Microsoft Advertising (Bing Ads) - SETUP REQUIRED
+- **Status:** API integration built, needs OAuth setup
+- **API Version:** v13 (Reporting API)
+- **Account IDs:** Not yet configured
+- **Data to Sync:** Daily spend, impressions, clicks, conversions, conversion value
+
+#### Setup Steps
+
+1. **Register App** in [Microsoft Advertising Developer Portal](https://developers.ads.microsoft.com/)
+   - Create an app registration
+   - Get Client ID and Client Secret
+   - Set redirect URI: `https://pnl.displaychamp.com/api/microsoft/callback`
+
+2. **Get Developer Token** from the Developer Portal
+   - Required for all API calls
+
+3. **OAuth Flow**:
+   - Visit `/api/microsoft/auth` to start OAuth
+   - Authorize in Microsoft account
+   - Callback returns refresh token
+   - Save as `MICROSOFT_REFRESH_TOKEN` in environment
+
+4. **Find Account/Customer IDs**:
+   - After OAuth, account IDs can be retrieved via the API
+   - Customer ID is the top-level manager ID
+
+#### API Endpoints
+- `GET /api/microsoft/auth` - Start OAuth flow
+- `GET /api/microsoft/callback` - OAuth callback (returns tokens)
+- `GET /api/microsoft/sync` - Check connection status
+- `POST /api/microsoft/sync` - Sync ad spend from Microsoft Ads
+  ```json
+  {
+    "brandCode": "DC | BI | all",
+    "startDate": "2025-01-01",
+    "endDate": "2025-01-31"
+  }
+  ```
+
 ---
 
 ## Etsy Integration
@@ -868,6 +907,10 @@ valhalla-daily-pnl/
 │   │   │   │   ├── auth/route.ts       # OAuth initiation
 │   │   │   │   ├── callback/route.ts   # OAuth callback
 │   │   │   │   └── sync/route.ts       # Sync ad spend from Google
+│   │   │   ├── microsoft/              # Microsoft Ads integration
+│   │   │   │   ├── auth/route.ts       # OAuth initiation
+│   │   │   │   ├── callback/route.ts   # OAuth callback
+│   │   │   │   └── sync/route.ts       # Sync ad spend from Microsoft
 │   │   │   ├── shopify/                # Shopify order sync
 │   │   │   │   └── sync/route.ts       # Sync orders from Shopify
 │   │   │   ├── etsy/                   # Etsy order sync
@@ -927,6 +970,8 @@ valhalla-daily-pnl/
 │   │   │   └── client.ts               # Fetch ad spend, token management
 │   │   ├── google/                     # Google Ads API
 │   │   │   └── client.ts               # OAuth, fetch ad spend
+│   │   ├── microsoft/                  # Microsoft Ads API
+│   │   │   └── client.ts               # OAuth, fetch ad spend
 │   │   ├── xero/                       # Xero Accounting API
 │   │   │   └── client.ts               # OAuth, fetch bank balances
 │   │   ├── shopify/                    # Shopify Order API
@@ -980,6 +1025,15 @@ GOOGLE_DEVELOPER_TOKEN=<developer-token>
 GOOGLE_MANAGER_ID=<mcc-id-no-dashes>
 GOOGLE_CUSTOMER_ID_DC=<customer-id-no-dashes>
 GOOGLE_REFRESH_TOKEN=<oauth-refresh-token>
+
+# Microsoft Advertising (Bing Ads) API
+MICROSOFT_CLIENT_ID=<oauth-client-id>
+MICROSOFT_CLIENT_SECRET=<oauth-client-secret>
+MICROSOFT_DEVELOPER_TOKEN=<developer-token>
+MICROSOFT_CUSTOMER_ID=<customer-id>
+MICROSOFT_ACCOUNT_ID_DC=<account-id-display-champ>
+MICROSOFT_ACCOUNT_ID_BI=<account-id-bright-ivy>
+MICROSOFT_REFRESH_TOKEN=<oauth-refresh-token>
 
 # Shopify - Display Champ
 SHOPIFY_DC_STORE_DOMAIN=display-champ.myshopify.com
