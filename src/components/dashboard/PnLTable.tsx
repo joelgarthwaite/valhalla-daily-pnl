@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { AggregatedPnL } from '@/lib/pnl/aggregations';
 import { formatCurrency, formatPercentage } from '@/lib/pnl/targets';
@@ -55,8 +56,184 @@ export function PnLTable({ data, isLoading = false, showDetails = true }: PnLTab
     );
   }
 
+  // Mobile Card View Component
+  const MobileCardView = () => (
+    <div className="space-y-3 md:hidden">
+      {data.map((row) => {
+        const isExpanded = expandedRows.has(row.period);
+        const isProfit = row.netProfit >= 0;
+
+        return (
+          <Card
+            key={row.period}
+            className={cn(
+              "overflow-hidden transition-colors",
+              isProfit ? "border-l-4 border-l-green-500" : "border-l-4 border-l-red-500"
+            )}
+          >
+            <CardContent className="p-4">
+              {/* Header with period and profit/loss indicator */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-base">{row.periodLabel}</span>
+                  {isProfit ? (
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                  )}
+                </div>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-xs font-medium",
+                    row.netMarginPct >= 25
+                      ? 'bg-green-100 text-green-700 border-green-200'
+                      : row.netMarginPct >= 0
+                        ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                        : 'bg-red-100 text-red-700 border-red-200'
+                  )}
+                >
+                  {formatPercentage(row.netMarginPct)} margin
+                </Badge>
+              </div>
+
+              {/* Primary metrics row */}
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Revenue</p>
+                  <p className="text-lg font-bold">{formatCurrency(row.totalRevenue)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Net Profit</p>
+                  <p className={cn(
+                    "text-lg font-bold",
+                    isProfit ? "text-green-600" : "text-red-600"
+                  )}>
+                    {formatCurrency(row.netProfit)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Secondary metrics */}
+              <div className="grid grid-cols-3 gap-2 pt-3 border-t">
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Orders</p>
+                  <p className="font-medium">{row.totalOrders}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">AOV</p>
+                  <p className="font-medium">{formatCurrency(row.avgOrderValue)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Ad Spend</p>
+                  <p className="font-medium text-muted-foreground">({formatCurrency(row.totalAdSpend)})</p>
+                </div>
+              </div>
+
+              {/* Expandable details */}
+              {showDetails && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full mt-3 h-8 text-xs text-muted-foreground"
+                    onClick={() => toggleRow(row.period)}
+                  >
+                    {isExpanded ? (
+                      <>
+                        <ChevronDown className="h-4 w-4 mr-1" />
+                        Hide Details
+                      </>
+                    ) : (
+                      <>
+                        <ChevronRight className="h-4 w-4 mr-1" />
+                        Show Details
+                      </>
+                    )}
+                  </Button>
+
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t space-y-3">
+                      {/* Revenue Breakdown */}
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Revenue by Channel</p>
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Shopify</span>
+                            <span className="font-medium">{formatCurrency(row.shopifyRevenue)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Etsy</span>
+                            <span className="font-medium">{formatCurrency(row.etsyRevenue)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">B2B</span>
+                            <span className="font-medium">{formatCurrency(row.b2bRevenue)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Cost Breakdown */}
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Costs</p>
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">COGS</span>
+                            <span className="text-red-600">({formatCurrency(row.cogsEstimated)})</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Shipping</span>
+                            <span className="text-red-600">({formatCurrency(row.shippingCost)})</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Platform Fees</span>
+                            <span className="text-red-600">({formatCurrency(row.totalPlatformFees)})</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Profit Tiers */}
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Profit Tiers</p>
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Gross Profit (GP1)</span>
+                            <span className="font-medium">{formatCurrency(row.grossProfit)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Gross Margin</span>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-xs",
+                                row.grossMarginPct >= 70
+                                  ? 'bg-green-50 text-green-700 border-green-200'
+                                  : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                              )}
+                            >
+                              {formatPercentage(row.grossMarginPct)}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="rounded-md border overflow-x-auto">
+    <>
+      {/* Mobile Card View */}
+      <MobileCardView />
+
+      {/* Desktop Table View */}
+      <div className="rounded-md border overflow-x-auto hidden md:block">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
@@ -234,6 +411,7 @@ export function PnLTable({ data, isLoading = false, showDetails = true }: PnLTab
           })}
         </TableBody>
       </Table>
-    </div>
+      </div>
+    </>
   );
 }

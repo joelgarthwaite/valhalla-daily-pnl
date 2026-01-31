@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   AreaChart,
   Area,
@@ -16,6 +17,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/pnl/targets';
 import type { PnLTrendPoint } from '@/types';
 import { format } from 'date-fns';
+
+// Hook to detect mobile screen size
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  return isMobile;
+}
 
 interface RevenueTrendChartProps {
   data: PnLTrendPoint[];
@@ -62,14 +77,17 @@ export function RevenueTrendChart({
   showYoY = false,
   isLoading = false,
 }: RevenueTrendChartProps) {
+  const isMobile = useIsMobile();
+  const chartHeight = isMobile ? 220 : 300;
+
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Revenue Trend</CardTitle>
+        <CardHeader className="pb-2 md:pb-6">
+          <CardTitle className="text-base md:text-lg">Revenue Trend</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+        <CardContent className="pt-0">
+          <div className="h-[220px] md:h-[300px] flex items-center justify-center text-muted-foreground">
             Loading chart...
           </div>
         </CardContent>
@@ -80,11 +98,11 @@ export function RevenueTrendChart({
   if (data.length === 0) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Revenue Trend</CardTitle>
+        <CardHeader className="pb-2 md:pb-6">
+          <CardTitle className="text-base md:text-lg">Revenue Trend</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+        <CardContent className="pt-0">
+          <div className="h-[220px] md:h-[300px] flex items-center justify-center text-muted-foreground">
             No data available
           </div>
         </CardContent>
@@ -94,24 +112,29 @@ export function RevenueTrendChart({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Revenue Trend</CardTitle>
+      <CardHeader className="pb-2 md:pb-6">
+        <CardTitle className="text-base md:text-lg">Revenue Trend</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={data}>
+      <CardContent className="pt-0 px-2 md:px-6">
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <ComposedChart data={data} margin={{ top: 5, right: 5, left: isMobile ? -15 : 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
               dataKey="date"
-              tickFormatter={(value) => format(new Date(value), 'MMM d')}
-              className="text-xs"
+              tickFormatter={(value) => format(new Date(value), isMobile ? 'd/M' : 'MMM d')}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
+              interval={isMobile ? 'preserveStartEnd' : 0}
             />
             <YAxis
               tickFormatter={(value) => formatCurrency(value, 'GBP', true)}
-              className="text-xs"
+              tick={{ fontSize: isMobile ? 10 : 12 }}
+              width={isMobile ? 45 : 60}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend />
+            <Legend
+              wrapperStyle={{ fontSize: isMobile ? 11 : 14 }}
+              iconSize={isMobile ? 8 : 14}
+            />
             <Area
               type="monotone"
               dataKey="totalRevenue"
@@ -148,14 +171,17 @@ export function MultiMetricTrendChart({
   data,
   isLoading = false,
 }: MultiMetricTrendChartProps) {
+  const isMobile = useIsMobile();
+  const chartHeight = isMobile ? 220 : 300;
+
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Profit Trend</CardTitle>
+        <CardHeader className="pb-2 md:pb-6">
+          <CardTitle className="text-base md:text-lg">Profit Trend</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+        <CardContent className="pt-0">
+          <div className="h-[220px] md:h-[300px] flex items-center justify-center text-muted-foreground">
             Loading chart...
           </div>
         </CardContent>
@@ -165,24 +191,29 @@ export function MultiMetricTrendChart({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Profit Trend</CardTitle>
+      <CardHeader className="pb-2 md:pb-6">
+        <CardTitle className="text-base md:text-lg">Profit Trend</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={data}>
+      <CardContent className="pt-0 px-2 md:px-6">
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <AreaChart data={data} margin={{ top: 5, right: 5, left: isMobile ? -15 : 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
               dataKey="date"
-              tickFormatter={(value) => format(new Date(value), 'MMM d')}
-              className="text-xs"
+              tickFormatter={(value) => format(new Date(value), isMobile ? 'd/M' : 'MMM d')}
+              tick={{ fontSize: isMobile ? 10 : 12 }}
+              interval={isMobile ? 'preserveStartEnd' : 0}
             />
             <YAxis
               tickFormatter={(value) => formatCurrency(value, 'GBP', true)}
-              className="text-xs"
+              tick={{ fontSize: isMobile ? 10 : 12 }}
+              width={isMobile ? 45 : 60}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend />
+            <Legend
+              wrapperStyle={{ fontSize: isMobile ? 11 : 14 }}
+              iconSize={isMobile ? 8 : 14}
+            />
             <Area
               type="monotone"
               dataKey="grossProfit"

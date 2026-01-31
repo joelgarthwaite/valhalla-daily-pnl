@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { HubSidebar, HubHeader } from '@/components/layout';
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 
 export default function HubLayout({
   children,
@@ -23,10 +24,11 @@ export default function HubLayout({
       <HubHeader onMenuToggle={handleMenuToggle} />
       <div className="flex">
         <HubSidebar isOpen={sidebarOpen} onClose={handleSidebarClose} />
-        <main className="flex-1 min-w-0 p-4 md:p-6">
+        <main className="flex-1 min-w-0 p-4 md:p-6 pb-20 md:pb-6">
           {children}
         </main>
       </div>
+      <MobileBottomNav />
     </div>
   );
 }

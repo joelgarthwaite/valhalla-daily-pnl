@@ -212,31 +212,31 @@ export function DashboardFilters({
       <div className="flex flex-wrap items-center gap-4 p-4 bg-card border rounded-lg">
         {/* Brand Filter */}
         <div className="flex items-center gap-2">
-          <Label htmlFor="brand-filter" className="text-sm font-medium text-muted-foreground">
+          <Label htmlFor="brand-filter" className="text-sm font-medium text-muted-foreground hidden sm:inline">
             Brand
           </Label>
           <Select value={brandFilter} onValueChange={(v) => onBrandFilterChange(v as BrandFilter)}>
-            <SelectTrigger id="brand-filter" className="w-[160px]">
+            <SelectTrigger id="brand-filter" className="w-[140px] sm:w-[160px] h-9 sm:h-10">
               <SelectValue placeholder="Select brand" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Brands</SelectItem>
-              <SelectItem value="DC">Display Champ</SelectItem>
-              <SelectItem value="BI">Bright Ivy</SelectItem>
+              <SelectItem value="all" className="h-10 sm:h-8">All Brands</SelectItem>
+              <SelectItem value="DC" className="h-10 sm:h-8">Display Champ</SelectItem>
+              <SelectItem value="BI" className="h-10 sm:h-8">Bright Ivy</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         {/* Selection Mode Toggle */}
         <div className="flex items-center gap-2">
-          <Label className="text-sm font-medium text-muted-foreground">
+          <Label className="text-sm font-medium text-muted-foreground hidden sm:inline">
             Select
           </Label>
           <div className="flex rounded-lg border bg-muted p-0.5">
             <Button
               variant={selectionMode === 'single' ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-7 px-3 text-xs"
+              className="h-9 sm:h-7 px-3 sm:px-3 text-xs"
               onClick={() => handleModeChange('single')}
             >
               Date
@@ -244,7 +244,7 @@ export function DashboardFilters({
             <Button
               variant={selectionMode === 'range' ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-7 px-3 text-xs"
+              className="h-9 sm:h-7 px-3 sm:px-3 text-xs"
               onClick={() => handleModeChange('range')}
             >
               Range
@@ -252,7 +252,7 @@ export function DashboardFilters({
             <Button
               variant={selectionMode === 'week' ? 'secondary' : 'ghost'}
               size="sm"
-              className="h-7 px-3 text-xs"
+              className="h-9 sm:h-7 px-3 sm:px-3 text-xs"
               onClick={() => handleModeChange('week')}
             >
               Week
@@ -372,19 +372,19 @@ export function DashboardFilters({
 
         {/* Period Type */}
         <div className="flex items-center gap-2">
-          <Label htmlFor="period-type" className="text-sm font-medium text-muted-foreground">
+          <Label htmlFor="period-type" className="text-sm font-medium text-muted-foreground hidden sm:inline">
             View
           </Label>
           <Select value={periodType} onValueChange={(v) => onPeriodTypeChange(v as PeriodType)}>
-            <SelectTrigger id="period-type" className="w-[130px]">
+            <SelectTrigger id="period-type" className="w-[110px] sm:w-[130px] h-9 sm:h-10">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="quarterly">Quarterly</SelectItem>
-              <SelectItem value="yearly">Yearly</SelectItem>
+              <SelectItem value="daily" className="h-10 sm:h-8">Daily</SelectItem>
+              <SelectItem value="weekly" className="h-10 sm:h-8">Weekly</SelectItem>
+              <SelectItem value="monthly" className="h-10 sm:h-8">Monthly</SelectItem>
+              <SelectItem value="quarterly" className="h-10 sm:h-8">Quarterly</SelectItem>
+              <SelectItem value="yearly" className="h-10 sm:h-8">Yearly</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -406,13 +406,13 @@ export function DashboardFilters({
       {/* Quick presets row - shown for range mode only */}
       {selectionMode === 'range' && (
         <div className="flex flex-wrap gap-2 px-1">
-          <span className="text-xs text-muted-foreground py-1">Quick:</span>
+          <span className="text-xs text-muted-foreground py-1 hidden sm:inline">Quick:</span>
           {(['thisWeek', 'lastWeek', 'thisMonth', 'last30', 'ytd', 'allTime'] as PresetKey[]).map((key) => (
             <Button
               key={key}
               variant="outline"
               size="sm"
-              className="h-7 text-xs"
+              className="h-9 sm:h-7 text-xs"
               onClick={() => handlePresetClick(key)}
             >
               {presets[key].label}

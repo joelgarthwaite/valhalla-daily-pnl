@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -205,6 +205,9 @@ interface HubSidebarProps {
 
 export function HubSidebar({ isOpen, onClose }: HubSidebarProps) {
   const pathname = usePathname();
+  const sidebarRef = useRef<HTMLElement>(null);
+  const touchStartX = useRef<number>(0);
+  const touchCurrentX = useRef<number>(0);
 
   // Close sidebar when route changes on mobile
   useEffect(() => {
@@ -212,6 +215,32 @@ export function HubSidebar({ isOpen, onClose }: HubSidebarProps) {
       onClose();
     }
   }, [pathname, onClose]);
+
+  // Handle touch start
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchCurrentX.current = e.touches[0].clientX;
+  }, []);
+
+  // Handle touch move
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    touchCurrentX.current = e.touches[0].clientX;
+  }, []);
+
+  // Handle touch end - detect swipe left to close
+  const handleTouchEnd = useCallback(() => {
+    const swipeDistance = touchStartX.current - touchCurrentX.current;
+    const swipeThreshold = 50; // Minimum swipe distance in pixels
+
+    // Swipe left to close (positive distance means swiped left)
+    if (swipeDistance > swipeThreshold && onClose) {
+      onClose();
+    }
+
+    // Reset touch values
+    touchStartX.current = 0;
+    touchCurrentX.current = 0;
+  }, [onClose]);
 
   const isActive = (href: string) => {
     if (href === '/') {
@@ -255,12 +284,12 @@ export function HubSidebar({ isOpen, onClose }: HubSidebarProps) {
                     key={item.href}
                     href={disabled ? '#' : item.href}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors group',
+                      'flex items-center gap-3 px-3 py-3 md:py-2 rounded-lg text-sm transition-colors group min-h-[44px] md:min-h-0',
                       active
                         ? 'bg-primary text-primary-foreground'
                         : disabled
                         ? 'text-muted-foreground/50 cursor-not-allowed'
-                        : 'hover:bg-muted text-foreground'
+                        : 'hover:bg-muted text-foreground active:bg-muted/80'
                     )}
                     onClick={(e) => {
                       if (disabled) e.preventDefault();
@@ -326,12 +355,16 @@ export function HubSidebar({ isOpen, onClose }: HubSidebarProps) {
         />
       )}
 
-      {/* Mobile Sidebar */}
+      {/* Mobile Sidebar - swipe left to close */}
       <aside
+        ref={sidebarRef}
         className={cn(
           'fixed top-0 left-0 z-50 h-full w-72 bg-card border-r transform transition-transform duration-300 ease-in-out md:hidden',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">

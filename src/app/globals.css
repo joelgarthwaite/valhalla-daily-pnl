@@ -123,3 +123,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Safe area utilities for iOS devices with notch/home indicator */
+@layer utilities {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .safe-area-inset-bottom {
+    bottom: env(safe-area-inset-bottom, 0);
+  }
+}

@@ -36,9 +36,10 @@ export function HubHeader({ onRefresh, isLoading, onMenuToggle }: HubHeaderProps
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
-              size="sm"
-              className="md:hidden"
+              size="icon"
+              className="md:hidden h-10 w-10"
               onClick={onMenuToggle}
+              aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
             </Button>
@@ -62,6 +63,7 @@ export function HubHeader({ onRefresh, isLoading, onMenuToggle }: HubHeaderProps
               size="sm"
               onClick={() => setShowSyncModal(true)}
               title="Sync orders, ad spend, and refresh P&L"
+              className="h-10 sm:h-9 px-3 sm:px-4"
             >
               <CloudDownload className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Sync All</span>
@@ -70,17 +72,17 @@ export function HubHeader({ onRefresh, isLoading, onMenuToggle }: HubHeaderProps
             {onRefresh && (
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={onRefresh}
                 disabled={isLoading}
                 title="Reload data from database"
-                className="hidden sm:flex"
+                className="hidden sm:flex h-9 w-9"
               >
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               </Button>
             )}
 
-            <Button variant="ghost" size="sm" className="relative hidden sm:flex">
+            <Button variant="ghost" size="icon" className="relative hidden sm:flex h-9 w-9">
               <Bell className="h-4 w-4" />
               {/* Notification dot - uncomment when needed */}
               {/* <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" /> */}
@@ -89,28 +91,28 @@ export function HubHeader({ onRefresh, isLoading, onMenuToggle }: HubHeaderProps
             {mounted ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9">
                     <User className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem disabled>
+                <DropdownMenuContent align="end" className="min-w-[200px]">
+                  <DropdownMenuItem disabled className="h-10 sm:h-8">
                     <span className="text-xs text-muted-foreground">
                       joel@displaychamp.com
                     </span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
+                  <DropdownMenuItem asChild className="h-10 sm:h-8">
                     <Link href="/admin">Settings</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive">
+                  <DropdownMenuItem className="text-destructive h-10 sm:h-8">
                     <LogOut className="h-4 w-4 mr-2" />
                     Sign Out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9">
                 <User className="h-4 w-4" />
               </Button>
             )}

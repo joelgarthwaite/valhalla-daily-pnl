@@ -1,6 +1,20 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+
+// Hook to detect mobile screen size
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  return isMobile;
+}
 import {
   AreaChart,
   Area,
@@ -203,8 +217,10 @@ export function ChannelRevenueChart({
   showYoY = false,
   isLoading = false,
 }: ChannelRevenueChartProps) {
+  const isMobile = useIsMobile();
   const [chartView, setChartView] = useState<ChartView>('lines');
   const [showTrendLine, setShowTrendLine] = useState(false);
+  const chartHeight = isMobile ? 240 : 300;
 
   // Extract years from data for legend
   const { currentYear, previousYear } = useMemo(() => {
@@ -254,10 +270,10 @@ export function ChannelRevenueChart({
     return (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle>Revenue by Channel</CardTitle>
+          <CardTitle className="text-base md:text-lg">Revenue by Channel</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+        <CardContent className="pt-0">
+          <div className="h-[240px] md:h-[300px] flex items-center justify-center text-muted-foreground">
             Loading chart...
           </div>
         </CardContent>
@@ -269,10 +285,10 @@ export function ChannelRevenueChart({
     return (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle>Revenue by Channel</CardTitle>
+          <CardTitle className="text-base md:text-lg">Revenue by Channel</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+        <CardContent className="pt-0">
+          <div className="h-[240px] md:h-[300px] flex items-center justify-center text-muted-foreground">
             No data available
           </div>
         </CardContent>
@@ -283,23 +299,30 @@ export function ChannelRevenueChart({
   const renderChart = () => {
     const commonProps = {
       data: finalChartData,
-      margin: { top: 5, right: 5, left: 5, bottom: 5 },
+      margin: { top: 5, right: 5, left: isMobile ? -10 : 5, bottom: 5 },
     };
 
     const xAxisProps = {
       dataKey: 'period',
       tickFormatter: (value: string) => formatXAxisTick(value, showYoY),
-      tick: { fontSize: 11 },
+      tick: { fontSize: isMobile ? 9 : 11 },
       tickLine: false,
       axisLine: false,
+      interval: isMobile ? 'preserveStartEnd' : 0,
     };
 
     const yAxisProps = {
       tickFormatter: (value: number) => formatCurrency(value, 'GBP', true),
-      tick: { fontSize: 11 },
+      tick: { fontSize: isMobile ? 9 : 11 },
       tickLine: false,
       axisLine: false,
-      width: 60,
+      width: isMobile ? 45 : 60,
+    };
+
+    const legendProps = {
+      iconType: 'circle' as const,
+      iconSize: isMobile ? 6 : 8,
+      wrapperStyle: { fontSize: isMobile ? '10px' : '12px' },
     };
 
     // Use ComposedChart for all views when we have YoY or trend lines
@@ -314,11 +337,7 @@ export function ChannelRevenueChart({
               <XAxis {...xAxisProps} />
               <YAxis {...yAxisProps} />
               <Tooltip content={<CustomTooltip showYoY={hasYoYData} currentYear={currentYear} previousYear={previousYear} />} />
-              <Legend
-                iconType="circle"
-                iconSize={8}
-                wrapperStyle={{ fontSize: '12px' }}
-              />
+              <Legend {...legendProps} />
               <Area
                 type="monotone"
                 dataKey="shopifyRevenue"
@@ -377,7 +396,7 @@ export function ChannelRevenueChart({
             <XAxis {...xAxisProps} />
             <YAxis {...yAxisProps} />
             <Tooltip content={<CustomTooltip showYoY={false} currentYear={currentYear} previousYear={previousYear} />} />
-            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px' }} />
+            <Legend {...legendProps} />
             <Area type="monotone" dataKey="shopifyRevenue" name="Shopify" stackId="1" stroke={COLORS.shopify} fill={COLORS.shopify} fillOpacity={0.6} />
             <Area type="monotone" dataKey="etsyRevenue" name="Etsy" stackId="1" stroke={COLORS.etsy} fill={COLORS.etsy} fillOpacity={0.6} />
             <Area type="monotone" dataKey="b2bRevenue" name="B2B" stackId="1" stroke={COLORS.b2b} fill={COLORS.b2b} fillOpacity={0.6} />
@@ -391,7 +410,7 @@ export function ChannelRevenueChart({
             <XAxis {...xAxisProps} />
             <YAxis {...yAxisProps} />
             <Tooltip content={<CustomTooltip showYoY={hasYoYData} currentYear={currentYear} previousYear={previousYear} />} />
-            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px' }} />
+            <Legend {...legendProps} />
             <Line
               type="monotone"
               dataKey="shopifyRevenue"
@@ -461,7 +480,7 @@ export function ChannelRevenueChart({
               <XAxis {...xAxisProps} />
               <YAxis {...yAxisProps} />
               <Tooltip content={<CustomTooltip showYoY={hasYoYData} currentYear={currentYear} previousYear={previousYear} />} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px' }} />
+              <Legend {...legendProps} />
               <Bar dataKey="shopifyRevenue" name="Shopify" stackId="1" fill={COLORS.shopify} radius={[0, 0, 0, 0]} />
               <Bar dataKey="etsyRevenue" name="Etsy" stackId="1" fill={COLORS.etsy} radius={[0, 0, 0, 0]} />
               <Bar dataKey="b2bRevenue" name="B2B" stackId="1" fill={COLORS.b2b} radius={[4, 4, 0, 0]} />
@@ -496,7 +515,7 @@ export function ChannelRevenueChart({
             <XAxis {...xAxisProps} />
             <YAxis {...yAxisProps} />
             <Tooltip content={<CustomTooltip showYoY={false} currentYear={currentYear} previousYear={previousYear} />} />
-            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px' }} />
+            <Legend {...legendProps} />
             <Bar dataKey="shopifyRevenue" name="Shopify" stackId="1" fill={COLORS.shopify} radius={[0, 0, 0, 0]} />
             <Bar dataKey="etsyRevenue" name="Etsy" stackId="1" fill={COLORS.etsy} radius={[0, 0, 0, 0]} />
             <Bar dataKey="b2bRevenue" name="B2B" stackId="1" fill={COLORS.b2b} radius={[4, 4, 0, 0]} />
@@ -507,40 +526,41 @@ export function ChannelRevenueChart({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0 pb-2">
         <div>
-          <CardTitle>Revenue by Channel</CardTitle>
+          <CardTitle className="text-base md:text-lg">Revenue by Channel</CardTitle>
           {hasYoYData && (
             <p className="text-xs text-muted-foreground mt-1">
               Comparing {currentYear} (solid) vs {previousYear} (dashed)
             </p>
           )}
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Checkbox
               id="show-trend"
               checked={showTrendLine}
               onCheckedChange={(checked) => setShowTrendLine(checked === true)}
+              className="h-4 w-4"
             />
             <Label htmlFor="show-trend" className="text-xs text-muted-foreground cursor-pointer">
-              Trend Line
+              Trend
             </Label>
           </div>
           <Select value={chartView} onValueChange={(v) => setChartView(v as ChartView)}>
-            <SelectTrigger className="w-[140px] h-8 text-xs">
+            <SelectTrigger className="w-[100px] sm:w-[140px] h-8 sm:h-9 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="lines">Lines</SelectItem>
-              <SelectItem value="stacked-area">Stacked Area</SelectItem>
-              <SelectItem value="stacked-bars">Stacked Bars</SelectItem>
+              <SelectItem value="lines" className="text-xs sm:text-sm">Lines</SelectItem>
+              <SelectItem value="stacked-area" className="text-xs sm:text-sm">Stacked Area</SelectItem>
+              <SelectItem value="stacked-bars" className="text-xs sm:text-sm">Stacked Bars</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
+      <CardContent className="pt-0 px-2 md:px-6">
+        <ResponsiveContainer width="100%" height={chartHeight}>
           {renderChart()}
         </ResponsiveContainer>
       </CardContent>
